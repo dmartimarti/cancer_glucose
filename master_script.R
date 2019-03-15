@@ -2325,7 +2325,7 @@ best_PM4 = growth %>% filter(pyrE_C_mean >= (BW_C_mean + 0.6805375),   Plate == 
 lm_PM1 = growth %>% filter(Plate == 'PM1') %>% lm(pyrE_C_mean ~ BW_C_mean, data = .) 
 lm_PM2 = growth %>% filter(Plate == 'PM2A') %>% lm(pyrE_C_mean ~ BW_C_mean, data = .) 
 lm_PM3 = growth %>% filter(Plate == 'PM3B') %>% lm(pyrE_C_mean ~ BW_C_mean, data = .) 
-lm_PM4 = growth %>% filter(Plate == 'PM4A') %>% lm(pyrE_C_mean ~ BW_C_mean, data = .) 
+lm_PM4 = growth %>% filter(Plate == 'PM4A') %>% lm(pyrE_C_mean ~ BW_C_mean, data = .)
 
 
 
