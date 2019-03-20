@@ -586,15 +586,20 @@ dev.copy2pdf(device = cairo_pdf,
 
 
 
-#############################
-#### Methylcitrate stuff ####
-#############################
+###########################################
+#### Methylcitrate stuff (Pyr version) ####
+###########################################
+
+# every plot will go to Summary folder
+
+pyr_odir <- '/Methyl_Pyr'
+dir.create(paste0(odir, pyr_odir), showWarnings = TRUE, recursive = FALSE, mode = "0777")
 
 # load data
 
-mc_data = read_xlsx('Develop_data/9. DevelopAssay_glta_2-methylcitrate cycle_ASKA_sublibrary_5reps_10mM_Glu_13-11-18.xlsx', sheet = 'Summary') 
+pyr_data = read_xlsx('Develop_data/10. DevelopAssay_glta_2-methylcitrate cycle_sublibrary_5reps_10mM_Pyruvate_13-11-18.xlsx', sheet = 'Summary') 
 
-mc_data = mc_data %>%
+pyr_data = pyr_data %>%
 	gather(Drug, Score, `0`, `1`, `2.5`, `5`) %>% # make table long
 	unite(ID, Genotype, Supplement, Replicate, remove = FALSE) %>% 
 	mutate(Replicate = as.numeric(Replicate),
@@ -604,45 +609,60 @@ mc_data = mc_data %>%
 		Genotype = as.factor(Genotype),
 		ID = as.factor(ID),
 		Drug = as.factor(Drug)) %>%
-	select(Genotype, Plasmid, Well, ID, Replicate, Supplement, Supplement_mM, Drug, Score)
-
-# write a backup of the data to use
-mc_data %>%
-	write_csv(paste0(odir,'/Methylcitrate_ASKAsublibrary_12-12-18_data_raw.csv'))
-
-# boxplots!
+	select(Genotype, Well, ID, Replicate, Supplement, Supplement_mM, Drug, Score)
 
 
-# set colours
-colours = wesanderson::wes_palette(n = 2, name = "FantasticFox1")
-mc_data %>%
-	filter(Plasmid %in% c('none', 'prpR') & Drug %in% c(5)) %>%
-	ggplot(aes(x = Genotype, y = Score, colour = Plasmid)) +
-	geom_boxplot(position = position_dodge(0.9), na.rm = TRUE, outlier.shape = NA) +
-	geom_dotplot(aes(fill = Plasmid), colour = 'black', binaxis = 'y', 
-		position = position_jitterdodge(jitter.width = 0.1, jitter.height = 0.1, dodge.width = 0.9), stackdir = 'center', binwidth = 0.03) +
-	facet_wrap(vars(Supplement), ncol = 2) +
-	scale_color_manual(values = colours) + 
-	scale_fill_manual(values = colours) +
-	theme(panel.background = element_rect(fill = "white"))
+
+# summary of the data
+
+pyr.sum = pyr_data %>%
+  group_by(Supplement, Supplement_mM, Drug, Genotype) %>%
+  summarise(Median_Score = median(Score, na.rm = TRUE),
+            Mean = mean(Score, na.rm = TRUE),
+            SD = sd(Score, na.rm = TRUE)) %>%
+  mutate(BW_Score = Median_Score[Genotype == 'BW']) %>%
+  ungroup %>%
+  group_by(Genotype, Drug) %>%
+  mutate(No_supplement = ifelse("0" %in% Supplement_mM, Median_Score[Supplement_mM == '0'], NA)) %>% # Get phenotype values at Supplement_mM=0 
+  ungroup %>%
+  mutate(BW_norm = Median_Score - BW_Score,
+         Suppl_norm = Median_Score - No_supplement,
+         Interaction = Median_Score - BW_Score - No_supplement,
+         Supplement = 'Pyruvate')
 
 
-dev.copy2pdf(device = cairo_pdf,
-             file = paste(odir,"/Boxplot_gltA_pprP_5uM_5FU.pdf", sep=''),
-             width = 8, height = 5, useDingbats = FALSE)
+# test data
+pyr.sum %>% filter(Genotype == 'ΔgltA:ΔacnB')
 
-cairo_pdf(file = "ggplot-greek.pdf", width = 8, height = 5)
-mc_data %>%
-    filter(Plasmid %in% c('none', 'prpR') & Drug %in% c(5)) %>%
-    ggplot(aes(x = Genotype, y = Score, colour = Plasmid)) +
-    geom_boxplot(position = position_dodge(0.9), na.rm = TRUE, outlier.shape = NA) +
-    geom_dotplot(aes(fill = Plasmid), colour = 'black', binaxis = 'y', 
-        position = position_jitterdodge(jitter.width = 0.1, jitter.height = 0.1, dodge.width = 0.9), stackdir = 'center', binwidth = 0.03) +
-    facet_wrap(vars(Supplement), ncol = 2) +
-    scale_color_manual(values = colours) + 
-    scale_fill_manual(values = colours) +
-    theme(panel.background = element_rect(fill = "white"))
-dev.off()
+
+
+# transform the data, and then, plot
+pos = position_jitter(width = 0.05, height = 0.05, seed = 1) # to plot names in jitter positions
+pyr.sum %>% 
+    filter(Drug == 5) %>% 
+    select(Supplement, Supplement_mM, Genotype, BW_norm) %>%
+    unite(Supp, Supplement, Supplement_mM) %>%
+    spread(Supp, BW_norm) %>%
+    # filter(!Genotype == 'Aglta AydbK::K') %>%
+    ggplot(aes(x = Pyruvate_0, y = Pyruvate_10)) + 
+    geom_hline(yintercept = 0, colour = 'grey30') +
+    geom_vline(xintercept = 0, colour = 'grey30') +
+    geom_point(position = pos, size = 2) + 
+    # scale_color_manual(values = grad) + 
+    # scale_fill_manual(values = grad) +
+    labs(title = expression(paste("5FU + Pyruvate + gltA mutants effect on ", italic('C. elegans'), " phenotype", sep = '')),
+         x = expression(paste('Normalised median scores of ', italic('C. elegans'), ' phenotype', sep = ' ')),
+         y = expression(paste('Normalised median scores of ', italic('C. elegans'), ' phenotype ' , bold('(Pyruvate)'), sep = ' '))) +
+    theme(plot.title = element_text(size = 15, hjust = 0.5, face = "bold"),
+        panel.grid.major = element_line(colour = "grey90"),
+        panel.background = element_rect(fill = "white", colour = "grey50")) + 
+    guides(colour = guide_legend(override.aes = list(size = 4))) + # make lengend points larger
+    geom_text_repel(aes(label = Genotype), position = pos) 
+
+ggsave(file = paste(odir,pyr_odir,"/Scatter_worm_gltA_pyruvate_5uM_5FU.pdf", sep = ''),
+       width = 140, height = 120, units = 'mm', scale = 2, device = cairo_pdf, family = "Arial")
+
+
 
 
 
@@ -654,7 +674,7 @@ dev.off()
 
 
 # read data
-gltA_data = read_xlsx('Develop_data/6. DevelopAssay_gltA_DMs_sublibrary_4reps_10mM_Glu_06-08-18.xlsx', sheet = 'Summary2') 
+gltA_data = read_xlsx('Develop_data/6. DevelopAssay_gltA_DMs_sublibrary_4reps_10mM_Glu_06-08-18.xlsx', sheet = 'Summary_deltas') 
 
 
 # manipulate data
@@ -711,18 +731,19 @@ gltA.sum %>%
     geom_point(position = pos, size = 2) + 
     # scale_color_manual(values = grad) + 
     # scale_fill_manual(values = grad) +
-    geom_text_repel(aes(label = Genotype), position = pos) +
     labs(title = expression(paste("5FU + Glucose + gltA mutants effect on ", italic('C. elegans'), " phenotype", sep = '')),
          x = expression(paste('Normalised median scores of ', italic('C. elegans'), ' phenotype', sep = ' ')),
          y = expression(paste('Normalised median scores of ', italic('C. elegans'), ' phenotype ' , bold('(Glucose)'), sep = ' '))) +
     theme(plot.title = element_text(size = 15, hjust = 0.5, face = "bold"),
         panel.grid.major = element_line(colour = "grey90"),
         panel.background = element_rect(fill = "white", colour = "grey50")) + 
-    guides(colour = guide_legend(override.aes = list(size = 4))) # make lengend points larger
+    guides(colour = guide_legend(override.aes = list(size = 4))) + # make lengend points larger
+    geom_text_repel(aes(label = ifelse(Glucose_0 == 2, as.character(Genotype), '')), position = pos, colour = 'blue') +
+    geom_text_repel(aes(label = ifelse(Glucose_0 < 2, as.character(Genotype), '')), position = pos, colour = 'red') +
+    geom_text_repel(aes(label = ifelse(Genotype == 'Δglta:ΔprpB', as.character(Genotype), '')), position = pos, colour = 'blue')
 
-dev.copy2pdf(device = pdf,
-             file = paste(odir,"/Scatter_worm_gltA_glucose_5uM_5FU.pdf", sep=''),
-             width = 14, height = 10, useDingbats = FALSE)
+ggsave(file = paste(odir,"/Scatter_worm_gltA_glucose_5uM_5FU_2_colours.pdf", sep = ''),
+       width = 160, height = 160, units = 'mm', scale = 2, device = cairo_pdf, family = "Arial")
 
 
 
@@ -761,6 +782,62 @@ gltA.sum %>%
 
 
 
+########################
+#### Pyruvate stuff ####
+########################
+
+# load data
+
+mc_data = read_xlsx('Develop_data/9. DevelopAssay_glta_2-methylcitrate cycle_ASKA_sublibrary_5reps_10mM_Glu_13-11-18.xlsx', sheet = 'Summary') 
+
+mc_data = mc_data %>%
+  gather(Drug, Score, `0`, `1`, `2.5`, `5`) %>% # make table long
+  unite(ID, Genotype, Supplement, Replicate, remove = FALSE) %>% 
+  mutate(Replicate = as.numeric(Replicate),
+    Supplement_mM = ifelse(Supplement == 'Control', 0, 10),
+    Supplement_mM = as.factor(Supplement_mM),
+    Supplement = as.factor(Supplement),
+    Genotype = as.factor(Genotype),
+    ID = as.factor(ID),
+    Drug = as.factor(Drug)) %>%
+  select(Genotype, Plasmid, Well, ID, Replicate, Supplement, Supplement_mM, Drug, Score)
+
+# write a backup of the data to use
+mc_data %>%
+  write_csv(paste0(odir,'/Methylcitrate_ASKAsublibrary_12-12-18_data_raw.csv'))
+
+# boxplots!
+
+# set colours
+colours = wesanderson::wes_palette(n = 2, name = "FantasticFox1")
+mc_data %>%
+  filter(Plasmid %in% c('none', 'prpR') & Drug %in% c(5)) %>%
+  ggplot(aes(x = Genotype, y = Score, colour = Plasmid)) +
+  geom_boxplot(position = position_dodge(0.9), na.rm = TRUE, outlier.shape = NA) +
+  geom_dotplot(aes(fill = Plasmid), colour = 'black', binaxis = 'y', 
+    position = position_jitterdodge(jitter.width = 0.1, jitter.height = 0.1, dodge.width = 0.9), stackdir = 'center', binwidth = 0.03) +
+  facet_wrap(vars(Supplement), ncol = 2) +
+  scale_color_manual(values = colours) + 
+  scale_fill_manual(values = colours) +
+  theme(panel.background = element_rect(fill = "white"))
+
+
+dev.copy2pdf(device = cairo_pdf,
+             file = paste(odir,"/Boxplot_gltA_pprP_5uM_5FU.pdf", sep=''),
+             width = 8, height = 5, useDingbats = FALSE)
+
+cairo_pdf(file = "ggplot-greek.pdf", width = 8, height = 5)
+mc_data %>%
+    filter(Plasmid %in% c('none', 'prpR') & Drug %in% c(5)) %>%
+    ggplot(aes(x = Genotype, y = Score, colour = Plasmid)) +
+    geom_boxplot(position = position_dodge(0.9), na.rm = TRUE, outlier.shape = NA) +
+    geom_dotplot(aes(fill = Plasmid), colour = 'black', binaxis = 'y', 
+        position = position_jitterdodge(jitter.width = 0.1, jitter.height = 0.1, dodge.width = 0.9), stackdir = 'center', binwidth = 0.03) +
+    facet_wrap(vars(Supplement), ncol = 2) +
+    scale_color_manual(values = colours) + 
+    scale_fill_manual(values = colours) +
+    theme(panel.background = element_rect(fill = "white"))
+dev.off()
 
 
 
