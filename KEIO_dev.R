@@ -21,13 +21,14 @@ options(width = 220)
 
 # every plot will go to Summary folder
 odir <- 'Summary'
-dir.create(odir, showWarnings = TRUE, recursive = FALSE, mode = "0777")
+keiodir = '/KEIO'
+dir.create(paste0(odir,keiodir), showWarnings = TRUE, recursive = FALSE, mode = "0777")
 
 
 
 # load data
 ## REMEMBER, PLATE A AND PLATE B ARE NOW 97 AND 99
-data_dev = read_xlsx('Keio Library.xlsx', sheet = 'ALL_final') 
+data_dev = read_xlsx('KEIO_dev_data/Keio Library.xlsx', sheet = 'ALL_final') 
 
 data_dev = data_dev %>%
 	filter(!is.na(Gene), !(Gene %in% c('WT', 'present', 'no bact' )))
@@ -116,12 +117,55 @@ data.sum %>%
 		panel.background = element_rect(fill = "white", colour = "grey50")) 
 
 dev.copy2pdf(device = cairo_pdf,
-             file = paste(odir,"/ALL_scatterplot.pdf", sep=''),
+             file = paste(odir, keiodir,"/ALL_scatterplot.pdf", sep=''),
              width = 14, height = 10, useDingbats = FALSE)
 
 
+# how many points do we have in the big group?
+big_group = data.sum %>% 
+	filter(Sample %in% c('FU', 'GluFU')) %>%
+	select(Supplement, Supplement_mM, Gene, BW_norm) %>%
+	unite(Supp, Supplement, Supplement_mM) %>%
+	spread(Supp, BW_norm) %>%
+	filter(Glucose_0 == 0, Glucose_10 == -1)
 
-big_group = data.sum %>% filter(BW_norm == -1, Sample == 'GluFU')
+
+
+########
+# plot with sublibrary names
+
+data_dev_sub = read_xlsx('Develop_data/Summary_Keio Sublibrary_Glucose Supp_10mM_N2 worms_08-12-18.xlsx', sheet = 'Summary') 
+data_dev_sub$X__1 = NULL
+
+sub_names = unique(data_dev_sub$Genotype)
+sub_names = data.frame(sub_names)
+colnames(sub_names) = 'Gene'
+sub_names['Genotype'] = unique(data_dev_sub$Genotype)
+
+sublibrary = data.sum %>% 
+	filter(Sample %in% c('FU', 'GluFU')) %>%
+	select(Supplement, Supplement_mM, Gene, BW_norm) %>%
+	unite(Supp, Supplement, Supplement_mM) %>%
+	spread(Supp, BW_norm) %>%
+	left_join(sub_names)
+
+
+
+pos = position_jitter(width = 0.15, height = 0.15, seed = 1) # to plot names in jitter positions
+sublibrary %>% 
+	ggplot(aes(x = Glucose_0, y = Glucose_10)) +
+	geom_hline(yintercept = 0, colour = 'grey30') +
+	geom_vline(xintercept = 0, colour = 'grey30') +
+	geom_point(position = pos, size = 2, alpha = .2) +
+	# geom_text_repel(aes(label = ifelse(Glucose_0 > 1.5 & abs(Glucose_10) > 0.5, as.character(Gene), '')), position = pos) +
+	# geom_text_repel(aes(label = ifelse((abs(Glucose_0) > 1.5 | abs(Glucose_10) > 0.5), as.character(Gene), '')), position = pos) +
+	labs(title = "5FU + Supplement (Glucose) effect on different BW mutants",
+		 x = expression(paste('Normalised median scores of ', italic('C. elegans'), ' phenotype', sep = ' ')),
+		 y = expression(paste('Normalised median scores of ', italic('C. elegans'), ' phenotype ' , bold('(Glucose)'), sep = ' '))) +
+	theme(plot.title = element_text(size = 15, hjust = 0.5, face = "bold"),
+		panel.grid.major = element_line(colour = "grey90"),
+		panel.background = element_rect(fill = "white", colour = "grey50")) +
+	geom_text_repel(aes(label = Genotype))
 
 
 
@@ -243,6 +287,9 @@ data.sum2 %>%
 		panel.grid.major = element_line(colour = "grey90"),
 		panel.background = element_rect(fill = "white", colour = "grey50")) 
 
+dev.copy2pdf(device = cairo_pdf,
+             file = paste(odir,"/ALL_scatterplot_batch.pdf", sep=''),
+             width = 14, height = 10, useDingbats = FALSE)
 
 
 big_group = data.sum2 %>% 
@@ -252,6 +299,7 @@ big_group %>%
 	group_by(Batch) %>%
 	summarise(Count = n()) %>%
 	ggplot(aes(y = Count, x = Batch, fill = Batch)) + geom_bar(stat = 'identity')
+
 
 
 
