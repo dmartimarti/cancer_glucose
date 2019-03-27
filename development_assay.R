@@ -783,8 +783,21 @@ gltA.sum %>%
 
 
 ########################
-#### Pyruvate stuff ####
+####  9 prpB,R acnB ####
 ########################
+
+
+# Test overexpressing prpB, prpR and acnB in 
+# the BW and ∆gltA background to see if this leads to drug 
+# impairment in the presence of glucose (this experiment 
+# assumes that pyruvate would decrease due to the 
+# overexpression of prpB,prpR or acnB).
+
+
+
+aska_dir <- '/DA_ASKA_prp'
+dir.create(paste0(odir,aska_dir), showWarnings = TRUE, recursive = FALSE, mode = "0777")
+
 
 # load data
 
@@ -823,7 +836,7 @@ mc_data %>%
 
 
 dev.copy2pdf(device = cairo_pdf,
-             file = paste(odir,"/Boxplot_gltA_pprP_5uM_5FU.pdf", sep=''),
+             file = paste(odir,aska_dir,"/Boxplot_gltA_pprP_5uM_5FU.pdf", sep=''),
              width = 8, height = 5, useDingbats = FALSE)
 
 cairo_pdf(file = "ggplot-greek.pdf", width = 8, height = 5)
@@ -838,6 +851,662 @@ mc_data %>%
     scale_fill_manual(values = colours) +
     theme(panel.background = element_rect(fill = "white"))
 dev.off()
+
+
+# summarise the data
+mc.sum = mc_data %>%
+    group_by(Supplement, Supplement_mM, Drug, Genotype, Plasmid) %>%
+    summarise(Median_Score = median(Score, na.rm = TRUE),
+            Mean = mean(Score, na.rm = TRUE),
+            SD = sd(Score, na.rm = TRUE)) 
+
+
+# generate new dataframe with BW values
+
+mc.ctr = mc.sum %>%
+    ungroup %>%
+    filter(Genotype == 'BW') %>%
+    rename(BW_score = Median_Score) %>%
+    select(Supplement:BW_score, -Genotype)
+
+mc.sum = mc.sum %>%
+    ungroup %>%
+    left_join(mc.ctr) %>%
+    mutate(BW_norm = Median_Score - BW_score,
+           Supplement = 'Glucose')
+
+# check that the normalisation has worked
+filter(mc.sum, Plasmid == 'prpB', Supplement == 'Glucose') %>% data.frame
+
+
+# scatter plot
+pos = position_jitter(width = 0.05, height = 0.05, seed = 1) # to plot names in jitter positions
+mc.sum %>%
+    filter(Drug == 2.5) %>% 
+    select(Supplement, Supplement_mM, Genotype, Plasmid, BW_norm) %>%
+    unite(Supp, Supplement, Supplement_mM) %>%
+    spread(Supp, BW_norm) %>%
+        ggplot(aes(x = Glucose_0, y = Glucose_10, color = Genotype, shape = Plasmid)) + 
+        geom_hline(yintercept = 0, colour = 'grey30') +
+        geom_vline(xintercept = 0, colour = 'grey30') +
+        geom_point(position = pos, size = 2.5) +    
+        labs(title = expression(paste("ASKA library and gltA mutants effect on ", italic('C. elegans'), " phenotype, 5 uM 5FU", sep = '')),
+             x = expression(paste('Normalised median scores of ', italic('C. elegans'), ' phenotype', sep = ' ')),
+             y = expression(paste('Normalised median scores of ', italic('C. elegans'), ' phenotype ' , bold('(Glucose)'), sep = ' '))) +
+        theme(plot.title = element_text(size = 15, hjust = 0.5, face = "bold"),
+            panel.grid.major = element_line(colour = "grey90"),
+            panel.background = element_rect(fill = "white", colour = "grey50")) + 
+        guides(colour = guide_legend(override.aes = list(size = 4))) + # make lengend points larger
+        geom_text_repel(aes(label = paste(Genotype, Plasmid, sep = ' '), colour = Genotype), position = pos)
+
+
+ggsave(file = paste(odir,aska_dir,"/scatter_2.5uM_5FU.pdf", sep = ''),
+       width = 120, height = 90, units = 'mm', scale = 2, device = cairo_pdf, family = "Arial")
+
+
+mc.sum %>%
+    ungroup %>%
+    mutate(Drug = as.factor(Drug)) %>%
+    plotHeatmap(x = 'Drug', y = 'Genotype', fill = 'Median_Score') +
+    ylab('Strain') +
+    labs(fill = 'C. elegans phenotype') +
+    facet_wrap(~Supplement_mM + Plasmid, ncol = 4)
+
+ggsave(file = paste(odir, aska_dir,"/Heatmap_plasmid_glucose.pdf", sep = ''),
+       width = 120, height = 65, units = 'mm', scale = 2, device = cairo_pdf, family = "Arial")
+
+
+
+####################################
+### 1,2 Dev_assays: glpK mutants ###
+####################################
+
+
+
+# Investigate how sugars, like glycerol, are potentially going through bacteria and 
+# if this effect can differ depending on bacterial strain. 
+# Hatching and developmental assay (using ∆glpK mutant).
+
+### first part
+
+glpk_dir <- '/DA_glpK'
+dir.create(paste0(odir,glpk_dir), showWarnings = TRUE, recursive = FALSE, mode = "0777")
+
+
+
+glpK_data1 = read_xlsx('Develop_data/1. DevelopAssay_BW,OPp,MG,glpK muts_Glycerol Supp_13_11_2017.xlsx', sheet = 'Tidy') 
+
+glpK_data1 = glpK_data1 %>%
+    rename(`0.025` = `2.5000000000000001E-2`,
+            Replicate = Replicate_bio) %>%
+    gather(Drug, Score, `0`, `0.01`, `0.025`, `0.05`, `0.1`, `0.25`, `0.5`, `1`, `2`, `4`, `8`, `16`) %>% 
+    mutate(Strain = recode(Strain, 'BW25113' = 'BW'),
+           Strain = recode(Strain, 'MG1655' = 'MG')) %>%
+    mutate(Replicate = as.numeric(Replicate),
+        Supplement_mM = as.factor(Supplement_mM),
+        Supplement = as.factor(Supplement),
+        Drug = as.numeric(Drug)) 
+
+
+
+# create summary of data
+
+glpK.sum = glpK_data1 %>%
+    group_by(Supplement, Supplement_mM, Drug, Strain, Mutation) %>%
+    summarise(Median_Score = median(Score, na.rm = TRUE),
+            Mean = mean(Score, na.rm = TRUE),
+            SD = sd(Score, na.rm = TRUE)) 
+
+
+# subset corresponding to controls and BW
+glpK_BW = glpK_data1[glpK_data1$Strain == 'BW' & glpK_data1$Mutation == 'Control', ]
+# summary of controls
+glpK.bw.sum = glpK_BW %>%
+    group_by(Supplement, Supplement_mM, Drug) %>%
+    summarise(BW_Score = median(Score, na.rm = TRUE))
+
+# joining the two tables, and correct by controls
+glpK.sum = glpK.sum %>% 
+    left_join(glpK.bw.sum) %>%
+    mutate(BW_norm = Median_Score - BW_Score)
+
+
+
+# plots
+
+glpK.sum %>%
+    filter(Strain != 'BW') %>%
+    ggplot(aes(x = Drug, y = BW_norm, colour = Strain)) + 
+    geom_line(size = 2, alpha = 0.8) + 
+    scale_x_continuous(trans = 'log2') +
+    facet_wrap(Mutation~Supplement_mM) +
+    theme_bw() 
+
+ggsave(file = paste(odir,glpk_dir,"/Line_BW_norm.pdf", sep = ''),
+       width = 120, height = 80, units = 'mm', scale = 2, device = cairo_pdf, family = "Arial")
+
+
+glpK.sum %>%
+    ggplot(aes(x = Drug, y = Median_Score, colour = Strain)) + 
+    geom_line(size = 2, alpha = 0.8) + 
+    scale_x_continuous(trans = 'log2') +
+    facet_wrap(Mutation~Supplement_mM) +
+    theme_bw() 
+
+ggsave(file = paste(odir,glpk_dir,"/Line_all_strains.pdf", sep = ''),
+       width = 120, height = 80, units = 'mm', scale = 2, device = cairo_pdf, family = "Arial")
+
+
+# let's correct by the controls within mutations
+
+# subset corresponding to controls
+glpK_controls = glpK_data1[glpK_data1$Mutation == 'Control', ]
+# summary of controls
+glpK.ct.sum = glpK_controls %>%
+    group_by(Supplement, Supplement_mM, Drug) %>%
+    summarise(Ctr_Score = median(Score, na.rm = TRUE))
+
+
+glpK.sum %>% 
+    group_by(Supplement, Supplement_mM, Drug) %>%
+    left_join(glpK.ct.sum) %>%
+    mutate(Ctr_norm = Median_Score - Ctr_Score) %>%
+    filter(Mutation == 'glpK') %>%
+    ggplot(aes(x = Drug, y = Ctr_norm, colour = Strain)) + 
+    geom_line(size = 2, alpha = 0.8) + 
+    scale_x_continuous(trans = 'log2') +
+    facet_wrap(~Supplement_mM) +
+    labs(title = "Developmental assay of glpK mutants with Glycerol (0, 1 and 10 mM)",
+        x = 'Drug concentration (log2)',
+        y = 'Normalised Dev. score') +
+    theme(plot.title = element_text(size = 15, hjust = 0.5, face = "bold"),
+        panel.grid.major = element_line(colour = "grey90"),
+        panel.background = element_rect(fill = "white", colour = "grey50"))
+
+ggsave(file = paste(odir,glpk_dir,"/Line_ctr_norm.pdf", sep = ''),
+       width = 120, height = 65, units = 'mm', scale = 2, device = cairo_pdf, family = "Arial")
+
+
+
+## second part
+
+
+glpK_data2 = read_xlsx('Develop_data/2. DevelopAssay_OPp,glpK muts_Glycerol Supp_01_12_2017.xlsx', sheet = 'Tidy') 
+
+
+glpK_data2 = glpK_data2 %>%
+    rename(`0.025` = `2.5000000000000001E-2`,
+            Replicate = Replicate_bio) %>%
+    gather(Drug, Score, `0`, `0.025`, `0.5`, `1`, `2`, `4`, `8`, `16`, `32`, `48`, `64`, `96`) %>% 
+    mutate(Replicate = as.numeric(Replicate),
+        Supplement_mM = as.factor(Supplement_mM),
+        Supplement = as.factor(Supplement),
+        Drug = as.numeric(Drug)) 
+
+
+
+# create summary of data
+
+glpK2.sum = glpK_data2 %>%
+    group_by(Supplement, Supplement_mM, Drug, Strain, Mutation) %>%
+    summarise(Median_Score = median(Score, na.rm = TRUE),
+            Mean = mean(Score, na.rm = TRUE),
+            SD = sd(Score, na.rm = TRUE)) %>%
+    mutate(Ctr_score = Median_Score[Mutation == 'Control'],
+            Ctr_norm = Median_Score - Ctr_score)
+
+
+# plots
+
+glpK2.sum %>%
+    filter(Mutation == 'glpK') %>%
+    ggplot(aes(x = Drug, y = Ctr_norm, colour = Supplement_mM)) + 
+    geom_line(size = 2, alpha = 0.8) + 
+    scale_x_continuous(trans = 'log2') +
+    labs(title = "Developmental assay of glpK mutants with Glycerol (0, 1 and 10 mM)",
+        x = 'Drug concentration (log2)',
+        y = 'Normalised Dev. score') +
+    theme(plot.title = element_text(size = 15, hjust = 0.5, face = "bold"),
+        panel.grid.major = element_line(colour = "grey90"),
+        panel.background = element_rect(fill = "white", colour = "grey50"))
+
+ggsave(file = paste(odir,glpk_dir,"/Line_ctr_norm_OP50.pdf", sep = ''),
+       width = 120, height = 65, units = 'mm', scale = 2, device = cairo_pdf, family = "Arial")
+
+glpK2.sum %>%
+    filter(Mutation == 'glpK') %>%
+    ggplot(aes(x = Drug, y = Median_Score, colour = Supplement_mM)) + 
+    geom_line(size = 2, alpha = 0.8) + 
+    scale_x_continuous(trans = 'log2') +
+    labs(title = "Developmental assay of glpK mutants with Glycerol (0, 1 and 10 mM)",
+        x = 'Drug concentration (log2)',
+        y = 'Normalised Dev. score') +
+    theme(plot.title = element_text(size = 15, hjust = 0.5, face = "bold"),
+        panel.grid.major = element_line(colour = "grey90"),
+        panel.background = element_rect(fill = "white", colour = "grey50"))
+
+ggsave(file = paste(odir,glpk_dir,"/Line_OP50.pdf", sep = ''),
+       width = 120, height = 65, units = 'mm', scale = 2, device = cairo_pdf, family = "Arial")
+
+
+
+glpK2.sum %>%
+    ggplot(aes(x = Drug, y = Median_Score, colour = Supplement_mM)) + 
+    geom_line(size = 2, alpha = 0.8) + 
+    scale_x_continuous(trans = 'log2') +
+    labs(title = "Developmental assay of glpK mutants with Glycerol (0, 1 and 10 mM)",
+        x = 'Drug concentration (log2)',
+        y = 'Normalised Dev. score') +
+    facet_wrap(~Mutation) +
+    theme(plot.title = element_text(size = 15, hjust = 0.5, face = "bold"),
+        panel.grid.major = element_line(colour = "grey90"),
+        panel.background = element_rect(fill = "white", colour = "grey50"))
+
+ggsave(file = paste(odir,glpk_dir,"/Line_OP50_all.pdf", sep = ''),
+       width = 120, height = 65, units = 'mm', scale = 2, device = cairo_pdf, family = "Arial")
+
+
+
+
+
+
+########################################
+### 3 Dev_assays: aceE, aceF mutants ###
+########################################
+
+
+# Investigate the role of bacterial aceE and aceF, 
+# upstream of gltA, on the increased drug resistance 
+# upon sugar supplementation
+
+
+### first part
+
+aceEF_dir <- '/DA_aceEF'
+dir.create(paste0(odir,aceEF_dir), showWarnings = TRUE, recursive = FALSE, mode = "0777")
+
+ace_data = read_xlsx('Develop_data/3. DevelopAssay_aceE,aceF_10mM Sugar Supp_16_01_2018.xlsx', sheet = 'Summary') 
+
+ace_data = ace_data %>%
+    gather(Drug, Score, `0`, `1`, `2.5`, `5`, `10`, `40`) %>% 
+    mutate(Replicate = as.numeric(Replicate),
+        Strain = as.factor(Strain),
+        Supplement_mM = as.factor(Supplement_mM),
+        Supplement = as.factor(Supplement),
+        Drug = as.numeric(Drug)) 
+
+
+
+# create summary of data
+
+ace.sum = ace_data %>%
+    group_by(Supplement, Supplement_mM, Drug, Strain) %>%
+    summarise(Median_Score = median(Score, na.rm = TRUE),
+            Mean = mean(Score, na.rm = TRUE),
+            SD = sd(Score, na.rm = TRUE)) %>%
+    mutate(BW_score = Median_Score[Strain == 'BW'],
+            BW_norm = Median_Score - BW_score)
+
+# plot data
+
+
+ace.sum %>%
+    filter(Strain != 'BW') %>%
+    ggplot(aes(x = Drug, y = BW_norm, colour = Supplement)) + 
+    geom_line(size = 2, alpha = 0.8) + 
+    scale_x_continuous(trans = 'log2') +
+    labs(title = "Developmental assay of aceE and aceF mutants with different sugar sources (10 mM)",
+        x = 'Drug concentration (log2)',
+        y = 'Normalised Dev. score') +
+    facet_wrap(~Strain) +
+    theme(plot.title = element_text(size = 15, hjust = 0.5, face = "bold"),
+        panel.grid.major = element_line(colour = "grey90"),
+        panel.background = element_rect(fill = "white", colour = "grey50"))
+
+ggsave(file = paste(odir, aceEF_dir,"/Line_all_sugars_BWnorm.pdf", sep = ''),
+       width = 120, height = 65, units = 'mm', scale = 2, device = cairo_pdf, family = "Arial")
+
+ace.sum %>%
+    ungroup %>%
+    mutate(Drug = as.factor(Drug)) %>%
+    plotHeatmap(x = 'Drug', y = 'Strain', fill = 'Median_Score')+
+    ylab('Strain')+
+    labs(fill = 'C. elegans phenotype')+
+    facet_wrap(~ Supplement, ncol = 2)
+
+ggsave(file = paste(odir, aceEF_dir,"/Heatmap_sugars.pdf", sep = ''),
+       width = 120, height = 65, units = 'mm', scale = 2, device = cairo_pdf, family = "Arial")
+
+ace.sum %>%
+    ungroup %>%
+    mutate(Drug = as.factor(Drug)) %>%
+    filter(Strain != 'BW') %>%
+    plotHeatmap(x = 'Drug', y = 'Strain', fill = 'BW_norm', grad = diffcolours, breaks = breaks, limits = limits)+
+    ylab('Strain')+
+    labs(fill = 'C. elegans phenotype') +
+    facet_wrap(~ Supplement, ncol = 2)
+
+ggsave(file = paste(odir, aceEF_dir,"/Heatmap_sugars_BWnorm.pdf", sep = ''),
+       width = 120, height = 65, units = 'mm', scale = 2, device = cairo_pdf, family = "Arial")
+
+
+
+
+
+
+
+########################################
+### 5 Dev_assays: pykA, pykF mutants ###
+########################################
+
+
+# Investigate the role of genes upstream of aceE and aceF, such as pykA and pykF 
+# from glycolysis pathway (create a double mutant of these as they have been tested 
+# in the Sub-library already). Also check the role that the Entner-Doudoroff 
+# pathway could have as it is involved in the production of pyruvate too (edd and eda genes).
+
+
+### first part
+
+pyk_dir <- '/DA_pykAF'
+dir.create(paste0(odir,pyk_dir), showWarnings = TRUE, recursive = FALSE, mode = "0777")
+
+pyk_data = read_xlsx('Develop_data/5. DevelopAssay_pykA,F,DM,edd,eda_10mM Sugar Supp_19_03_2018.xlsx', sheet = 'Summary') 
+
+pyk_data = pyk_data %>%
+    gather(Drug, Score, `0`, `1`, `2.5`, `5`, `8`, `10`, `16`, `20`) %>% 
+    mutate(Replicate = as.numeric(Replicate),
+        Strain = as.factor(Strain),
+        Supplement_mM = as.factor(Supplement_mM),
+        Supplement = as.factor(Supplement),
+        Drug = as.numeric(Drug)) 
+
+
+# create summary of data
+
+pyk.sum = pyk_data %>%
+    group_by(Supplement, Supplement_mM, Drug, Strain) %>%
+    summarise(Median_Score = median(Score, na.rm = TRUE),
+            Mean = mean(Score, na.rm = TRUE),
+            SD = sd(Score, na.rm = TRUE)) %>%
+    mutate(BW_score = Median_Score[Strain == 'BW'],
+            BW_norm = Median_Score - BW_score)
+
+# line plot
+
+pyk.sum %>%
+    filter(Strain != 'BW') %>%
+    ggplot(aes(x = Drug, y = BW_norm, colour = Strain)) + 
+    geom_line(size = 2, alpha = 0.8) + 
+    # scale_x_continuous(trans = 'log2') +
+    labs(title = "Developmental assay of pyk(A,F,E), gltA and edd, eda, with Glucose (10 mM)",
+        x = 'Drug concentration',
+        y = 'Normalised Dev. score') +
+    facet_wrap(~Supplement) +
+    theme(plot.title = element_text(size = 15, hjust = 0.5, face = "bold"),
+        panel.grid.major = element_line(colour = "grey90"),
+        panel.background = element_rect(fill = "white", colour = "grey50"))
+
+ggsave(file = paste(odir, pyk_dir,"/Line_all_strains_BWnorm.pdf", sep = ''),
+       width = 120, height = 65, units = 'mm', scale = 2, device = cairo_pdf, family = "Arial")
+
+pyk.sum %>%
+    ggplot(aes(x = Drug, y = Median_Score, colour = Strain)) + 
+    geom_line(size = 2, alpha = 0.8) + 
+    # scale_x_continuous(trans = 'log2') +
+    labs(title = "Developmental assay of aceE and aceF mutants with different sugar sources (10 mM)",
+        x = 'Drug concentration',
+        y = 'Dev. score') +
+    facet_wrap(~Supplement) +
+    theme(plot.title = element_text(size = 15, hjust = 0.5, face = "bold"),
+        panel.grid.major = element_line(colour = "grey90"),
+        panel.background = element_rect(fill = "white", colour = "grey50"))
+
+ggsave(file = paste(odir, pyk_dir,"/Line_all_strains.pdf", sep = ''),
+       width = 120, height = 65, units = 'mm', scale = 2, device = cairo_pdf, family = "Arial")
+
+
+
+# heatmap
+
+pyk.sum %>%
+    ungroup %>%
+    mutate(Drug = as.factor(Drug)) %>%
+    plotHeatmap(x = 'Drug', y = 'Strain', fill = 'Median_Score')+
+    ylab('Strain')+
+    labs(fill = 'C. elegans phenotype')+
+    facet_wrap(~ Supplement, ncol = 2)
+
+ggsave(file = paste(odir, pyk_dir,"/Heatmap_pyk.pdf", sep = ''),
+       width = 120, height = 65, units = 'mm', scale = 2, device = cairo_pdf, family = "Arial")
+
+
+pyk.sum %>%
+    ungroup %>%
+    mutate(Drug = as.factor(Drug)) %>%
+    plotHeatmap(x = 'Drug', y = 'Strain', fill = 'BW_norm',grad = diffcolours, breaks = breaks, limits = limits)+
+    ylab('Strain')+
+    labs(fill = 'C. elegans phenotype')+
+    facet_wrap(~ Supplement, ncol = 2)
+
+ggsave(file = paste(odir, pyk_dir,"/Heatmap_BWnorm.pdf", sep = ''),
+       width = 120, height = 65, units = 'mm', scale = 2, device = cairo_pdf, family = "Arial")
+
+
+
+
+
+########################################
+### 4 Dev_assays: pykA, pykF mutants ###
+########################################
+
+
+#  Investigate role of the de novo and salvage ribonucleotide 
+#  in modulation of phenotype observed on worms fed ∆gltA +/- sugar.
+
+
+gltA_dn_dir <- '/DA_gltA_denovo'
+dir.create(paste0(odir,gltA_dn_dir), showWarnings = TRUE, recursive = FALSE, mode = "0777")
+
+gltA_dn_data = read_xlsx('Develop_data/4. DevelopAssay_denovo_salvage_gltAmuts_10mM Sugar Supp_30_01_2018.xlsx', sheet = 'Summary') 
+
+gltA_dn_data = gltA_dn_data %>%
+    gather(Drug, Score, `0`, `1`, `2.5`, `5`, `10`, `40`) %>% 
+    mutate(Replicate = as.numeric(Replicate),
+        Strain = as.factor(Strain),
+        Supplement_mM = as.factor(Supplement_mM),
+        Supplement = as.factor(Supplement),
+        Drug = as.numeric(Drug)) 
+
+
+# create summary of data
+
+gltA_dn.sum = gltA_dn_data %>%
+    group_by(Supplement, Supplement_mM, Drug, Strain) %>%
+    summarise(Median_Score = median(Score, na.rm = TRUE),
+            Mean = mean(Score, na.rm = TRUE),
+            SD = sd(Score, na.rm = TRUE)) %>%
+    mutate(BW_score = Median_Score[Strain == 'BW'],
+            BW_norm = Median_Score - BW_score)
+
+# line plots
+
+gltA_dn.sum %>%
+    # filter(Strain != 'BW') %>%
+    ggplot(aes(x = Drug, y = BW_norm, colour = Strain)) + 
+    geom_line(size = 2, alpha = 0.8) + 
+    scale_x_continuous(trans = 'log2') +
+    labs(title = "Developmental assay of gltA and de novo and salvage ribonucleotide, with Sugars (10 mM)",
+        x = 'Drug concentration (log2)',
+        y = 'Normalised Dev. score') +
+    facet_wrap(~Supplement) +
+    theme(plot.title = element_text(size = 15, hjust = 0.5, face = "bold"),
+        panel.grid.major = element_line(colour = "grey90"),
+        panel.background = element_rect(fill = "white", colour = "grey50"))
+
+ggsave(file = paste(odir, gltA_dn_dir,"/Line_all_strains_BWnorm.pdf", sep = ''),
+       width = 120, height = 80, units = 'mm', scale = 2, device = cairo_pdf, family = "Arial")
+
+gltA_dn.sum %>%
+    # filter(Strain != 'BW') %>%
+    ggplot(aes(x = Drug, y = Median_Score, colour = Strain)) + 
+    geom_line(size = 2, alpha = 0.8) + 
+    scale_x_continuous(trans = 'log2') +
+    labs(title = "Developmental assay of gltA and de novo and salvage ribonucleotide, with Sugars (10 mM)",
+        x = 'Drug concentration (log2)',
+        y = 'Dev. score') +
+    facet_wrap(~Supplement) +
+    theme(plot.title = element_text(size = 15, hjust = 0.5, face = "bold"),
+        panel.grid.major = element_line(colour = "grey90"),
+        panel.background = element_rect(fill = "white", colour = "grey50"))
+
+ggsave(file = paste(odir, gltA_dn_dir,"/Line_all_strains.pdf", sep = ''),
+       width = 120, height = 80, units = 'mm', scale = 2, device = cairo_pdf, family = "Arial")
+
+
+
+# heatmap
+
+gltA_dn.sum %>%
+    ungroup %>%
+    mutate(Drug = as.factor(Drug)) %>%
+    plotHeatmap(x = 'Drug', y = 'Strain', fill = 'Median_Score')+
+    ylab('Strain')+
+    labs(fill = 'C. elegans phenotype')+
+    facet_wrap(~ Supplement, ncol = 2)
+
+ggsave(file = paste(odir, gltA_dn_dir,"/Heatmap_gltA_denovo.pdf", sep = ''),
+       width = 120, height = 65, units = 'mm', scale = 2, device = cairo_pdf, family = "Arial")
+
+
+gltA_dn.sum %>%
+    ungroup %>%
+    mutate(Drug = as.factor(Drug)) %>%
+    plotHeatmap(x = 'Drug', y = 'Strain', fill = 'BW_norm',grad = diffcolours, breaks = breaks, limits = limits)+
+    ylab('Strain')+
+    labs(fill = 'C. elegans phenotype')+
+    facet_wrap(~ Supplement, ncol = 2)
+
+ggsave(file = paste(odir, gltA_dn_dir,"/Heatmap_gltA_denovo_BWnorm.pdf", sep = ''),
+       width = 120, height = 65, units = 'mm', scale = 2, device = cairo_pdf, family = "Arial")
+
+
+
+############################################
+### 7 Dev_assays: gltA and methylcitrate ###
+############################################
+
+
+# Investigate role of 2-methylcitrate pathway on the ΔgltA-induced phenotype. 
+# Create small sub-library of double mutants (ΔgltA methylcitrate pathway double mutants).
+
+gltA_mc_dir <- '/DA_gltA_methyl'
+dir.create(paste0(odir,gltA_mc_dir), showWarnings = TRUE, recursive = FALSE, mode = "0777")
+
+gltA_mc_data = read_xlsx('Develop_data/7. DevelopAssay_glta_2-methylcitrate cycle_DMs_sublibrary_5reps_10mM_Glu_01-09-18.xlsx', sheet = 'Summary') 
+
+gltA_mc_data = gltA_mc_data %>%
+    gather(Drug, Score, `0`, `1`, `2.5`, `5`) %>% 
+    mutate(Replicate = as.numeric(Replicate),
+        Genotype = recode(Genotype, 'BW25113' = 'BW'),
+        Genotype = as.factor(Genotype),
+        Supplement_mM = as.factor(Supplement_mM),
+        Supplement = as.factor(Supplement),
+        Drug = as.numeric(Drug)) 
+
+
+# create summary of data
+
+gltA_mc.sum = gltA_mc_data %>%
+    group_by(Supplement, Supplement_mM, Drug, Genotype) %>%
+    summarise(Median_Score = median(Score, na.rm = TRUE),
+            Mean = mean(Score, na.rm = TRUE),
+            SD = sd(Score, na.rm = TRUE)) %>%
+    mutate(BW_score = Median_Score[Genotype == 'BW'],
+            BW_norm = Median_Score - BW_score)
+
+
+
+
+
+# transform the data, and then, plot
+# remember to change the drug concentration
+pos = position_jitter(width = 0.05, height = 0.05, seed = 1) # to plot names in jitter positions
+gltA_mc.sum %>% 
+    filter(Drug == 0) %>% 
+    select(Supplement, Supplement_mM, Genotype, BW_norm) %>%
+    unite(Supp, Supplement, Supplement_mM) %>%
+    spread(Supp, BW_norm) %>%
+    ggplot(aes(x = Glucose_0, y = Glucose_10)) + 
+    geom_hline(yintercept = 0, colour = 'grey30') +
+    geom_vline(xintercept = 0, colour = 'grey30') +
+    geom_point(position = pos, size = 2) + 
+    geom_text_repel(aes(label = Genotype), position = pos) +
+    labs(title = expression(paste("5FU + Glucose effect on ", italic('C. elegans'), " phenotype", sep = '')),
+         x = expression(paste('Normalised median scores of ', italic('C. elegans'), ' phenotype', sep = ' ')),
+         y = expression(paste('Normalised median scores of ', italic('C. elegans'), ' phenotype ' , bold('(Glucose)'), sep = ' '))) +
+    theme(plot.title = element_text(size = 15, hjust = 0.5, face = "bold"),
+        panel.grid.major = element_line(colour = "grey90"),
+        panel.background = element_rect(fill = "white", colour = "grey50")) + 
+    guides(colour = guide_legend(override.aes = list(size = 4))) # make lengend points larger
+
+
+ggsave(file = paste(odir, gltA_mc_dir, "/Scatter_glucose_0uM_5FU.pdf", sep=''),
+       width = 100, height = 90, units = 'mm', scale = 2, device = cairo_pdf, family = "Arial")
+
+
+
+# heatmap
+
+gltA_mc.sum %>%
+    ungroup %>%
+    mutate(Drug = as.factor(Drug)) %>%
+    plotHeatmap(x = 'Drug', y = 'Genotype', fill = 'Median_Score')+
+    ylab('Strain')+
+    labs(fill = 'C. elegans phenotype')+
+    facet_wrap(~ Supplement_mM, ncol = 2)
+
+ggsave(file = paste(odir, gltA_mc_dir,"/Heatmap_gltA_methyl.pdf", sep = ''),
+       width = 120, height = 65, units = 'mm', scale = 2, device = cairo_pdf, family = "Arial")
+
+
+gltA_mc.sum %>%
+    ungroup %>%
+    mutate(Drug = as.factor(Drug)) %>%
+    plotHeatmap(x = 'Drug', y = 'Genotype', fill = 'BW_norm',grad = diffcolours, breaks = breaks, limits = limits)+
+    ylab('Strain')+
+    labs(fill = 'C. elegans phenotype')+
+    facet_wrap(~ Supplement_mM, ncol = 2)
+
+ggsave(file = paste(odir, gltA_mc_dir,"/Heatmap_gltA_methyl_BWnorm.pdf", sep = ''),
+       width = 120, height = 65, units = 'mm', scale = 2, device = cairo_pdf, family = "Arial")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -935,13 +1604,6 @@ data.sum.bliss %>%
 dev.copy2pdf(device = pdf,
              file = paste(odir,"/Bliss_example.pdf", sep=''),
              width = 14, height = 10, useDingbats = FALSE)
-
-
-
-
-
-
-
 
 
 
