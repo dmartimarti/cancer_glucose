@@ -12,6 +12,7 @@ library(readxl)
 library(ggrepel)
 library(caret)
 library(Rtsne)
+library(here)
 
 # my library of functions
 source('/Users/dmarti14/Documents/MRC_Postdoc/scripts/R_functions/all_functions.R')
@@ -1488,6 +1489,110 @@ ggsave(file = paste(odir, gltA_mc_dir,"/Heatmap_gltA_methyl_BWnorm.pdf", sep = '
 
 
 
+########################################################
+### 15 Dev_assays: gltA and methylcitrate, ASKA prpR ###
+########################################################
+
+
+
+
+
+
+# Investigate role of 2-methylcitrate pathway on the ΔgltA-induced phenotype. 
+# Create small sub-library of double mutants (ΔgltA methylcitrate pathway double mutants).
+
+gltA_mc_dir2 <- '/DA_gltA_methyl_prpR'
+dir.create(paste0(odir,gltA_mc_dir2), showWarnings = TRUE, recursive = FALSE, mode = "0777")
+
+gltA_mc_data2 = read_xlsx('Develop_data/15. DevelopAssay_glta_2-methylcitrate cycle_ASKA_prpR_OE_sublibrary_4reps_10mM_Glu_29-04-19.xlsx', sheet = 'Summary') 
+
+gltA_mc_data2 = gltA_mc_data2 %>%
+    gather(Drug, Score, `0`, `1`, `2.5`, `5`) %>% 
+    mutate(Replicate = as.numeric(Replicate),
+        Genotype = as.factor(Genotype),
+        Supplement_mM = as.factor(Supplement_mM),
+        Supplement = as.factor(Supplement),
+        Drug = as.numeric(Drug)) 
+
+
+# create summary of data
+
+gltA_mc2.sum = gltA_mc_data2 %>%
+    group_by(Supplement, Supplement_mM, Drug, Genotype, Plasmid) %>%
+    summarise(Median_Score = median(Score, na.rm = TRUE),
+            Mean = mean(Score, na.rm = TRUE),
+            SD = sd(Score, na.rm = TRUE)) %>% ungroup
+
+
+ct = gltA_mc2.sum %>% filter(Genotype == 'BW')
+
+gltA_mc2.sum['BW_score'] = 0
+
+
+# ugly code :(
+# no plasmid
+
+gltA_mc2.sum[gltA_mc2.sum$Drug == 0 & gltA_mc2.sum$Plasmid == 'None' & gltA_mc2.sum$Supplement_mM == 0,]$BW_score =  ct[ct$Drug == 0 & ct$Plasmid == 'None' & ct$Supplement_mM == 0,]$Median_Score
+gltA_mc2.sum[gltA_mc2.sum$Drug == 0 & gltA_mc2.sum$Plasmid == 'None' & gltA_mc2.sum$Supplement_mM == 10,]$BW_score = ct[ct$Drug == 0 & ct$Plasmid == 'None' & ct$Supplement_mM == 10,]$Median_Score
+
+gltA_mc2.sum[gltA_mc2.sum$Drug == 1 & gltA_mc2.sum$Plasmid == 'None' & gltA_mc2.sum$Supplement_mM == 0,]$BW_score =  ct[ct$Drug == 1 & ct$Plasmid == 'None' & ct$Supplement_mM == 0,]$Median_Score
+gltA_mc2.sum[gltA_mc2.sum$Drug == 1 & gltA_mc2.sum$Plasmid == 'None' & gltA_mc2.sum$Supplement_mM == 10,]$BW_score = ct[ct$Drug == 1 & ct$Plasmid == 'None' & ct$Supplement_mM == 10,]$Median_Score
+
+gltA_mc2.sum[gltA_mc2.sum$Drug == 2.5 & gltA_mc2.sum$Plasmid == 'None' & gltA_mc2.sum$Supplement_mM == 0,]$BW_score =  ct[ct$Drug == 2.5 & ct$Plasmid == 'None' & ct$Supplement_mM == 0,]$Median_Score
+gltA_mc2.sum[gltA_mc2.sum$Drug == 2.5 & gltA_mc2.sum$Plasmid == 'None' & gltA_mc2.sum$Supplement_mM == 10,]$BW_score = ct[ct$Drug == 2.5 & ct$Plasmid == 'None' & ct$Supplement_mM == 10,]$Median_Score
+
+gltA_mc2.sum[gltA_mc2.sum$Drug == 5 & gltA_mc2.sum$Plasmid == 'None' & gltA_mc2.sum$Supplement_mM == 0,]$BW_score =  ct[ct$Drug == 5 & ct$Plasmid == 'None' & ct$Supplement_mM == 0,]$Median_Score
+gltA_mc2.sum[gltA_mc2.sum$Drug == 5 & gltA_mc2.sum$Plasmid == 'None' & gltA_mc2.sum$Supplement_mM == 10,]$BW_score = ct[ct$Drug == 5 & ct$Plasmid == 'None' & ct$Supplement_mM == 10,]$Median_Score
+
+# with plasmid
+
+gltA_mc2.sum[gltA_mc2.sum$Drug == 0 & gltA_mc2.sum$Plasmid == 'prpR' & gltA_mc2.sum$Supplement_mM == 0,]$BW_score =  ct[ct$Drug == 0 & ct$Plasmid == 'prpR' & ct$Supplement_mM == 0,]$Median_Score
+gltA_mc2.sum[gltA_mc2.sum$Drug == 0 & gltA_mc2.sum$Plasmid == 'prpR' & gltA_mc2.sum$Supplement_mM == 10,]$BW_score = ct[ct$Drug == 0 & ct$Plasmid == 'prpR' & ct$Supplement_mM == 10,]$Median_Score
+
+gltA_mc2.sum[gltA_mc2.sum$Drug == 1 & gltA_mc2.sum$Plasmid == 'prpR' & gltA_mc2.sum$Supplement_mM == 0,]$BW_score =  ct[ct$Drug == 1 & ct$Plasmid == 'prpR' & ct$Supplement_mM == 0,]$Median_Score
+gltA_mc2.sum[gltA_mc2.sum$Drug == 1 & gltA_mc2.sum$Plasmid == 'prpR' & gltA_mc2.sum$Supplement_mM == 10,]$BW_score = ct[ct$Drug == 1 & ct$Plasmid == 'prpR' & ct$Supplement_mM == 10,]$Median_Score
+
+gltA_mc2.sum[gltA_mc2.sum$Drug == 2.5 & gltA_mc2.sum$Plasmid == 'prpR' & gltA_mc2.sum$Supplement_mM == 0,]$BW_score =  ct[ct$Drug == 2.5 & ct$Plasmid == 'prpR' & ct$Supplement_mM == 0,]$Median_Score
+gltA_mc2.sum[gltA_mc2.sum$Drug == 2.5 & gltA_mc2.sum$Plasmid == 'prpR' & gltA_mc2.sum$Supplement_mM == 10,]$BW_score = ct[ct$Drug == 2.5 & ct$Plasmid == 'prpR' & ct$Supplement_mM == 10,]$Median_Score
+
+gltA_mc2.sum[gltA_mc2.sum$Drug == 5 & gltA_mc2.sum$Plasmid == 'prpR' & gltA_mc2.sum$Supplement_mM == 0,]$BW_score =  ct[ct$Drug == 5 & ct$Plasmid == 'prpR' & ct$Supplement_mM == 0,]$Median_Score
+gltA_mc2.sum[gltA_mc2.sum$Drug == 5 & gltA_mc2.sum$Plasmid == 'prpR' & gltA_mc2.sum$Supplement_mM == 10,]$BW_score = ct[ct$Drug == 5 & ct$Plasmid == 'prpR' & ct$Supplement_mM == 10,]$Median_Score
+
+
+gltA_mc2.sum = gltA_mc2.sum %>% mutate(BW_norm = Median_Score - BW_score)
+
+
+
+sub.gltA = gltA_mc2.sum %>% filter(Supplement_mM == 0)
+
+
+# transform the data, and then, plot
+# remember to change the drug concentration
+pos = position_jitter(width = 0.05, height = 0.05, seed = 1) # to plot names in jitter positions
+sub.gltA %>% 
+    filter(Drug == 1) %>% 
+    select(Supplement, Genotype, Plasmid, BW_norm) %>%
+    unite(Supp, Supplement, Plasmid) %>%
+    spread(Supp, BW_norm) %>%
+    ggplot(aes(x = Glucose_None, y = Glucose_prpR)) + 
+    geom_hline(yintercept = 0, colour = 'grey30') +
+    geom_vline(xintercept = 0, colour = 'grey30') +
+    geom_point(position = pos, size = 2) + 
+    ylim(-0.1, 2.2) +
+    geom_text_repel(aes(label = Genotype), position = pos) +
+    labs(title = expression(paste("5FU + prpR overexpression effect on ", italic('C. elegans'), " phenotype", sep = '')),
+         x = expression(paste('Normalised median scores of ', italic('C. elegans'), ' phenotype', sep = ' ')),
+         y = expression(paste('Normalised median scores of ', italic('C. elegans'), ' phenotype ' , bold('(prpR)'), sep = ' '))) +
+    theme(plot.title = element_text(size = 15, hjust = 0.5, face = "bold"),
+        panel.grid.major = element_line(colour = "grey90"),
+        panel.background = element_rect(fill = "white", colour = "grey50")) + 
+    guides(colour = guide_legend(override.aes = list(size = 4))) # make lengend points larger
+
+
+
+quartz.save(type = 'pdf', 
+  file = here('Summary/DA_gltA_methyl_prpR', 'Scatter_1uM_5FU.pdf'), 
+  width = 9, height = 8, family = 'Arial')
 
 
 
@@ -1496,8 +1601,110 @@ ggsave(file = paste(odir, gltA_mc_dir,"/Heatmap_gltA_methyl_BWnorm.pdf", sep = '
 
 
 
+########################################################
+### 14 Dev_assays: gltA and methylcitrate, ASKA prpR ###
+########################################################
 
 
+
+
+
+
+# Investigate role of 2-methylcitrate pathway on the ΔgltA-induced phenotype. 
+# Create small sub-library of double mutants (ΔgltA methylcitrate pathway double mutants).
+
+gltA_mc_dir2 <- '/DA_gltA_methyl_prpR_1'
+dir.create(paste0(odir,gltA_mc_dir2), showWarnings = TRUE, recursive = FALSE, mode = "0777")
+
+gltA_mc_data2 = read_xlsx('Develop_data/14. DevelopAssay_glta_2-methylcitrate cycle_ASKA_prpR_OE_sublibrary_5reps_10mM_Glu_12-04-19.xlsx', sheet = 'Summary') 
+
+gltA_mc_data2 = gltA_mc_data2 %>%
+    gather(Drug, Score, `0`, `1`, `2.5`, `5`) %>% 
+    mutate(Replicate = as.numeric(Replicate),
+        Genotype = as.factor(Genotype),
+        Supplement_mM = as.factor(Supplement_mM),
+        Supplement = as.factor(Supplement),
+        Drug = as.numeric(Drug)) 
+
+
+# create summary of data
+
+gltA_mc2.sum = gltA_mc_data2 %>%
+    group_by(Supplement, Supplement_mM, Drug, Genotype, Plasmid) %>%
+    summarise(Median_Score = median(Score, na.rm = TRUE),
+            Mean = mean(Score, na.rm = TRUE),
+            SD = sd(Score, na.rm = TRUE)) %>% ungroup
+
+
+ct = gltA_mc2.sum %>% filter(Genotype == 'BW')
+
+gltA_mc2.sum['BW_score'] = 0
+
+
+# ugly code :(
+# no plasmid
+
+gltA_mc2.sum[gltA_mc2.sum$Drug == 0 & gltA_mc2.sum$Plasmid == 'None' & gltA_mc2.sum$Supplement_mM == 0,]$BW_score =  ct[ct$Drug == 0 & ct$Plasmid == 'None' & ct$Supplement_mM == 0,]$Median_Score
+gltA_mc2.sum[gltA_mc2.sum$Drug == 0 & gltA_mc2.sum$Plasmid == 'None' & gltA_mc2.sum$Supplement_mM == 10,]$BW_score = ct[ct$Drug == 0 & ct$Plasmid == 'None' & ct$Supplement_mM == 10,]$Median_Score
+
+gltA_mc2.sum[gltA_mc2.sum$Drug == 1 & gltA_mc2.sum$Plasmid == 'None' & gltA_mc2.sum$Supplement_mM == 0,]$BW_score =  ct[ct$Drug == 1 & ct$Plasmid == 'None' & ct$Supplement_mM == 0,]$Median_Score
+gltA_mc2.sum[gltA_mc2.sum$Drug == 1 & gltA_mc2.sum$Plasmid == 'None' & gltA_mc2.sum$Supplement_mM == 10,]$BW_score = ct[ct$Drug == 1 & ct$Plasmid == 'None' & ct$Supplement_mM == 10,]$Median_Score
+
+gltA_mc2.sum[gltA_mc2.sum$Drug == 2.5 & gltA_mc2.sum$Plasmid == 'None' & gltA_mc2.sum$Supplement_mM == 0,]$BW_score =  ct[ct$Drug == 2.5 & ct$Plasmid == 'None' & ct$Supplement_mM == 0,]$Median_Score
+gltA_mc2.sum[gltA_mc2.sum$Drug == 2.5 & gltA_mc2.sum$Plasmid == 'None' & gltA_mc2.sum$Supplement_mM == 10,]$BW_score = ct[ct$Drug == 2.5 & ct$Plasmid == 'None' & ct$Supplement_mM == 10,]$Median_Score
+
+gltA_mc2.sum[gltA_mc2.sum$Drug == 5 & gltA_mc2.sum$Plasmid == 'None' & gltA_mc2.sum$Supplement_mM == 0,]$BW_score =  ct[ct$Drug == 5 & ct$Plasmid == 'None' & ct$Supplement_mM == 0,]$Median_Score
+gltA_mc2.sum[gltA_mc2.sum$Drug == 5 & gltA_mc2.sum$Plasmid == 'None' & gltA_mc2.sum$Supplement_mM == 10,]$BW_score = ct[ct$Drug == 5 & ct$Plasmid == 'None' & ct$Supplement_mM == 10,]$Median_Score
+
+# with plasmid
+
+gltA_mc2.sum[gltA_mc2.sum$Drug == 0 & gltA_mc2.sum$Plasmid == 'prpR' & gltA_mc2.sum$Supplement_mM == 0,]$BW_score =  ct[ct$Drug == 0 & ct$Plasmid == 'prpR' & ct$Supplement_mM == 0,]$Median_Score
+gltA_mc2.sum[gltA_mc2.sum$Drug == 0 & gltA_mc2.sum$Plasmid == 'prpR' & gltA_mc2.sum$Supplement_mM == 10,]$BW_score = ct[ct$Drug == 0 & ct$Plasmid == 'prpR' & ct$Supplement_mM == 10,]$Median_Score
+
+gltA_mc2.sum[gltA_mc2.sum$Drug == 1 & gltA_mc2.sum$Plasmid == 'prpR' & gltA_mc2.sum$Supplement_mM == 0,]$BW_score =  ct[ct$Drug == 1 & ct$Plasmid == 'prpR' & ct$Supplement_mM == 0,]$Median_Score
+gltA_mc2.sum[gltA_mc2.sum$Drug == 1 & gltA_mc2.sum$Plasmid == 'prpR' & gltA_mc2.sum$Supplement_mM == 10,]$BW_score = ct[ct$Drug == 1 & ct$Plasmid == 'prpR' & ct$Supplement_mM == 10,]$Median_Score
+
+gltA_mc2.sum[gltA_mc2.sum$Drug == 2.5 & gltA_mc2.sum$Plasmid == 'prpR' & gltA_mc2.sum$Supplement_mM == 0,]$BW_score =  ct[ct$Drug == 2.5 & ct$Plasmid == 'prpR' & ct$Supplement_mM == 0,]$Median_Score
+gltA_mc2.sum[gltA_mc2.sum$Drug == 2.5 & gltA_mc2.sum$Plasmid == 'prpR' & gltA_mc2.sum$Supplement_mM == 10,]$BW_score = ct[ct$Drug == 2.5 & ct$Plasmid == 'prpR' & ct$Supplement_mM == 10,]$Median_Score
+
+gltA_mc2.sum[gltA_mc2.sum$Drug == 5 & gltA_mc2.sum$Plasmid == 'prpR' & gltA_mc2.sum$Supplement_mM == 0,]$BW_score =  ct[ct$Drug == 5 & ct$Plasmid == 'prpR' & ct$Supplement_mM == 0,]$Median_Score
+gltA_mc2.sum[gltA_mc2.sum$Drug == 5 & gltA_mc2.sum$Plasmid == 'prpR' & gltA_mc2.sum$Supplement_mM == 10,]$BW_score = ct[ct$Drug == 5 & ct$Plasmid == 'prpR' & ct$Supplement_mM == 10,]$Median_Score
+
+
+gltA_mc2.sum = gltA_mc2.sum %>% mutate(BW_norm = Median_Score - BW_score)
+
+
+
+sub.gltA = gltA_mc2.sum %>% filter(Supplement_mM == 0)
+
+
+# transform the data, and then, plot
+# remember to change the drug concentration
+pos = position_jitter(width = 0.05, height = 0.05, seed = 1) # to plot names in jitter positions
+sub.gltA %>% 
+    filter(Drug == 5) %>% 
+    select(Supplement, Genotype, Plasmid, BW_norm) %>%
+    unite(Supp, Supplement, Plasmid) %>%
+    spread(Supp, BW_norm) %>%
+    ggplot(aes(x = Glucose_None, y = Glucose_prpR)) + 
+    geom_hline(yintercept = 0, colour = 'grey30') +
+    geom_vline(xintercept = 0, colour = 'grey30') +
+    geom_point(position = pos, size = 2) + 
+    # ylim(-0.1, 2.2) +
+    geom_text_repel(aes(label = Genotype), position = pos) +
+    labs(title = expression(paste("5FU + prpR overexpression effect on ", italic('C. elegans'), " phenotype", sep = '')),
+         x = expression(paste('Normalised median scores of ', italic('C. elegans'), ' phenotype', sep = ' ')),
+         y = expression(paste('Normalised median scores of ', italic('C. elegans'), ' phenotype ' , bold('(prpR)'), sep = ' '))) +
+    theme(plot.title = element_text(size = 15, hjust = 0.5, face = "bold"),
+        panel.grid.major = element_line(colour = "grey90"),
+        panel.background = element_rect(fill = "white", colour = "grey50")) + 
+    guides(colour = guide_legend(override.aes = list(size = 4))) # make lengend points larger
+
+
+
+quartz.save(type = 'pdf', 
+  file = here('Summary/DA_gltA_methyl_prpR_1', 'Scatter_5uM_5FU.pdf'), 
+  width = 9, height = 8, family = 'Arial')
 
 
 
