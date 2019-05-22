@@ -1707,6 +1707,10 @@ ggsave(file = paste0(odir,"/glucose_Growth_curves.pdf"),
 
 
 
+
+
+
+
 ##################
 ### 4-way plot ###
 ##################
@@ -1725,8 +1729,8 @@ for (name in unique(worm.sum$Strain)){
 # select only one experiment and strain
 # contrasts and other main variables of this part
 
-strain = 'TM'
-experiment = 'T250'
+strain = 'BW'
+experiment = "T1"
 str_C = paste(strain, '_C', sep = '')
 str_T = paste(strain, '_T', sep = '')
 str_CT = paste(strain, '_5FU', sep = '')
@@ -1861,25 +1865,26 @@ adjustments[adjustments$Contrast == alln,]
 
 jointresults.multi %>%
   filter(x_Contrast == str_C & y_Contrast == str_T & z_Contrast == 'Ce_Dev5') %>%
-  ggplot(aes(x = x_logFC, y = y_logFC))+
+  # mutate(z_logFC = 4) %>%
+  ggplot(aes(x = x_logFC, y = y_logFC)) +
   geom_abline(intercept = 0, slope = 1, alpha = 0.3, color = 'grey', linetype = 'longdash') +
   geom_abline(aes(intercept = NGMb, slope = NGMa), alpha = 0.6, color = 'red') +
   geom_vline(aes(xintercept = 0), alpha = 0.9, color = 'grey')+
   geom_hline(aes(yintercept = 0), alpha = 0.9, color = 'grey')+
   geom_errorbarh(aes(xmax = x_logFC + x_SE, xmin = x_logFC - x_SE), height = 0, alpha = 0.3, color = 'grey50') +
   geom_errorbar(aes(ymax = y_logFC + y_SE, ymin = y_logFC - y_SE), width = 0, alpha = 0.3, color = 'grey50') +
-  geom_point(aes(colour = z_logFC), alpha = 0.7, size = 2)+
+  geom_point(aes(colour = z_logFC), alpha = 0.7, size = 2) +
   scale_size(range = c(1,5), name = 'C. elegans\nphenotype') +
   scale_colour_gradientn(colours = gradcolours,
                          breaks = c(0,1,2,3,4), limits = c(0,4), guide = "legend", name = 'C. elegans\nphenotype') +
   scale_y_continuous(breaks = -5:5)+
-  coord_cartesian(xlim = c(-2, 2), ylim = c(-2, 2)) +
-  labs(title = paste(strain, " growth with 5FU treatment at 250 uM", sep = ''),
+  coord_cartesian(xlim = c(-4, 3), ylim = c(-3, 4)) +
+  labs(title = paste(strain, " growth with 5FU treatment at 0 uM", sep = ''),
   x = "E. coli growth vs NGM - Control, logFC", 
   y = 'E. coli growth vs NGM - 5-FU Treatment, logFC' ) +
   theme(plot.title = element_text(hjust = 0.5, face = "bold")) +
   # geom_text_repel(aes(label = ifelse(z_logFC >= 4, MetaboliteU, '')), box.padding = unit(0.6, "lines"), segment.alpha = 0.4) + # only name those nutr with C. elegans phenotype 3 or more
-  geom_text_repel(aes(label = ifelse(z_logFC >= 3 | z_logFC == 0, MetaboliteU, '')), box.padding = unit(0.6, "lines"), segment.alpha = 0.4) + # only name those nutr with C. elegans phenotype 3 or more
+  # geom_text_repel(aes(label = ifelse(z_logFC >= 3 | z_logFC == 0, MetaboliteU, '')), box.padding = unit(0.6, "lines"), segment.alpha = 0.4) + # only name those nutr with C. elegans phenotype 3 or more
   guides(color = guide_legend()) +
   theme(panel.grid.major = element_line(size = 0.06, colour = "grey50"),
       # panel.grid.major.y = element_blank(),
@@ -1891,8 +1896,8 @@ jointresults.multi %>%
       axis.text.y = element_text(size = 10)) +
   guides(colour = guide_legend(override.aes = list(size = 4)))
 
-ggsave(file = paste0(odir,"/Scatter_", strain, "_250uM_screen.pdf"),
-       width = 160, height = 120, units = 'mm', scale = 2, device = 'pdf')
+ggsave(file = paste0(odir,"/Scatter_", strain, "_0uM_screen.pdf"),
+       width = 120, height = 100, units = 'mm', scale = 2, device = 'pdf')
 
 
 
