@@ -619,6 +619,99 @@ quartz.save(type = 'pdf',
 
 
 
+####################################
+## new bacterial growth assay from 23/05/2019
+## Tesgint IPTG different concentration and prpR overexpression
+####################################
+
+# working directory: /Users/dmarti14/Documents/MRC_Postdoc/Projects/Leo/BGA/04_18_19
+
+# BGA analysis
+
+library(tidyverse)
+library(readxl)
+library(ggrepel)
+library(here)
+
+
+options(width = 220)
+
+# my own library of functions
+source('/Users/dmarti14/Documents/MRC_Postdoc/scripts/R_functions/all_functions.R')
+
+
+dir.create(odir, showWarnings = TRUE, recursive = FALSE, mode = "0777")
+
+
+
+
+
+# Get timeseries data
+# It will take a while
+time.data = read_csv('Output/Timeseries.csv', quote = "\"") %>%
+    filter(Data == '595nm_f') %>%
+    gather(Time_s, OD, matches('\\d')) %>%
+    select(c(-File, -Pattern, -Replicate_x, -Reader)) %>%
+    filter(!is.na(Media)) %>% # Remove empty values if there are missmatches
+    rename(Strain = Media,
+           IPTG = var,
+           Plasmid = Metformin_mM) %>%
+    mutate(Time_s = as.numeric(Time_s),
+           Time_h = Time_s/3600,
+           Plasmid = ifelse(Plasmid == 'prpR', 'prpR', 'Control'),
+           Row = str_match_all(Well,'[:digit:]{1,}'), #Get plate row names from well name. 
+           Col = str_match_all(Well,'[:alpha:]{1,}'), #Get plate column names from well name
+           Row = factor(Row, levels = 1:12), #Make them categorical variable with set order them
+           Col = factor(Col, levels = LETTERS[1:8])) %>%
+    rename(Replicate = Replicate_y) %>%
+    mutate_at(c('Well', 'Strain', 'Plasmid', 'IPTG'), as.factor) 
+
+
+tsum = time.data %>%
+    group_by(Strain, IPTG, Plasmid, Time_h) %>%
+    summarise(Mean = mean(OD), 
+              SD = sd(OD), 
+              SE = SD/sqrt(length(OD)),
+              ymin = Mean - SD,
+              ymax = Mean + SD) %>%
+    ungroup 
+
+
+
+# plot different drug concentrations and groups
+tsum %>%
+    ggplot(aes(x = Time_h, y = Mean, fill = IPTG, color = IPTG)) +
+    geom_ribbon(aes(ymin = Mean - SD, ymax = Mean + SD, linetype = Plasmid), color = NA, alpha = 0.2) +
+    geom_line(aes(linetype = Plasmid)) +
+    scale_x_continuous(breaks = seq(0, 24, by = 6)) +
+    ylab("OD") +
+    xlab("Time, h") +
+    labs(fill = "Strain") +
+    facet_wrap(~Strain,ncol = 2)+
+    # facet_wrap(vars(Media, FU_uM), ncol = 4) +
+    # facet_grid(FU_uM ~ Media) +
+    theme(panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank(),
+          panel.background = element_rect(fill = "white", colour = "grey50")) 
+
+
+
+quartz.save(type = 'pdf', 
+    file = here('Plots', 'BGA_IPTG.pdf'), 
+    width = 14, height = 18, family = 'Arial')
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
