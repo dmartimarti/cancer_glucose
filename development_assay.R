@@ -1713,6 +1713,126 @@ quartz.save(type = 'pdf',
 
 
 
+###################################################################
+### 17 Dev_assays:  methylisocitrate (the expensive experiment) ###
+###################################################################
+
+
+# Investigate role of methylisocitrate pathway on different mutants. 
+
+gltA_mi_dir <- '/DA_methyliso'
+dir.create(paste0(odir,gltA_mi_dir), showWarnings = TRUE, recursive = FALSE, mode = "0777")
+
+
+
+gltA_mi_data = read_xlsx('Develop_data/17. DevelopAssay_methylcitrate cycle muts_1reps_1&10mM_2-Methyisocitric_acid_23-05-19.xlsx', sheet = 'Summary') 
+
+# modify the original dataset into something that we can use
+
+gltA_mi_data = gltA_mi_data %>%
+    gather(Drug, Score, `0`, `1`, `2.5`, `5`) %>% 
+    mutate(Replicate = as.numeric(Replicate),
+        Genotype = as.factor(Genotype),
+        Supplement_mM = as.factor(Supplement_mM),
+        Supplement = as.factor(Supplement),
+        Drug = as.numeric(Drug)) 
+
+
+# create summary of data
+
+gltA_mi.sum = gltA_mi_data %>%
+    group_by(Supplement, Supplement_mM, Drug, Genotype) %>%
+    summarise(Median_Score = median(Score, na.rm = TRUE),
+            Mean = mean(Score, na.rm = TRUE),
+            SD = sd(Score, na.rm = TRUE)) %>%
+    mutate(BW_score = Median_Score[Genotype == 'BW'],
+            BW_norm = Median_Score - BW_score)
+
+# set variable names for the facet wrap
+variable_names <- c(
+  '0' = "0 mM Methylisocitrate",
+  '1' = "1 mM Methylisocitrate",
+  '10' = "10 mM Methylisocitrate"
+)
+
+# version 1
+gltA_mi.sum %>%
+    ungroup %>%
+    mutate(Drug = as.factor(Drug)) %>%
+    ggplot(aes(x = Genotype, y = Median_Score, group = Drug, fill = Drug,  width = 0.7)) +
+    geom_bar(stat = "identity", position = position_dodge2(), colour = 'black') +
+    geom_point(data = gltA_mi_data %>% 
+                            mutate(Drug = as.factor(Drug)
+                                ) , aes(x = Genotype, y = Score, group = Drug), 
+                            position = position_jitterdodge(jitter.width = 0.4, jitter.height = 0.05), alpha = 0.8) +
+    facet_wrap(~Supplement_mM, strip.position = 'bottom', labeller = labeller(Supplement_mM = variable_names)) +
+    scale_fill_manual( values = c('#FFB2D9' ,'#FF7A99','#FF2E5F', '#B60500')) +
+    theme_light() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+# version 2
+gltA_mi.sum %>%
+    ungroup %>%
+    mutate(Drug = as.factor(Drug)) %>%
+    ggplot(aes(x = Genotype, y = Median_Score, group = Supplement_mM, fill = Supplement_mM,  width = 0.7)) +
+    geom_bar(stat = "identity", position = position_dodge2(), colour = 'black') +
+    geom_point(data = gltA_mi_data %>% 
+                            mutate(Drug = as.factor(Drug)
+                                ) , aes(x = Genotype, y = Score, group = Supplement_mM), 
+                            position = position_jitterdodge(jitter.width = 0.4, jitter.height = 0.05), alpha = 0.8) +
+    facet_wrap(~Drug, strip.position = 'bottom') +
+    # scale_fill_manual( values = c('#FFB2D9' ,'#FF7A99','#FF2E5F', '#B60500')) +
+    theme_light() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+
+ggsave(file = paste(odir, gltA_mi_dir, "/barplot_methylisocitrate.pdf", sep = ''),
+       width = 100, height = 90, units = 'mm', scale = 2, device = cairo_pdf, family = "Arial")
+
+
+
+gltA_mi_data %>% ggplot(aes(x = Genotype, y = Score)) + 
+    geom_jitter()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -1811,6 +1931,40 @@ data.sum.bliss %>%
 dev.copy2pdf(device = pdf,
              file = paste(odir,"/Bliss_example.pdf", sep=''),
              width = 14, height = 10, useDingbats = FALSE)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
