@@ -10,6 +10,7 @@
 library(tidyverse)
 library(readxl)
 library(ggrepel)
+library(colorspace)
 library(caret)
 library(Rtsne)
 library(here)
@@ -1743,10 +1744,12 @@ gltA_mi_data = gltA_mi_data %>%
 gltA_mi.sum = gltA_mi_data %>%
     group_by(Supplement, Supplement_mM, Drug, Genotype) %>%
     summarise(Median_Score = median(Score, na.rm = TRUE),
+            MAD = mad(Score, na.rm = TRUE),
             Mean = mean(Score, na.rm = TRUE),
             SD = sd(Score, na.rm = TRUE)) %>%
     mutate(BW_score = Median_Score[Genotype == 'BW'],
             BW_norm = Median_Score - BW_score)
+
 
 # set variable names for the facet wrap
 variable_names <- c(
@@ -1766,36 +1769,35 @@ gltA_mi.sum %>%
                                 ) , aes(x = Genotype, y = Score, group = Drug), 
                             position = position_jitterdodge(jitter.width = 0.4, jitter.height = 0.05), alpha = 0.8) +
     facet_wrap(~Supplement_mM, strip.position = 'bottom', labeller = labeller(Supplement_mM = variable_names)) +
-    scale_fill_manual( values = c('#FFB2D9' ,'#FF7A99','#FF2E5F', '#B60500')) +
+    # scale_fill_manual( values = c('#FFB2D9' ,'#FF7A99','#FF2E5F', '#B60500')) +
+    scale_fill_discrete_sequential(palette = "Blues", nmax = 6, order = 3:6) +
     theme_light() +
     theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+ggsave(file = paste(odir, gltA_mi_dir, "/barplot_methylisocitrate.pdf", sep = ''),
+       width = 150, height = 75, units = 'mm', scale = 2, device = cairo_pdf, family = "Arial")
+
+
 
 # version 2
 gltA_mi.sum %>%
     ungroup %>%
     mutate(Drug = as.factor(Drug)) %>%
-    ggplot(aes(x = Genotype, y = Median_Score, group = Supplement_mM, fill = Supplement_mM,  width = 0.7)) +
+    ggplot(aes(x = Supplement_mM, y = Median_Score, fill = Drug,  width = 0.9)) +
     geom_bar(stat = "identity", position = position_dodge2(), colour = 'black') +
-    geom_point(data = gltA_mi_data %>% 
-                            mutate(Drug = as.factor(Drug)
-                                ) , aes(x = Genotype, y = Score, group = Supplement_mM), 
-                            position = position_jitterdodge(jitter.width = 0.4, jitter.height = 0.05), alpha = 0.8) +
-    facet_wrap(~Drug, strip.position = 'bottom') +
+    # geom_point(data = gltA_mi_data %>% 
+                            # mutate(Drug = as.factor(Drug)
+                                # ) , aes(x = Genotype, y = Score, group = Drug), 
+                            # position = position_jitterdodge(jitter.width = 0.4, jitter.height = 0.05), alpha = 0.8) +
+    facet_wrap(~Genotype, strip.position = 'bottom') +
     # scale_fill_manual( values = c('#FFB2D9' ,'#FF7A99','#FF2E5F', '#B60500')) +
+    scale_fill_discrete_sequential(palette = "Blues", nmax = 6, order = 3:6) +
     theme_light() +
     theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
-
-
-ggsave(file = paste(odir, gltA_mi_dir, "/barplot_methylisocitrate.pdf", sep = ''),
-       width = 100, height = 90, units = 'mm', scale = 2, device = cairo_pdf, family = "Arial")
-
-
-
-gltA_mi_data %>% ggplot(aes(x = Genotype, y = Score)) + 
-    geom_jitter()
-
-
+ggsave(file = paste(odir, gltA_mi_dir, "/barplot_v2_methylisocitrate.pdf", sep = ''),
+       width = 90, height = 75, units = 'mm', scale = 2, device = cairo_pdf, family = "Arial")
 
 
 
