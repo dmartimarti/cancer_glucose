@@ -240,6 +240,11 @@ ox_res = supp %>%
 	filter(Term == 'Oxidative phosphorylation')
 
 
+pur_met = supp %>% 
+	select(Category, Term_ID, Term, Gene, Plate) %>%
+	filter(Term == 'Purine metabolism')
+
+
 
 
 # is any of these genes in the original sublibrary?
@@ -257,9 +262,37 @@ keio.genes = keio.sum %>%
 		   					   sdhD = 'sdhD_K'), 
 		   Drug = 0,
 		   Drug = ifelse(Sample %in% c('FU', 'GluFU'), 5, 0),
-		   Pathway = 'Oxidative phosphorilation') %>%
+		   Pathway = 'Oxidative phosphorylation') %>%
 	rename(Genotype = Gene) %>%
 	select(-Sample)
+
+
+
+
+# intersection between purine metabolism and sublibrary
+intersect(unique(sublib$Genotype), pur_met$Gene)
+
+met = intersect(unique(sublib$Genotype), pur_met$Gene)
+
+keio.pur.genes = keio.sum %>% 
+	mutate(Gene = as.character(Gene)) %>%
+	filter(Gene %in% pur_met$Gene) %>% 
+	mutate(Gene = recode(Gene, pykA = 'pykA_K',
+		   					   pgm = 'pgm_K',
+		   					   nrdF = 'nrdF_K',
+		   					   nrdE = 'nrdE_K',
+		   					   nrdD = 'nrdD_K',
+		   					   mazG = 'mazG_K',
+		   					   ndk = 'ndk_K',
+		   					   yjjG = 'yjjG_K',
+		   					   pykF = 'pykF_K'),
+		   Drug = 0,
+		   Drug = ifelse(Sample %in% c('FU', 'GluFU'), 5, 0),
+		   Pathway = 'Purine metabolism') %>%
+	rename(Genotype = Gene) %>%
+	select(-Sample)
+
+
 
 
 # join both datasets
@@ -267,11 +300,11 @@ join = sublib.sum %>%
 	select(Genotype, Median_Score, Mean, SD, BW_Score, BW_Mean, BW_norm, BW_Mean_norm, Supplement, Supplement_mM, Drug) %>%
 	left_join(pathways[,c(1,5)]) %>% 
 	rename(Pathway = KEGG3) %>%
-	rbind(keio.genes)
+	rbind(keio.genes, keio.pur.genes)
 
 
 
-joined_colours = c('#8A7090','#000000','#53BAE2','#EF6713','#58A32D','#EF1613','#F45A95','#8C5A3A', 'grey50')
+joined_colours = c('#8A7090','#000000','#53BAE2','#EF6713','#58A32D','#EF1613','#F45A95','#8C5A3A', 'grey50', '#FF00DC')
 
 join %>% 
 	filter(Drug == 5) %>% 
@@ -294,8 +327,8 @@ join %>%
 		panel.background = element_rect(fill = "white", colour = "grey50")) + 
 	guides(colour = guide_legend(override.aes = list(size = 4))) # make lengend points larger
 
-quartz.save(file = here('exploration', 'sublibrary_ox_phosphorilation.pdf'),
-	type = 'pdf', dpi = 300, height = 8, width = 10)
+quartz.save(file = here('exploration', 'sublibrary_extra_pathways.pdf'),
+	type = 'pdf', dpi = 300, height = 13, width = 15)
 
 
 
