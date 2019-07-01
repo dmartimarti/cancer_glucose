@@ -824,7 +824,7 @@ pca_plot = function(strain = "BW"){
       panel.grid.minor = element_blank())
 
   # save the file
-  ggsave(file = paste(odir,'/PCA_', strain , '.pdf',sep = ''),
+  ggsave(file = here('Summary',paste('PCA_', strain , '.pdf',sep = '')),
   width = 100, height = 80, units = 'mm', scale = 2, device = cairo_pdf, family = "Arial")
 }
 
@@ -1590,7 +1590,7 @@ results <- allresults$results
 results.cast <- allresults$cast
 results.castfull <- allresults$castfull
 
-results2$Contrast %>% unique %>% as.character
+results$Contrast %>% unique %>% as.character
 
 
 
