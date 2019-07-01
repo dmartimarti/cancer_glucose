@@ -323,8 +323,8 @@ for (name in unique(worm.sum$Strain)){
 # select only one experiment and strain
 # contrasts and other main variables of this part
 
-strain = 'TM'
-experiment = "T250"
+strain = 'BW'
+experiment = "T5"
 
 
 str_C = paste(strain, '_C', sep = '')
@@ -391,27 +391,49 @@ NGMb = adjustments[adjustments$Contrast == alln, ]$b
 gradcolours = c('#71B83B','yellow','orange','red')
 
 
-jointresults.multi %>%
+
+
+total = jointresults.multi %>%
+  filter(x_Contrast == str_C & y_Contrast == str_T & z_Contrast == 'Ce_Dev5')
+
+first = jointresults.multi %>%
   filter(x_Contrast == str_C & y_Contrast == str_T & z_Contrast == 'Ce_Dev5') %>%
-  # mutate(z_logFC = 4) %>%
-  ggplot(aes(x = x_logFC, y = y_logFC)) +
+  filter(z_logFC <=1)
+
+second = jointresults.multi %>%
+  filter(x_Contrast == str_C & y_Contrast == str_T & z_Contrast == 'Ce_Dev5') %>%
+  filter(z_logFC >1 & z_logFC <= 2)
+
+third = jointresults.multi %>%
+  filter(x_Contrast == str_C & y_Contrast == str_T & z_Contrast == 'Ce_Dev5') %>%
+  filter(z_logFC >2 & z_logFC <= 3)
+
+fourth = jointresults.multi %>%
+  filter(x_Contrast == str_C & y_Contrast == str_T & z_Contrast == 'Ce_Dev5') %>%
+  filter(z_logFC >3 & z_logFC <= 4)
+
+
+ggplot(first, aes()) +
   geom_abline(intercept = 0, slope = 1, alpha = 0.3, color = 'grey', linetype = 'longdash') +
   geom_abline(aes(intercept = NGMb, slope = NGMa), alpha = 0.6, color = 'red') +
   geom_vline(aes(xintercept = 0), alpha = 0.9, color = 'grey') +
   geom_hline(aes(yintercept = 0), alpha = 0.9, color = 'grey') +
-  geom_errorbarh(aes(xmax = x_logFC + x_SE, xmin = x_logFC - x_SE), height = 0, alpha = 0.3, color = 'grey50') +
-  geom_errorbar(aes(ymax = y_logFC + y_SE, ymin = y_logFC - y_SE), width = 0, alpha = 0.3, color = 'grey50') +
-  geom_point(aes(colour = z_logFC), alpha = 0.85, size = 2) +
+  geom_errorbarh(data = total, aes(y = y_logFC, xmax = x_logFC + x_SE, xmin = x_logFC - x_SE), height = 0, alpha = 0.3, color = 'grey50') +
+  geom_errorbar(data = total, aes(x = x_logFC, ymax = y_logFC + y_SE, ymin = y_logFC - y_SE), width = 0, alpha = 0.3, color = 'grey50') +
+  geom_point(aes(x = x_logFC, y = y_logFC, colour = z_logFC), alpha = 0.85, size = 2) +
+  geom_point(data = second, aes(x = x_logFC, y = y_logFC, colour = z_logFC), alpha = 0.85, size = 2) +
+  geom_point(data = third, aes(x = x_logFC, y = y_logFC, colour = z_logFC), alpha = 0.85, size = 2) +
+  geom_point(data = fourth, aes(x = x_logFC, y = y_logFC, colour = z_logFC), alpha = 0.85, size = 2) +
   scale_size(range = c(1,5), name = 'C. elegans\nphenotype') +
   scale_colour_gradientn(colours = gradcolours,
                          breaks = c(1,2,3,4), limits = c(1,4), guide = "legend", name = 'C. elegans\nphenotype') +
   scale_y_continuous(breaks = -5:5)+
-  coord_cartesian(xlim = c(-4, 2), ylim = c(-4, 2.5)) +
-  labs(title = paste(strain, " growth with 5FU treatment at 0 uM", sep = ''),
+  coord_cartesian(xlim = c(-5, 2), ylim = c(-4, 4)) +
+  labs(title = paste(strain, " growth with 5FU treatment at 5 uM", sep = ''),
   x = expression(paste(italic("E. coli"), ' growth vs NGM - Control, logFC', sep = '')), 
   y = expression(paste(italic('E. coli'), ' growth vs NGM - 5-FU Treatment, logFC', sep = ''))) +
   theme(plot.title = element_text(hjust = 0.5, face = "bold")) +
-  geom_text_repel(aes(label = ifelse(z_logFC >= 4, MetaboliteU, '')), box.padding = unit(0.6, "lines"), segment.alpha = 0.4) + # only name those nutr with C. elegans phenotype 3 or more
+  geom_text_repel(data = fourth, aes(x = x_logFC, y = y_logFC, label = ifelse(z_logFC >= 4, MetaboliteU, '')), box.padding = unit(0.6, "lines"), segment.alpha = 0.4) + # only name those nutr with C. elegans phenotype 3 or more
   # geom_text_repel(aes(label = ifelse(z_logFC >= 3 | z_logFC == 0, MetaboliteU, '')), box.padding = unit(0.6, "lines"), segment.alpha = 0.4) + # only name those nutr with C. elegans phenotype 3 or more
   guides(color = guide_legend()) +
   theme(panel.grid.major = element_line(size = 0.06, colour = "grey50"),
@@ -425,14 +447,17 @@ jointresults.multi %>%
   guides(colour = guide_legend(override.aes = list(size = 4))) +
   annotate(geom = 'text', x = -2, y = 1.5, label = paste('y = ', round(NGMa,3), 'x +', round(NGMb,3), sep = ''), size = 5)
 
-quartz.save(file = here('Summary', paste0("/Scatter_", strain, "_250uM.pdf")),
+
+quartz.save(file = here('Summary', paste0("Scatter_", strain, "_5uM.pdf")),
 	type = 'pdf', dpi = 300, height = 8, width = 10)
 
 
 # scales for different mutants:
-# BW: coord_cartesian(xlim = c(-4, 2), ylim = c(-4, 4))
+# BW: coord_cartesian(xlim = c(-5, 2), ylim = c(-4, 4))
 # pyrE: coord_cartesian(xlim = c(-5, 2), ylim = c(-4, 4))
 # TM: coord_cartesian(xlim = c(-4, 2), ylim = c(-4, 2.5))
+
+
 
 
 
