@@ -14,16 +14,13 @@ library(here)
 library(openxlsx)
 
 
-# Set to custom clean theme
-# theme_set(theme_PN(base_size = 12))
-# scale_colour_discrete = ggthemes::scale_colour_tableau
-# scale_fill_discrete = ggthemes::scale_fill_tableau
+options(width = 220)
 
 # set working directory to selected directory
 # setwd("/Users/dmarti14/Documents/MRC_Postdoc/Projects/Leo/DATA_TO_PLOT")
 
 # output directory
-dir.create('Summary', showWarnings = TRUE, recursive = FALSE, mode = "0777")
+# dir.create('Summary', showWarnings = TRUE, recursive = FALSE, mode = "0777")
 
 
 
@@ -672,6 +669,143 @@ results.castfull = allresults$castfull
 list_of_datasets = list('results' = results, 'results.cast' = results.cast, "results.castfull" = results.castfull)
 
 write.xlsx(list_of_datasets, here('Summary', 'stats.xlsx'), colNames = T, rowNames = F) 
+
+
+
+
+###########################
+### sub-library screens ###
+###########################
+
+
+
+# read and transform data
+galactose = read_xlsx('Sub_library/Summary_Keio_sublibrary_Galactose_Glycerol.xlsx', sheet = 'Summary_good') 
+
+galactose = galactose %>%
+    gather(Drug, Score, `0`, `1`, `2.5`, `5`) %>% # make table long
+    unite(ID, Genes, Supplement, Replicate, remove = FALSE) %>% 
+    mutate(Replicate = as.numeric(Replicate),
+        Supplement_mM = as.factor(Supplement_mM),
+        Supplement = as.factor(Supplement),
+        Genes = as.factor(Genes),
+        Pathway = as.factor(Pathway),
+        ID = as.factor(ID),
+        Drug = as.factor(Drug)) %>%
+    select(Genes, Well, ID, Pathway, Replicate, Supplement, Supplement_mM, Drug, Score)
+
+
+# table with genotypes and pathways
+
+pathways = galactose %>% select(Genes, Pathway) %>% distinct(GGenesenotype, .keep_all = TRUE)
+pathways = unique(pathways)
+# data summary
+gal.sum = galactose %>%
+  group_by(Supplement, Supplement_mM, Drug, Genes) %>%
+  summarise(Median_Score = median(Score, na.rm = TRUE),
+            Mean = mean(Score, na.rm = TRUE),
+            SD = sd(Score, na.rm = TRUE)) %>%
+  mutate(BW_Score = Median_Score[Genes == 'BW'],
+         BW_Mean = Mean[Genes == 'BW']) %>%
+  ungroup %>%
+  group_by(Genes, Drug) %>%
+  ungroup %>%
+  mutate(BW_norm = Median_Score - BW_Score,
+         BW_Mean_norm = Mean - BW_Mean)
+
+
+### SCATTER PLOT FROM GLYCEROL
+
+pos = position_jitter(width = 0.05, height = 0.05, seed = 1) # to plot names in jitter positions
+gal.sum %>% 
+    filter(Supplement == 'Glycerol', Drug == 0) %>% 
+    select(Supplement, Supplement_mM, Genes, BW_norm) %>%
+    unite(Supp, Supplement, Supplement_mM) %>%
+    spread(Supp, BW_norm) %>%
+    left_join(pathways) %>% 
+    ggplot(aes(x = Glycerol_0, y = Glycerol_10)) + 
+    geom_hline(yintercept = 0, colour = 'grey30') +
+    geom_vline(xintercept = 0, colour = 'grey30') +
+    geom_point(aes(colour = Pathway),position = pos, size = 2) + 
+    # scale_color_manual(values = grad) + 
+    # scale_fill_manual(values = grad) +
+    geom_text_repel(aes(label = ifelse(Genes == 'ppnP', as.character(Genes), '')), position = pos) + # this point went rogue
+    #geom_text_repel(aes(label = Genes), position = pos) +
+    labs(title = expression(paste("5FU + Glycerol effect on ", italic('C. elegans'), " phenotype", sep = '')),
+         x = expression(paste('Normalised median scores of ', italic('C. elegans'), ' phenotype', sep = ' ')),
+         y = expression(paste('Normalised median scores of ', italic('C. elegans'), ' phenotype ' , bold('(Glycerol)'), sep = ' '))) +
+    theme(plot.title = element_text(size = 15, hjust = 0.5, face = "bold"),
+            panel.grid.major = element_line(colour = "grey90"),
+            panel.background = element_rect(fill = "white", colour = "grey50"),
+            legend.text = element_text(size = 6)) + 
+    guides(colour = guide_legend(override.aes = list(size = 4))) # make lengend points larger
+
+quartz.save(file = here('Summary', 'Scatter_sub_lib_glycerol_0uM.pdf'),
+    type = 'pdf', dpi = 300, height = 10, width = 12)
+
+
+
+### SCATTER PLOT FROM GALACTOSE
+
+pos = position_jitter(width = 0.05, height = 0.05, seed = 1) # to plot names in jitter positions
+gal.sum %>% 
+    filter(Supplement == 'Galactose', Drug == 5) %>% 
+    select(Supplement, Supplement_mM, Genes, BW_norm) %>%
+    unite(Supp, Supplement, Supplement_mM) %>%
+    spread(Supp, BW_norm) %>%
+    left_join(pathways) %>% 
+    ggplot(aes(x = Galactose_0, y = Galactose_10)) + 
+    geom_hline(yintercept = 0, colour = 'grey30') +
+    geom_vline(xintercept = 0, colour = 'grey30') +
+    geom_point(aes(colour = Pathway),position = pos, size = 2) + 
+    # scale_color_manual(values = grad) + 
+    # scale_fill_manual(values = grad) +
+    # geom_text_repel(aes(label = ifelse(Genes == 'ppnP', as.character(Genes), '')), position = pos) + # this point went rogue
+    geom_text_repel(aes(label = Genes), position = pos) +
+    labs(title = expression(paste("5FU + Galactose effect on ", italic('C. elegans'), " phenotype", sep = '')),
+         x = expression(paste('Normalised median scores of ', italic('C. elegans'), ' phenotype', sep = ' ')),
+         y = expression(paste('Normalised median scores of ', italic('C. elegans'), ' phenotype ' , bold('(Galactose)'), sep = ' '))) +
+    theme(plot.title = element_text(size = 15, hjust = 0.5, face = "bold"),
+            panel.grid.major = element_line(colour = "grey90"),
+            panel.background = element_rect(fill = "white", colour = "grey50"),
+            legend.text = element_text(size = 6)) + 
+    guides(colour = guide_legend(override.aes = list(size = 4))) # make lengend points larger
+
+quartz.save(file = here('Summary', 'Scatter_sub_lib_galactose_5uM.pdf'),
+    type = 'pdf', dpi = 300, height = 10, width = 12)
+
+
+### BARPLOTS
+
+# version 2
+# set variable names for the facet wrap
+
+variable_names <- c(
+  '1' = "1 mM Glycerol",
+  '10' = "10 mM Glycerol"
+)
+
+gal.sum %>%
+    ungroup %>%
+    filter(Supplement == 'Glycerol') %>%
+    mutate(Drug = as.factor(Drug)) %>%
+    ggplot(aes(x = Supplement_mM, y = Median_Score, fill = Drug,  width = 0.9)) +
+    geom_bar(stat = "identity", position = position_dodge2(), colour = 'black') +
+    # geom_point(data = gltA_mi_data %>% 
+                            # mutate(Drug = as.factor(Drug)
+                                # ) , aes(x = Genotype, y = Score, group = Drug), 
+                            # position = position_jitterdodge(jitter.width = 0.4, jitter.height = 0.05), alpha = 0.8) +
+    facet_wrap(~Genes, strip.position = 'bottom', labeller = labeller(Supplement_mM = variable_names)) +
+    coord_cartesian(ylim = c(1,4)) +
+    scale_fill_discrete_sequential(palette = "Blues", nmax = 6, order = 3:6) +
+    theme_light() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+quartz.save(file = here('Summary', 'barplot_glycerol.pdf'),
+    type = 'pdf', dpi = 300, height = 10, width = 12)
+
+
+
 
 
 
