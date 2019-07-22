@@ -718,7 +718,7 @@ gal.sum = galactose %>%
 
 pos = position_jitter(width = 0.05, height = 0.05, seed = 1) # to plot names in jitter positions
 gal.sum %>% 
-    filter(Supplement == 'Glycerol', Drug == 0) %>% 
+    filter(Supplement == 'Glycerol', Drug == 5) %>% 
     select(Supplement, Supplement_mM, Genes, BW_norm) %>%
     unite(Supp, Supplement, Supplement_mM) %>%
     spread(Supp, BW_norm) %>%
@@ -729,8 +729,8 @@ gal.sum %>%
     geom_point(aes(colour = Pathway),position = pos, size = 2) + 
     # scale_color_manual(values = grad) + 
     # scale_fill_manual(values = grad) +
-    geom_text_repel(aes(label = ifelse(Genes == 'ppnP', as.character(Genes), '')), position = pos) + # this point went rogue
-    #geom_text_repel(aes(label = Genes), position = pos) +
+    # geom_text_repel(aes(label = ifelse(Genes == 'ppnP', as.character(Genes), '')), position = pos) + # this point went rogue
+    geom_text_repel(aes(label = Genes), position = pos) +
     labs(title = expression(paste("5FU + Glycerol effect on ", italic('C. elegans'), " phenotype", sep = '')),
          x = expression(paste('Normalised median scores of ', italic('C. elegans'), ' phenotype', sep = ' ')),
          y = expression(paste('Normalised median scores of ', italic('C. elegans'), ' phenotype ' , bold('(Glycerol)'), sep = ' '))) +
@@ -740,7 +740,7 @@ gal.sum %>%
             legend.text = element_text(size = 6)) + 
     guides(colour = guide_legend(override.aes = list(size = 4))) # make lengend points larger
 
-quartz.save(file = here('Summary', 'Scatter_sub_lib_glycerol_0uM.pdf'),
+quartz.save(file = here('Summary', 'Scatter_sub_lib_glycerol_5uM.pdf'),
     type = 'pdf', dpi = 300, height = 10, width = 12)
 
 
@@ -779,30 +779,146 @@ quartz.save(file = here('Summary', 'Scatter_sub_lib_galactose_5uM.pdf'),
 
 # version 2
 # set variable names for the facet wrap
-
+# this is a general bargraph to plot everything 
 variable_names <- c(
   '1' = "1 mM Glycerol",
   '10' = "10 mM Glycerol"
 )
 
+
+# glycerol
 gal.sum %>%
     ungroup %>%
-    filter(Supplement == 'Glycerol') %>%
+    filter(Supplement == 'Glycerol', !Drug == 2.5) %>%
     mutate(Drug = as.factor(Drug)) %>%
     ggplot(aes(x = Supplement_mM, y = Median_Score, fill = Drug,  width = 0.9)) +
     geom_bar(stat = "identity", position = position_dodge2(), colour = 'black') +
-    # geom_point(data = gltA_mi_data %>% 
-                            # mutate(Drug = as.factor(Drug)
-                                # ) , aes(x = Genotype, y = Score, group = Drug), 
-                            # position = position_jitterdodge(jitter.width = 0.4, jitter.height = 0.05), alpha = 0.8) +
-    facet_wrap(~Genes, strip.position = 'bottom', labeller = labeller(Supplement_mM = variable_names)) +
+    geom_point(data = galactose %>% 
+    						filter(Supplement == 'Glycerol', !Drug == 2.5) %>%
+                            mutate(Drug = as.factor(Drug)), aes(x = Supplement_mM, y = Score, group = Drug), 
+                            position = position_jitterdodge(jitter.width = 0.25, jitter.height = 0.05), alpha = 0.8) +
+    facet_wrap(~Genes, strip.position = 'top') +
     coord_cartesian(ylim = c(1,4)) +
     scale_fill_discrete_sequential(palette = "Blues", nmax = 6, order = 3:6) +
     theme_light() +
-    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+    theme(strip.text = element_text(colour = 'black'))
 
-quartz.save(file = here('Summary', 'barplot_glycerol.pdf'),
-    type = 'pdf', dpi = 300, height = 10, width = 12)
+quartz.save(file = here('Summary', 'barplot_all_glycerol.pdf'),
+    type = 'pdf', dpi = 300, height = 9, width = 14)
+
+
+# galactose
+gal.sum %>%
+    ungroup %>%
+    filter(Supplement == 'Galactose', !Drug == 2.5) %>%
+    mutate(Drug = as.factor(Drug)) %>%
+    ggplot(aes(x = Supplement_mM, y = Median_Score, fill = Drug,  width = 0.9)) +
+    geom_bar(stat = "identity", position = position_dodge2(), colour = 'black') +
+    geom_point(data = galactose %>% 
+    						filter(Supplement == 'Galactose', !Drug == 2.5) %>%
+                            mutate(Drug = as.factor(Drug)), aes(x = Supplement_mM, y = Score, group = Drug), 
+                            position = position_jitterdodge(jitter.width = 0.25, jitter.height = 0.05), alpha = 0.8) +
+    facet_wrap(~Genes, strip.position = 'top') +
+    geom_vline(xintercept = 1.5, size = 0.8) +
+    coord_cartesian(ylim = c(1,4)) +
+    scale_fill_discrete_sequential(palette = "Reds2", nmax = 6, order = 3:6) +
+    theme_light() +
+    theme(strip.text = element_text(colour = 'black'))
+
+quartz.save(file = here('Summary', 'barplot_all_galactose.pdf'),
+    type = 'pdf', dpi = 300, height = 9, width = 14)
+
+
+
+## subplots by pathway
+
+# how many pathways do we have
+unique(pathways$Pathway)
+
+# stupid function to plot barplots
+barrplot = function(data, supp = 'Galactose', path = 'TCA') {
+	data %>% 
+	left_join(pathways) %>%
+	ungroup %>%
+    filter(Supplement == supp, !Drug == 2.5, Pathway == path) %>%
+    mutate(Drug = as.factor(Drug)) %>%
+    ggplot(aes(x = Supplement_mM, y = Median_Score, fill = Drug,  width = 0.9)) +
+    geom_bar(stat = "identity", position = position_dodge2(), colour = 'black') +
+    geom_point(data = galactose %>% 
+    						filter(Supplement == supp, !Drug == 2.5, Pathway == path) %>%
+                            mutate(Drug = as.factor(Drug)), aes(x = Supplement_mM, y = Score, group = Drug), 
+                            position = position_jitterdodge(jitter.width = 0.25, jitter.height = 0.05), alpha = 0.8) +
+    facet_wrap(~Genes, strip.position = 'top') +
+    geom_vline(xintercept = 1.5, size = 0.8) +
+    coord_cartesian(ylim = c(1,4)) +
+    scale_fill_discrete_sequential(palette = "Reds2", nmax = 6, order = 3:6) +
+    theme_light() +
+    theme(strip.text = element_text(colour = 'black'))
+}
+
+x = as.character(unique(pathways$Pathway))
+
+p1 =  barrplot(gal.sum, path = x[1])
+p2 =  barrplot(gal.sum, path = x[2])
+p3 =  barrplot(gal.sum, path = x[3])
+p4 =  barrplot(gal.sum, path = x[4])
+p5 =  barrplot(gal.sum, path = x[5])
+p6 =  barrplot(gal.sum, path = x[6])
+p7 =  barrplot(gal.sum, path = x[7])
+p8 =  barrplot(gal.sum, path = x[8])
+p9 =  barrplot(gal.sum, path = x[9])
+p10 = barrplot(gal.sum, path = x[10])
+p11 = barrplot(gal.sum, path = x[11])
+p12 = barrplot(gal.sum, path = x[12])
+p13 = barrplot(gal.sum, path = x[13])
+p14 = barrplot(gal.sum, path = x[14])
+p15 = barrplot(gal.sum, path = x[15])
+p16 = barrplot(gal.sum, path = x[16])
+
+
+ggarrange(p1, p2,p3,p4,p5,p6,p7,p8,p9,p10,p11,p12,p13,p14,p15,p16,
+          labels = x,
+          ncol = 4, nrow = 4,
+          common.legend = TRUE, legend = "bottom")
+
+quartz.save(file = here('Summary', 'barplot_all_galactose(by_pathway).pdf'),
+    type = 'pdf', dpi = 300, height = 25, width = 25)
+
+
+
+### subplots by drug concentration
+
+
+# galactose
+drug = 5
+supp = 'Glycerol'
+gal.sum %>%
+    ungroup %>%
+    filter(Supplement == supp, Drug == drug) %>%
+    mutate(Drug = as.factor(Drug)) %>%
+    ggplot(aes(x = Genes, y = Median_Score, fill = Drug,  width = 0.9)) +
+    geom_bar(stat = "identity", position = position_dodge2(), colour = 'black') +
+    geom_point(data = galactose %>% 
+    						filter(Supplement == supp, Drug == drug) %>%
+                            mutate(Drug = as.factor(Drug)), aes(x = Genes, y = Score, group = Drug), 
+                            position = position_jitterdodge(jitter.width = 0.25, jitter.height = 0.05), alpha = 0.8) +
+    facet_wrap(~Supplement_mM, strip.position = 'top', nrow = 2) +
+    coord_cartesian(ylim = c(1,4)) +
+    scale_fill_discrete_sequential(palette = "Blues", nmax = 6, order = 3:6) +
+    theme_light() +
+    theme(strip.text = element_text(colour = 'black'),
+    	axis.text.x = element_text(angle = 45, hjust = 1))
+
+quartz.save(file = here('Summary', paste0('Bargraph_all_sub_lib_',supp,'_',as.character(drug),'uM.pdf')),
+    type = 'pdf', dpi = 300, height = 8, width = 11)
+
+
+
+
+
+
+
+
 
 
 
