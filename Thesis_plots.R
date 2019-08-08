@@ -10,8 +10,13 @@ library(PFun)
 library(forcats)
 library(FactoMineR) # for PCA
 library(factoextra) # for PCA
+library(gtools)
+library(broom)
 library(here)
 library(openxlsx)
+library(coin)
+library(RVAideMemoire)
+library(colorspace)
 
 
 options(width = 220)
@@ -668,7 +673,7 @@ results.castfull = allresults$castfull
 
 list_of_datasets = list('results' = results, 'results.cast' = results.cast, "results.castfull" = results.castfull)
 
-write.xlsx(list_of_datasets, here('Summary', 'stats.xlsx'), colNames = T, rowNames = F) 
+write.xlsx(list_of_datasets, here('Summary', '4way_stats.xlsx'), colNames = T, rowNames = F) 
 
 
 
@@ -677,7 +682,9 @@ write.xlsx(list_of_datasets, here('Summary', 'stats.xlsx'), colNames = T, rowNam
 ### sub-library screens ###
 ###########################
 
-
+##########################
+### Galactose and Glycerol
+##########################
 
 # read and transform data
 galactose = read_xlsx('Sub_library/Summary_Keio_sublibrary_Galactose_Glycerol.xlsx', sheet = 'Summary_good') 
@@ -830,61 +837,6 @@ quartz.save(file = here('Summary', 'barplot_all_galactose.pdf'),
 
 
 
-## subplots by pathway
-
-# how many pathways do we have
-unique(pathways$Pathway)
-
-# stupid function to plot barplots
-barrplot = function(data, supp = 'Galactose', path = 'TCA') {
-	data %>% 
-	left_join(pathways) %>%
-	ungroup %>%
-    filter(Supplement == supp, !Drug == 2.5, Pathway == path) %>%
-    mutate(Drug = as.factor(Drug)) %>%
-    ggplot(aes(x = Supplement_mM, y = Median_Score, fill = Drug,  width = 0.9)) +
-    geom_bar(stat = "identity", position = position_dodge2(), colour = 'black') +
-    geom_point(data = galactose %>% 
-    						filter(Supplement == supp, !Drug == 2.5, Pathway == path) %>%
-                            mutate(Drug = as.factor(Drug)), aes(x = Supplement_mM, y = Score, group = Drug), 
-                            position = position_jitterdodge(jitter.width = 0.25, jitter.height = 0.05), alpha = 0.8) +
-    facet_wrap(~Genes, strip.position = 'top') +
-    geom_vline(xintercept = 1.5, size = 0.8) +
-    coord_cartesian(ylim = c(1,4)) +
-    scale_fill_discrete_sequential(palette = "Reds2", nmax = 6, order = 3:6) +
-    theme_light() +
-    theme(strip.text = element_text(colour = 'black'))
-}
-
-x = as.character(unique(pathways$Pathway))
-
-p1 =  barrplot(gal.sum, path = x[1])
-p2 =  barrplot(gal.sum, path = x[2])
-p3 =  barrplot(gal.sum, path = x[3])
-p4 =  barrplot(gal.sum, path = x[4])
-p5 =  barrplot(gal.sum, path = x[5])
-p6 =  barrplot(gal.sum, path = x[6])
-p7 =  barrplot(gal.sum, path = x[7])
-p8 =  barrplot(gal.sum, path = x[8])
-p9 =  barrplot(gal.sum, path = x[9])
-p10 = barrplot(gal.sum, path = x[10])
-p11 = barrplot(gal.sum, path = x[11])
-p12 = barrplot(gal.sum, path = x[12])
-p13 = barrplot(gal.sum, path = x[13])
-p14 = barrplot(gal.sum, path = x[14])
-p15 = barrplot(gal.sum, path = x[15])
-p16 = barrplot(gal.sum, path = x[16])
-
-
-ggarrange(p1, p2,p3,p4,p5,p6,p7,p8,p9,p10,p11,p12,p13,p14,p15,p16,
-          labels = x,
-          ncol = 4, nrow = 4,
-          common.legend = TRUE, legend = "bottom")
-
-quartz.save(file = here('Summary', 'barplot_all_galactose(by_pathway).pdf'),
-    type = 'pdf', dpi = 300, height = 25, width = 25)
-
-
 
 ### subplots by drug concentration
 
@@ -911,6 +863,257 @@ gal.sum %>%
 
 quartz.save(file = here('Summary', paste0('Bargraph_all_sub_lib_',supp,'_',as.character(drug),'uM.pdf')),
     type = 'pdf', dpi = 300, height = 8, width = 11)
+
+
+
+
+
+
+### Median/lm test
+
+### user functions 
+# function to 'tidy' the output of the median function 
+tidy.med = function(model) {
+    df = data.frame(model[1], model[2], model[3], model[4], model[5])
+    df = as_tibble(df)
+    return(df)
+}
+
+
+# function that calculates the comparison between BW and other genes in the datasets
+# median version!
+m.test = function(data, genes) {
+    results = data.frame()
+    for (i in 1:length(genes)){
+        sub = data %>% filter(Genes %in% c('BW', genes[i]))
+        if(dim(sub)[1] <= 2) {next} # skips genes that are not present (kinda)
+        model = mood.medtest(Sum ~ Genes, data = sub, exact = FALSE)
+        df = tidy.med(model)
+        df['Gene'] = genes[i]
+        df['Supplement'] = unique(data$Supplement)
+        df['Supplement_mM'] = unique(data$Supplement_mM)
+        results = rbind(results,df)
+    }
+    results = results %>% mutate(p.stars = stars.pval(p.value), 
+            fdr = p.adjust(p.value, method = 'fdr'), fdr.stars = stars.pval(fdr)) %>%
+        select(Gene, Supplement, Supplement_mM,method,  statistic, parameter, p.value, p.stars,   fdr, fdr.stars)
+    return(results)
+}
+
+# function that calculates the comparison between BW and other genes in the datasets
+# lm version!
+av.test = function(data, genes) {
+    results = data.frame()
+    for (i in 1:length(genes)){
+        sub = data %>% filter(Genes %in% c('BW', genes[i]))
+        if(dim(sub)[1] <= 2) {next} # skips genes that are not present (kinda)
+        model = lm(Sum ~ Genes, data = sub)
+        df = tidy(model)[2,]
+        df['Gene'] = genes[i]
+        df['Supplement'] = unique(data$Supplement)
+        df['Supplement_mM'] = unique(data$Supplement_mM)
+        results = rbind(results,df)
+    }
+    results = results %>% mutate(p.stars = stars.pval(p.value), 
+            fdr = p.adjust(p.value, method = 'fdr'), fdr.stars = stars.pval(fdr)) %>%
+        select(Gene, Supplement, Supplement_mM, estimate, std.error, statistic, p.value, p.stars, fdr, fdr.stars)
+    return(results)
+}
+
+
+# stupid function to remove the duplicated BWs (it does the average of them per replicate)
+ctrls = function(data){
+    ctr = data %>% filter(Genes == 'BW') %>% 
+        group_by(Genes, Replicate, Supplement, Supplement_mM) %>% 
+        summarise(Sum = median(Sum, na.rm = TRUE)) %>% ungroup
+    # exclude the 'old' BW and include the average 
+    data = data %>% mutate(Genes = as.character(Genes)) %>% filter(!Genes == 'BW') 
+    data = rbind(ctr, data)
+    return(data)
+}
+
+
+###--------------------------
+
+
+# first, sum all score values by gene and condition
+
+gal.medians = galactose %>% group_by(Genes, Well, Replicate, Supplement, Supplement_mM) %>%
+    filter(!Drug == 2.5) %>%
+    summarise(Sum = sum(Score)) 
+
+# filter values with NAs (maybe try to impute them with RF?)
+gal.medians = gal.medians %>% filter_at(vars(Sum), any_vars(!is.na(.))) 
+
+
+
+
+## we want to compare each gene against BW per condition
+# split data
+gal_0 = gal.medians %>% filter(Supplement == 'Galactose', Supplement_mM == 0) %>% ungroup %>% select(-Well)
+gal_10 = gal.medians %>% filter(Supplement == 'Galactose', Supplement_mM == 10) %>% ungroup %>% select(-Well)
+gly_0 = gal.medians %>% filter(Supplement == 'Glycerol', Supplement_mM == 0) %>% ungroup %>% select(-Well)
+gly_10 = gal.medians %>% filter(Supplement == 'Glycerol', Supplement_mM == 10) %>% ungroup %>% select(-Well)
+
+# remove BWs with my dummy function
+gal_0 = ctrls(gal_0)
+gal_10 = ctrls(gal_10)
+gly_0 = ctrls(gly_0)
+gly_10 = ctrls(gly_10)
+
+# extract the gene list for the loop
+genes = galactose %>% ungroup %>% filter(Genes != 'BW') %>% select(Genes) %>% unique %>% data.frame 
+genes = as.character(genes$Genes)
+
+# calculate the Mood's test (median test) for every condition
+med.res = rbind(m.test(gal_0, genes), m.test(gal_10, genes), m.test(gly_0, genes), m.test(gly_10, genes))
+# the same but for the t.test
+ttest.res = rbind(av.test(gal_0, genes), av.test(gal_10, genes), av.test(gly_0, genes), av.test(gly_10, genes))
+
+
+## after having done the statistical tests, we can filter those ones that have sig. differences
+# for this dataset I will use the t test results, as the other is completely useless (data too variable, and only 2 reps)
+
+gal.genes = ttest.res %>% filter(Supplement == 'Galactose',p.value <= 0.05) %>% select(Gene) %>% unique
+gly.genes = ttest.res %>% filter(Supplement == 'Glycerol',p.value <= 0.05) %>% select(Gene) %>% unique
+
+gal.genes = as.character(gal.genes$Gene) ; gal.genes = c('BW', gal.genes)
+gly.genes = as.character(gly.genes$Gene) ; gly.genes = c('BW', gly.genes)
+
+
+# AND NOW WE CAN PLOT IT!
+
+
+
+# glycerol
+gal.sum %>%
+    ungroup %>%
+    filter(Genes %in% gal.genes, Supplement == 'Glycerol', !Drug == 2.5) %>%
+    mutate(Drug = as.factor(Drug)) %>%
+    ggplot(aes(x = Supplement_mM, y = Median_Score, fill = Drug,  width = 0.9)) +
+    geom_bar(stat = "identity", position = position_dodge2(), colour = 'black') +
+    geom_point(data = galactose %>% 
+                            filter(Genes %in% gal.genes, Supplement == 'Glycerol', !Drug == 2.5) %>%
+                            mutate(Drug = as.factor(Drug)), aes(x = Supplement_mM, y = Score, group = Drug), 
+                            position = position_jitterdodge(jitter.width = 0.25, jitter.height = 0.05), alpha = 0.8) +
+    facet_wrap(~Genes, strip.position = 'top') +
+    coord_cartesian(ylim = c(1,4)) +
+    scale_fill_discrete_sequential(palette = "Blues", nmax = 6, order = 3:6) +
+    theme_light() +
+    theme(strip.text = element_text(colour = 'black'))
+
+quartz.save(file = here('Summary', 'Bargraph_hits_sub_lib_galactose.pdf'),
+    type = 'pdf', dpi = 300, height = 7, width = 9)
+
+
+# galactose
+gal.sum %>%
+    ungroup %>%
+    filter(Genes %in% gly.genes, Supplement == 'Galactose', !Drug == 2.5) %>%
+    mutate(Drug = as.factor(Drug)) %>%
+    ggplot(aes(x = Supplement_mM, y = Median_Score, fill = Drug,  width = 0.9)) +
+    geom_bar(stat = "identity", position = position_dodge2(), colour = 'black') +
+    geom_point(data = galactose %>% 
+                            filter(Genes %in% gly.genes, Supplement == 'Galactose', !Drug == 2.5) %>%
+                            mutate(Drug = as.factor(Drug)), aes(x = Supplement_mM, y = Score, group = Drug), 
+                            position = position_jitterdodge(jitter.width = 0.25, jitter.height = 0.05), alpha = 0.8) +
+    facet_wrap(~Genes, strip.position = 'top') +
+    geom_vline(xintercept = 1.5, size = 0.8) +
+    coord_cartesian(ylim = c(1,4)) +
+    scale_fill_discrete_sequential(palette = "Reds2", nmax = 6, order = 3:6) +
+    theme_light() +
+    theme(strip.text = element_text(colour = 'black'))
+
+quartz.save(file = here('Summary', 'Bargraph_hits_sub_lib_glycerol.pdf'),
+    type = 'pdf', dpi = 300, height = 7, width = 9)
+
+
+
+# save statistics list
+list_of_datasets = list('Summary statistics' = gal.sum,'Median test' = med.res, 't-student test' = ttest.res)
+
+write.xlsx(list_of_datasets, here('Summary', 'galactose_glycerol_stats.xlsx'), colNames = T, rowNames = F) 
+
+
+
+
+
+#---------------------------------------
+
+
+
+##########################
+### Glucose sublibrary ###
+##########################
+
+# read and transform data
+glucose = read_xlsx('Sub_library/Summary_Keio Sublibrary_Glucose Supp_10mM_N2 worms.xlsx', sheet = 'Summary_good') 
+
+glucose = glucose %>%
+    gather(Drug, Score, `0`, `1`, `2.5`, `5`) %>% # make table long
+    unite(ID, Genes, Supplement, Replicate, remove = FALSE) %>% 
+    mutate(Replicate = as.numeric(Replicate),
+        Supplement_mM = as.factor(Supplement_mM),
+        Supplement = as.factor(Supplement),
+        Genes = as.factor(Genes),
+        Pathway = as.factor(Pathway),
+        ID = as.factor(ID),
+        Drug = as.factor(Drug)) %>%
+    select(Genes, Well, ID, Pathway, Replicate, Supplement, Supplement_mM, Drug, Score)
+
+
+# table with genotypes and pathways
+
+pathways = glucose %>% select(Genes, Pathway) %>% unique
+
+# data summary
+glu.sum = glucose %>%
+  group_by(Supplement, Supplement_mM, Drug, Genes) %>%
+  summarise(Median_Score = median(Score, na.rm = TRUE),
+            Mean = mean(Score, na.rm = TRUE),
+            SD = sd(Score, na.rm = TRUE)) %>%
+  mutate(BW_Score = Median_Score[Genes == 'BW'],
+         BW_Mean = Mean[Genes == 'BW']) %>%
+  ungroup %>%
+  group_by(Genes, Drug) %>%
+  ungroup %>%
+  mutate(BW_norm = Median_Score - BW_Score,
+         BW_Mean_norm = Mean - BW_Mean)
+
+
+### SCATTER PLOT FROM GLYCEROL
+drug = 5
+pos = position_jitter(width = 0.05, height = 0.05, seed = 1) # to plot names in jitter positions
+glu.sum %>% 
+    filter(Drug == drug) %>% 
+    select(Supplement, Supplement_mM, Genes, BW_norm) %>%
+    unite(Supp, Supplement, Supplement_mM) %>%
+    spread(Supp, BW_norm) %>%
+    left_join(pathways) %>% 
+    ggplot(aes(x = Glucose_0, y = Glucose_10)) + 
+    geom_hline(yintercept = 0, colour = 'grey30') +
+    geom_vline(xintercept = 0, colour = 'grey30') +
+    geom_point(aes(colour = Pathway),position = pos, size = 2) + 
+    # scale_color_manual(values = grad) + 
+    # scale_fill_manual(values = grad) +
+    # geom_text_repel(aes(label = ifelse(Genes == 'ppnP', as.character(Genes), '')), position = pos) + # this point went rogue
+    geom_text_repel(aes(label = Genes), position = pos) +
+    labs(title = expression(paste("5FU + Glycerol effect on ", italic('C. elegans'), " phenotype", sep = '')),
+         x = expression(paste('Normalised median scores of ', italic('C. elegans'), ' phenotype', sep = ' ')),
+         y = expression(paste('Normalised median scores of ', italic('C. elegans'), ' phenotype ' , bold('(Glycerol)'), sep = ' '))) +
+    theme(plot.title = element_text(size = 15, hjust = 0.5, face = "bold"),
+            panel.grid.major = element_line(colour = "grey90"),
+            panel.background = element_rect(fill = "white", colour = "grey50"),
+            legend.text = element_text(size = 6)) + 
+    guides(colour = guide_legend(override.aes = list(size = 4))) # make lengend points larger
+
+quartz.save(file = here('Summary', paste0('Scatter_sub_lib_glucose_',as.character(drug),'uM.pdf')),
+    type = 'pdf', dpi = 300, height = 10, width = 12)
+
+
+
+
+
 
 
 
