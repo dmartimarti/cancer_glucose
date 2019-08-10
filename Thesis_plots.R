@@ -998,6 +998,7 @@ gal.sum %>%
                             position = position_jitterdodge(jitter.width = 0.25, jitter.height = 0.05), alpha = 0.8) +
     facet_wrap(~Genes, strip.position = 'top') +
     coord_cartesian(ylim = c(1,4)) +
+    geom_vline(xintercept = 1.5, size = 0.8) +
     scale_fill_discrete_sequential(palette = "Blues", nmax = 6, order = 3:6) +
     theme_light() +
     theme(strip.text = element_text(colour = 'black'))
@@ -1020,6 +1021,7 @@ gal.sum %>%
     facet_wrap(~Genes, strip.position = 'top') +
     geom_vline(xintercept = 1.5, size = 0.8) +
     coord_cartesian(ylim = c(1,4)) +
+    geom_vline(xintercept = 1.5, size = 0.8) +
     scale_fill_discrete_sequential(palette = "Reds2", nmax = 6, order = 3:6) +
     theme_light() +
     theme(strip.text = element_text(colour = 'black'))
@@ -1081,10 +1083,205 @@ glu.sum = glucose %>%
          BW_Mean_norm = Mean - BW_Mean)
 
 
-### SCATTER PLOT FROM GLYCEROL
-drug = 5
+### SCATTER PLOT
+
+drug = 2.5
 pos = position_jitter(width = 0.05, height = 0.05, seed = 1) # to plot names in jitter positions
 glu.sum %>% 
+    filter(Drug == drug) %>% 
+    select(Supplement, Supplement_mM, Genes, BW_norm) %>%
+    unite(Supp, Supplement, Supplement_mM) %>%
+    spread(Supp, BW_norm) %>%
+    left_join(pathways) %>% 
+    ggplot(aes(x = Glucose_0, y = Glucose_10)) + 
+    geom_hline(yintercept = 0, colour = 'grey30') +
+    geom_vline(xintercept = 0, colour = 'grey30') +
+    geom_point(aes(colour = Pathway),position = pos, size = 2) + 
+    # scale_color_manual(values = grad) + 
+    # scale_fill_manual(values = grad) +
+    # geom_text_repel(aes(label = ifelse(Genes == 'ppnP', as.character(Genes), '')), position = pos) + # this point went rogue
+    geom_text_repel(aes(label = Genes), position = pos) +
+    labs(title = expression(paste("5FU + Glucose effect on ", italic('C. elegans'), " N2 phenotype", sep = '')),
+         x = expression(paste('Normalised median scores of ', italic('C. elegans'), ' N2 phenotype', sep = ' ')),
+         y = expression(paste('Normalised median scores of ', italic('C. elegans'), ' N2 phenotype ' , bold('(Glucose)'), sep = ' '))) +
+    theme(plot.title = element_text(size = 15, hjust = 0.5, face = "bold"),
+            panel.grid.major = element_line(colour = "grey90"),
+            panel.background = element_rect(fill = "white", colour = "grey50"),
+            legend.text = element_text(size = 6)) + 
+    guides(colour = guide_legend(override.aes = list(size = 4))) # make lengend points larger
+
+quartz.save(file = here('Summary', paste0('Scatter_sub_lib_glucose_',as.character(drug),'uM.pdf')),
+    type = 'pdf', dpi = 300, height = 10, width = 12)
+
+
+
+### Bargraphs
+
+# all glucose barplot
+glu.sum %>%
+    ungroup %>%
+    mutate(Drug = as.factor(Drug)) %>%
+    ggplot(aes(x = Supplement_mM, y = Median_Score, fill = Drug,  width = 0.9)) +
+    geom_bar(stat = "identity", position = position_dodge2(), colour = 'black') +
+    geom_point(data = glucose %>% 
+                            mutate(Drug = as.factor(Drug)), aes(x = Supplement_mM, y = Score, group = Drug), 
+                            position = position_jitterdodge(jitter.width = 0.25, jitter.height = 0.05), alpha = 0.8) +
+    facet_wrap(~Genes, strip.position = 'top') +
+    coord_cartesian(ylim = c(1,4)) +
+    geom_vline(xintercept = 1.5, size = 0.8) +
+    scale_fill_discrete_sequential(palette = "Blues", nmax = 6, order = 3:6) +
+    theme_light() +
+    theme(strip.text = element_text(colour = 'black'))
+
+quartz.save(file = here('Summary', 'barplot_all_sub_lib_glucose.pdf'),
+    type = 'pdf', dpi = 300, height = 9, width = 14)
+
+
+
+# barplot per drug concentration
+drug = 5
+glu.sum %>%
+    ungroup %>%
+    filter(Drug == drug) %>%
+    mutate(Drug = as.factor(Drug)) %>%
+    ggplot(aes(x = Genes, y = Median_Score, fill = Drug,  width = 0.9)) +
+    geom_bar(stat = "identity", position = position_dodge2(), colour = 'black') +
+    geom_point(data = glucose %>% 
+                            filter(Drug == drug) %>%
+                            mutate(Drug = as.factor(Drug)), aes(x = Genes, y = Score, group = Drug), 
+                            position = position_jitterdodge(jitter.width = 0.25, jitter.height = 0.05), alpha = 0.8) +
+    facet_wrap(~Supplement_mM, strip.position = 'top', nrow = 2) +
+    coord_cartesian(ylim = c(1,4)) +
+    scale_fill_discrete_sequential(palette = "Blues", nmax = 6, order = 3:6) +
+    theme_light() +
+    theme(strip.text = element_text(colour = 'black'),
+        axis.text.x = element_text(angle = 45, hjust = 1))
+
+quartz.save(file = here('Summary', paste0('Bargraph_all_sub_lib_glucose_',as.character(drug),'uM.pdf')),
+    type = 'pdf', dpi = 300, height = 8, width = 11)
+
+
+
+
+
+###--------------------------
+
+
+# first, sum all score values by gene and condition
+glu.medians = glucose %>% group_by(Genes, Well, Replicate, Supplement, Supplement_mM) %>%
+    summarise(Sum = sum(Score)) 
+
+# filter values with NAs (maybe try to impute them with RF?)
+glu.medians = glu.medians %>% filter_at(vars(Sum), any_vars(!is.na(.))) 
+
+
+## we want to compare each gene against BW per condition
+# split data
+glu_0 = glu.medians %>%  filter(Supplement_mM == 0) %>% ungroup %>% select(-Well)
+glu_10 = glu.medians %>% filter(Supplement_mM == 10) %>% ungroup %>% select(-Well)
+
+
+# remove BWs with my dummy function
+glu_0 = ctrls(glu_0)
+glu_10 = ctrls(glu_10)
+
+# extract the gene list for the loop
+genes = glucose %>% ungroup %>% filter(Genes != 'BW') %>% select(Genes) %>% unique %>% data.frame 
+genes = as.character(genes$Genes)
+
+# calculate the Mood's test (median test) for every condition
+med.res = rbind(m.test(glu_0, genes), m.test(glu_10, genes))
+# the same but for the t.test
+ttest.res = rbind(av.test(glu_0, genes), av.test(glu_10, genes))
+
+
+## after having done the statistical tests, we can filter those ones that have sig. differences
+# for this dataset I will use the t test results, as the other is completely useless (data too variable, and only 2 reps)
+
+glu.genes = ttest.res %>% filter(fdr <= 0.05) %>% select(Gene) %>% unique
+
+glu.genes = as.character(glu.genes$Gene) ; glu.genes = c('BW', glu.genes)
+
+## plot hits for glucose
+
+glu.sum %>%
+    ungroup %>%
+    filter(Genes %in% glu.genes) %>%
+    mutate(Drug = as.factor(Drug)) %>%
+    ggplot(aes(x = Supplement_mM, y = Median_Score, fill = Drug,  width = 0.9)) +
+    geom_bar(stat = "identity", position = position_dodge2(), colour = 'black') +
+    geom_point(data = glucose %>% 
+        filter(Genes %in% glu.genes) %>%
+                            mutate(Drug = as.factor(Drug)), aes(x = Supplement_mM, y = Score, group = Drug), 
+                            position = position_jitterdodge(jitter.width = 0.25, jitter.height = 0.05), alpha = 0.8) +
+    facet_wrap(~Genes, strip.position = 'top') +
+    coord_cartesian(ylim = c(1,4)) +
+    geom_vline(xintercept = 1.5, size = 0.8) +
+    scale_fill_discrete_sequential(palette = "Blues", nmax = 6, order = 3:6) +
+    theme_light() +
+    theme(strip.text = element_text(colour = 'black'))
+
+quartz.save(file = here('Summary', 'Bargraph_hits_sub_lib_glucose.pdf'),
+    type = 'pdf', dpi = 300, height = 13, width = 17)
+
+
+# save statistics list
+list_of_datasets = list('Summary statistics' = glu.sum, 'Median test' = med.res, 't-student test' = ttest.res)
+
+write.xlsx(list_of_datasets, here('Summary', 'glucose_N2_stats.xlsx'), colNames = T, rowNames = F) 
+
+
+
+
+#---------------------------------------
+
+
+
+################################
+### Glucose sublibrary - pyr ###
+################################
+
+
+# read and transform data
+glucose.pyr = read_xlsx('Sub_library/Summary_Keio Sublibrary_Glucose Supp_10mM_pyr-1 worms.xlsx', sheet = 'Summary_good') 
+
+glucose.pyr = glucose.pyr %>%
+    gather(Drug, Score, `0`, `1`, `2.5`, `5`) %>% # make table long
+    unite(ID, Genes, Supplement, Replicate, remove = FALSE) %>% 
+    mutate(Replicate = as.numeric(Replicate),
+        Supplement_mM = as.factor(Supplement_mM),
+        Supplement = as.factor(Supplement),
+        Genes = as.factor(Genes),
+        Pathway = as.factor(Pathway),
+        ID = as.factor(ID),
+        Drug = as.factor(Drug)) %>%
+    select(Genes, Well, ID, Pathway, Replicate, Supplement, Supplement_mM, Drug, Score)
+
+
+# table with genotypes and pathways
+
+pathways = glucose.pyr %>% select(Genes, Pathway) %>% unique
+
+# data summary
+glu.pyr.sum = glucose.pyr %>%
+  group_by(Supplement, Supplement_mM, Drug, Genes) %>%
+  summarise(Median_Score = median(Score, na.rm = TRUE),
+            Mean = mean(Score, na.rm = TRUE),
+            SD = sd(Score, na.rm = TRUE)) %>%
+  mutate(BW_Score = Median_Score[Genes == 'BW'],
+         BW_Mean = Mean[Genes == 'BW']) %>%
+  ungroup %>%
+  group_by(Genes, Drug) %>%
+  ungroup %>%
+  mutate(BW_norm = Median_Score - BW_Score,
+         BW_Mean_norm = Mean - BW_Mean)
+
+
+### SCATTER PLOT
+
+drug = 5
+pos = position_jitter(width = 0.05, height = 0.05, seed = 1) # to plot names in jitter positions
+glu.pyr.sum %>% 
     filter(Drug == drug) %>% 
     select(Supplement, Supplement_mM, Genes, BW_norm) %>%
     unite(Supp, Supplement, Supplement_mM) %>%
@@ -1112,8 +1309,120 @@ quartz.save(file = here('Summary', paste0('Scatter_sub_lib_glucose_',as.characte
 
 
 
+### Bargraphs
+
+# all glucose barplot
+glu.pyr.sum %>%
+    ungroup %>%
+    mutate(Drug = as.factor(Drug)) %>%
+    ggplot(aes(x = Supplement_mM, y = Median_Score, fill = Drug,  width = 0.9)) +
+    geom_bar(stat = "identity", position = position_dodge2(), colour = 'black') +
+    geom_point(data = glucose.pyr %>% 
+                            mutate(Drug = as.factor(Drug)), aes(x = Supplement_mM, y = Score, group = Drug), 
+                            position = position_jitterdodge(jitter.width = 0.25, jitter.height = 0.05), alpha = 0.8) +
+    facet_wrap(~Genes, strip.position = 'top') +
+    coord_cartesian(ylim = c(1,4)) +
+    geom_vline(xintercept = 1.5, size = 0.8) +
+    scale_fill_discrete_sequential(palette = "Blues", nmax = 6, order = 3:6) +
+    theme_light() +
+    theme(strip.text = element_text(colour = 'black'))
+
+quartz.save(file = here('Summary', 'barplot_all_sub_lib_glucose.pyr.pdf'),
+    type = 'pdf', dpi = 300, height = 9, width = 14)
 
 
+
+# barplot per drug concentration
+drug = 5
+glu.pyr.sum %>%
+    ungroup %>%
+    filter(Drug == drug) %>%
+    mutate(Drug = as.factor(Drug)) %>%
+    ggplot(aes(x = Genes, y = Median_Score, fill = Drug,  width = 0.9)) +
+    geom_bar(stat = "identity", position = position_dodge2(), colour = 'black') +
+    geom_point(data = glucose.pyr %>% 
+                            filter(Drug == drug) %>%
+                            mutate(Drug = as.factor(Drug)), aes(x = Genes, y = Score, group = Drug), 
+                            position = position_jitterdodge(jitter.width = 0.25, jitter.height = 0.05), alpha = 0.8) +
+    facet_wrap(~Supplement_mM, strip.position = 'top', nrow = 2) +
+    coord_cartesian(ylim = c(1,4)) +
+    scale_fill_discrete_sequential(palette = "Blues", nmax = 6, order = 3:6) +
+    theme_light() +
+    theme(strip.text = element_text(colour = 'black'),
+        axis.text.x = element_text(angle = 45, hjust = 1))
+
+quartz.save(file = here('Summary', paste0('Bargraph_all_sub_lib_glucose.pyr_',as.character(drug),'uM.pdf')),
+    type = 'pdf', dpi = 300, height = 8, width = 11)
+
+
+
+
+
+###--------------------------
+
+
+# first, sum all score values by gene and condition
+glu.medians = glucose.pyr %>% group_by(Genes, Well, Replicate, Supplement, Supplement_mM) %>%
+    summarise(Sum = sum(Score)) 
+
+# filter values with NAs (maybe try to impute them with RF?)
+glu.medians = glu.medians %>% filter_at(vars(Sum), any_vars(!is.na(.))) 
+
+
+## we want to compare each gene against BW per condition
+# split data
+glu_0 = glu.medians %>%  filter(Supplement_mM == 0) %>% ungroup %>% select(-Well)
+glu_10 = glu.medians %>% filter(Supplement_mM == 10) %>% ungroup %>% select(-Well)
+
+
+# remove BWs with my dummy function
+glu_0 = ctrls(glu_0)
+glu_10 = ctrls(glu_10)
+
+# extract the gene list for the loop
+genes = glucose.pyr %>% ungroup %>% filter(Genes != 'BW') %>% select(Genes) %>% unique %>% data.frame 
+genes = as.character(genes$Genes)
+
+# calculate the Mood's test (median test) for every condition
+med.res = rbind(m.test(glu_0, genes), m.test(glu_10, genes))
+# the same but for the t.test
+ttest.res = rbind(av.test(glu_0, genes), av.test(glu_10, genes))
+
+
+## after having done the statistical tests, we can filter those ones that have sig. differences
+# for this dataset I will use the t test results, as the other is completely useless (data too variable, and only 2 reps)
+
+glu.genes = ttest.res %>% filter(fdr <= 0.05) %>% select(Gene) %>% unique
+
+glu.genes = as.character(glu.genes$Gene) ; glu.genes = c('BW', glu.genes)
+
+## plot hits for glucose
+
+glu.pyr.sum %>%
+    ungroup %>%
+    filter(Genes %in% glu.genes) %>%
+    mutate(Drug = as.factor(Drug)) %>%
+    ggplot(aes(x = Supplement_mM, y = Median_Score, fill = Drug,  width = 0.9)) +
+    geom_bar(stat = "identity", position = position_dodge2(), colour = 'black') +
+    geom_point(data = glucose.pyr %>% 
+        filter(Genes %in% glu.genes) %>%
+                            mutate(Drug = as.factor(Drug)), aes(x = Supplement_mM, y = Score, group = Drug), 
+                            position = position_jitterdodge(jitter.width = 0.25, jitter.height = 0.05), alpha = 0.8) +
+    facet_wrap(~Genes, strip.position = 'top') +
+    coord_cartesian(ylim = c(1,4)) +
+    geom_vline(xintercept = 1.5, size = 0.8) +
+    scale_fill_discrete_sequential(palette = "Blues", nmax = 6, order = 3:6) +
+    theme_light() +
+    theme(strip.text = element_text(colour = 'black'))
+
+quartz.save(file = here('Summary', 'Bargraph_hits_sub_lib_glucose.pyr.pdf'),
+    type = 'pdf', dpi = 300, height = 7, width = 9)
+
+
+# save statistics list
+list_of_datasets = list('Summary statistics' = glu.pyr.sum, 'Median test' = med.res, 't-student test' = ttest.res)
+
+write.xlsx(list_of_datasets, here('Summary', 'glucose_N2_stats.xlsx'), colNames = T, rowNames = F) 
 
 
 
