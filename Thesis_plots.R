@@ -1208,21 +1208,23 @@ glu.sum %>%
     ungroup %>%
     filter(Genes %in% glu.genes) %>%
     mutate(Drug = as.factor(Drug)) %>%
-    ggplot(aes(x = Supplement_mM, y = Median_Score, fill = Drug,  width = 0.9)) +
-    geom_bar(stat = "identity", position = position_dodge2(), colour = 'black') +
+    ggplot(aes(x = Supplement_mM, y = Median_Score, fill = interaction(Supplement_mM, Drug),  width = 0.9)) +
+    geom_bar(stat = "identity", position = position_dodge2(), colour = 'black', show.legend = FALSE) +
     geom_point(data = glucose %>% 
         filter(Genes %in% glu.genes) %>%
                             mutate(Drug = as.factor(Drug)), aes(x = Supplement_mM, y = Score, group = Drug), 
-                            position = position_jitterdodge(jitter.width = 0.25, jitter.height = 0.05), alpha = 0.8) +
+                            position = position_jitterdodge(jitter.width = 0.25, jitter.height = 0.05), alpha = 0.8,show.legend = FALSE) +
     facet_wrap(~Genes, strip.position = 'top') +
     coord_cartesian(ylim = c(1,4)) +
     geom_vline(xintercept = 1.5, size = 0.8) +
-    scale_fill_discrete_sequential(palette = "Blues", nmax = 6, order = 3:6) +
+    scale_fill_manual(values = c('#8ABDCE','#BF82A6','#3ACDFF','#8E4E74', '#009BD0','#6B214C','#003749','#51193A')) +
+    # scale_fill_discrete_sequential(palette = "Blues", nmax = 6, order = 3:6) +
     theme_light() +
     theme(strip.text = element_text(colour = 'black'))
 
 quartz.save(file = here('Summary', 'Bargraph_hits_sub_lib_glucose.pdf'),
     type = 'pdf', dpi = 300, height = 13, width = 17)
+
 
 
 # save statistics list
