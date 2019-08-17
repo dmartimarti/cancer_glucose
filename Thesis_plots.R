@@ -2329,7 +2329,129 @@ quartz.save(file = here('Summary', 'Pointrange_AUC_hits_TF_lib_glucose.pdf'),
 
 
 
+# -------------------------------------------------------------- #
+# -------------------------------------------------------------- #
+# -------------------------------------------------------------- #
 
+############################ 
+### Other develop assays ###
+############################
+
+
+#####################################################
+### gltA mutants with salvage and de novo mutants ###
+#####################################################
+
+
+gltA_dn_data = read_xlsx('other_develop_assays/4. DevelopAssay_denovo_salvage_gltAmuts_10mM Sugar Supp_30_01_2018_2.xlsx', sheet = 'Summary') 
+
+gltA_dn_data = gltA_dn_data %>%
+    gather(Drug, Score, `0`, `1`, `2.5`, `5`, `10`, `40`) %>% 
+    mutate(Replicate = as.numeric(Replicate),
+        Genes = as.factor(Genes),
+        Supplement_mM = as.factor(Supplement_mM),
+        Supplement = as.factor(Supplement),
+        Drug = as.numeric(Drug)) 
+
+
+# create summary of data
+
+gltA_dn.sum = gltA_dn_data %>%
+    group_by(Supplement, Supplement_mM, Drug, Genes) %>%
+    summarise(Median_Score = median(Score, na.rm = TRUE),
+            MAD = mad(Score, na.rm = TRUE),
+            Mean = mean(Score, na.rm = TRUE),
+            SD = sd(Score, na.rm = TRUE)) %>%
+    mutate(BW_score = Median_Score[Genes == 'BW'],
+            BW_norm = Median_Score - BW_score)
+
+
+
+pos = position_jitter(width = 0.05, height = 0.05, seed = 1) # to plot names in jitter positions
+
+
+gltA_dn.sum %>% 
+    ungroup %>%
+    filter(Drug == 5) %>%
+    select(Supplement, Supplement_mM, Genes, BW_norm) %>%
+    unite(GenID, Genes, Supplement_mM) %>%
+    # unite(Supp, Supplement, Supplement_mM) %>%
+    spread(Supplement, BW_norm) %>%
+    ggplot(aes(x = Glucose_0, y = Glucose_10)) + 
+    geom_hline(yintercept = 0, colour = 'grey30') +
+    geom_vline(xintercept = 0, colour = 'grey30') +
+    geom_point(position = pos, size = 2) +
+    geom_text_repel(aes(label = ifelse(abs(Glucose_0) >= 0.2 | abs(Glucose_10) >= 0.2 , as.character(Genes), '')), position = pos) + 
+    labs(title = expression(paste("5FU + Glucose effect on ", italic('C. elegans'), " phenotype (TFs)", sep = '')),
+         x = expression(paste('Normalised median scores of ', italic('C. elegans'), ' phenotype', sep = ' ')),
+         y = expression(paste('Normalised median scores of ', italic('C. elegans'), ' phenotype ' , bold('(Glucose)'), sep = ' '))) +
+    theme(plot.title = element_text(size = 15, hjust = 0.5, face = "bold"),
+            panel.grid.major = element_line(colour = "grey90"),
+            panel.background = element_rect(fill = "white", colour = "grey50"),
+            legend.text = element_text(size = 6)) + 
+    guides(colour = guide_legend(override.aes = list(size = 4))) # make lengend points larger
+
+quartz.save(file = here('Summary', paste0('Scatter_tf_sub_lib_glucose_',as.character(drug),'uM.pdf')),
+    type = 'pdf', dpi = 300, height = 10, width = 12)
+
+
+
+
+
+
+
+# plot heatmaps
+gradcolours = c('black', 'yellow', 'orange', 'red')
+
+diffcolours = c('purple', 'blue', 'steelblue', 'black', 'yellow', 'orange', 'red')
+breaks = c(-4, -3, -2, -1, 0, 1, 2, 3, 4)
+limits = c(-4 , 4)
+
+# function to plot heatmap, from Pov
+plotHeatmap = function(data, x, y, fill, grad = gradcolours, breaks = c(0,1,2,3,4), limits = c(0,4)){
+  ggplot(data,aes_string(x = x, y = y, fill = fill))+
+    geom_tile(size=0.9)+
+    xlab('5FU, uM')+
+    theme(axis.ticks = element_blank(),
+          panel.border = element_blank(),
+          panel.grid.minor = element_blank(),
+          panel.grid.major = element_blank(),
+          axis.line = element_line(colour = NA),
+          axis.line.x = element_line(colour = NA),
+          axis.line.y = element_line(colour = NA),
+          strip.text = element_text(colour = 'black', face='bold',size = 10),
+          axis.text.x= element_text(face = 'bold', colour = 'black', size = 10, angle = 90, hjust = 1),
+          axis.text.y= element_text(face = 'bold', colour = 'black', size = 10))+
+    scale_fill_gradientn(colours = grad, breaks = breaks, limits = limits, guide = "legend")
+}
+
+
+
+# heatmap
+
+gltA_dn.sum %>%
+    ungroup %>%
+    mutate(Drug = as.factor(Drug)) %>%
+    plotHeatmap(x = 'Drug', y = 'Genes', fill = 'Median_Score')+
+    ylab('Strain')+
+    labs(fill = 'C. elegans phenotype')+
+    facet_wrap(~ Supplement, ncol = 2)
+
+quartz.save(file = here('Summary', 'Heatmap_glta_salvage_denovo_glucose.pdf'),
+    type = 'pdf', dpi = 300, height = 10, width = 12)
+
+
+gltA_dn.sum %>%
+    ungroup %>%
+    filter(Genes != 'BW') %>%
+    mutate(Drug = as.factor(Drug)) %>%
+    plotHeatmap(x = 'Drug', y = 'Genes', fill = 'BW_norm',grad = diffcolours, breaks = breaks, limits = limits)+
+    ylab('Strain')+
+    labs(fill = 'C. elegans phenotype')+
+    facet_wrap(~ Supplement, ncol = 2)
+
+ggsave(file = paste(odir, gltA_dn_dir,"/Heatmap_gltA_denovo_BWnorm.pdf", sep = ''),
+       width = 120, height = 65, units = 'mm', scale = 2, device = cairo_pdf, family = "Arial")
 
 
 
