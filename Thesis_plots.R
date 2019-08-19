@@ -2637,7 +2637,7 @@ gltA_pyr.sum = gltA_pyr %>%
 
 # scatter plot
 
-drug = 2.5
+drug = 5
 pos = position_jitter(width = 0.05, height = 0.05, seed = 1) # to plot names in jitter positions
 gltA_pyr.sum %>% 
     filter(Drug == drug) %>% 
@@ -2651,9 +2651,9 @@ gltA_pyr.sum %>%
     # geom_text_repel(aes(label = Genes), position = pos) +
     geom_text_repel(aes(label = ifelse(Genes != 'ΔgltA::K', as.character(Genes), '')), position = pos, colour = 'black', size = 2.5) +
     geom_text_repel(aes(label = ifelse(Genes == 'ΔgltA::K', as.character(Genes), '')), position = pos, colour = 'red', size = 5, box.padding = 3.5) +
-    labs(title = expression(paste("5FU + Glucose effect on ", italic('C. elegans'), " N2 phenotype", sep = '')),
+    labs(title = expression(paste("5FU + Pyruvate effect on ", italic('C. elegans'), " N2 phenotype", sep = '')),
          x = expression(paste('Normalised median scores of ', italic('C. elegans'), ' N2 phenotype', sep = ' ')),
-         y = expression(paste('Normalised median scores of ', italic('C. elegans'), ' N2 phenotype ' , bold('(Glucose)'), sep = ' '))) +
+         y = expression(paste('Normalised median scores of ', italic('C. elegans'), ' N2 phenotype ' , bold('(Pyruvate)'), sep = ' '))) +
     theme(plot.title = element_text(size = 15, hjust = 0.5, face = "bold"),
             panel.grid.major = element_line(colour = "grey90"),
             panel.background = element_rect(fill = "white", colour = "grey50"),
@@ -2892,24 +2892,292 @@ quartz.save(file = here('Summary', 'Pointrange_hits_pyruvate_DMs_lib_glucose_AUC
 
 
 
+##########################################
+### glta methylcitrate cycle gene DMs  ###
+##########################################
+
+gltA_mc = read_xlsx('other_develop_assays/7. DevelopAssay_glta_2-methylcitrate cycle_DMs_sublibrary_5reps_10mM_Glu_01-09-18.xlsx', sheet = 'Summary_good') 
+
+gltA_mc = gltA_mc %>%
+    gather(Drug, Score, `0`, `1`, `2.5`, `5`) %>% 
+    mutate(Replicate = as.numeric(Replicate),
+        Genes = as.factor(Genes),
+        Supplement_mM = as.factor(Supplement_mM),
+        Supplement = as.factor(Supplement),
+        Drug = as.numeric(Drug)) 
+
+
+# create summary of data
+
+gltA_mc.sum = gltA_mc %>%
+    group_by(Supplement, Supplement_mM, Drug, Genes) %>%
+    summarise(Median_Score = median(Score, na.rm = TRUE),
+            MAD = mad(Score, na.rm = TRUE),
+            Mean = mean(Score, na.rm = TRUE),
+            SD = sd(Score, na.rm = TRUE)) %>%
+    mutate(BW_score = Median_Score[Genes == 'BW'],
+            BW_norm = Median_Score - BW_score) %>%
+    ungroup
+
+
+
+# scatter plot
+
+drug = 1
+pos = position_jitter(width = 0.05, height = 0.05, seed = 1) # to plot names in jitter positions
+gltA_mc.sum %>% 
+    filter(Drug == drug) %>% 
+    select(Supplement, Supplement_mM, Genes, BW_norm) %>%
+    unite(Supp, Supplement, Supplement_mM) %>%
+    spread(Supp, BW_norm) %>%
+    ggplot(aes(x = Glucose_0, y = Glucose_10)) + 
+    geom_hline(yintercept = 0, colour = 'grey30') +
+    geom_vline(xintercept = 0, colour = 'grey30') +
+    geom_point(position = pos, size = 2) + 
+    geom_text_repel(aes(label = Genes), position = pos) +
+    #coord_cartesian(ylim = c(-1,1), xlim = c(-1,1)) + # for drug == 0
+    # geom_text_repel(aes(label = ifelse(Genes != 'ΔgltA::K', as.character(Genes), '')), position = pos, colour = 'black', size = 2.5) +
+    # geom_text_repel(aes(label = ifelse(Genes == 'ΔgltA::K', as.character(Genes), '')), position = pos, colour = 'red', size = 5, box.padding = 3.5) +
+    labs(title = expression(paste("5FU + Glucose effect on ", italic('C. elegans'), " N2 phenotype", sep = '')),
+         x = expression(paste('Normalised median scores of ', italic('C. elegans'), ' N2 phenotype', sep = ' ')),
+         y = expression(paste('Normalised median scores of ', italic('C. elegans'), ' N2 phenotype ' , bold('(Glucose)'), sep = ' '))) +
+    theme(plot.title = element_text(size = 15, hjust = 0.5, face = "bold"),
+            panel.grid.major = element_line(colour = "grey90"),
+            panel.background = element_rect(fill = "white", colour = "grey50"),
+            legend.text = element_text(size = 6)) + 
+    guides(colour = guide_legend(override.aes = list(size = 4))) # make lengend points larger
+
+quartz.save(file = here('Summary', paste0('Scatter_glta_methyl_DMs_glucose_',as.character(drug),'uM.pdf')),
+    type = 'pdf', dpi = 300, height = 10, width = 12)
 
 
 
 
 
+### Bargraphs
+
+# all glucose barplot
+gltA_mc.sum %>%
+    ungroup %>%
+    mutate(Drug = as.factor(Drug)) %>%
+    ggplot(aes(x = Supplement_mM, y = Median_Score, fill = interaction(Supplement_mM, Drug),  width = 0.9)) +
+    geom_bar(stat = "identity", position = position_dodge2(), colour = 'black') +
+    geom_errorbar(aes(ymin = Median_Score - MAD, ymax = Median_Score + MAD), width = 0.2, position=position_dodge(.9)) +
+    geom_point(data = gltA_mc %>% 
+                            mutate(Drug = as.factor(Drug)), aes(x = Supplement_mM, y = Score, group = Drug), 
+                            position = position_jitterdodge(jitter.width = 0.25, jitter.height = 0.05), alpha = 0.8) +
+    facet_wrap(~Genes, strip.position = 'top') +
+    coord_cartesian(ylim = c(1,4)) +
+    geom_vline(xintercept = 1.5, size = 0.8) +
+    scale_fill_manual(values = c('#8ABDCE','#BF82A6','#3ACDFF','#8E4E74', '#009BD0','#6B214C','#003749','#51193A'), name = 'Supplement - Drug') +
+    theme_light() +
+    labs(x = 'Supplement (in mM)',
+         y = 'Median') +
+    theme(strip.text = element_text(colour = 'black'))
+
+quartz.save(file = here('Summary', 'Bargraph_hits_glta_methyl_DMs_glucose_0to5uM.pdf'),
+    type = 'pdf', dpi = 300, height = 12, width = 15)
+
+
+
+# barplot per drug concentration
+drug = 5
+gltA_mc.sum %>%
+    ungroup %>%
+    filter(Drug == drug) %>%
+    mutate(Drug = as.factor(Drug)) %>%
+    ggplot(aes(x = Genes, y = Median_Score, fill = Drug,  width = 0.9)) +
+    geom_bar(stat = "identity", position = position_dodge2(), colour = 'black') +
+    geom_errorbar(aes(ymin = Median_Score - MAD, ymax = Median_Score + MAD), width = 0.2, position = position_dodge(.9)) +
+    geom_point(data = gltA_mc %>% 
+                            filter(Drug == drug) %>%
+                            mutate(Drug = as.factor(Drug)), aes(x = Genes, y = Score, group = Drug), 
+                            position = position_jitterdodge(jitter.width = 0.25, jitter.height = 0.05), alpha = 0.8) +
+    facet_wrap(~Supplement_mM, strip.position = 'top', nrow = 2) +
+    coord_cartesian(ylim = c(1,4)) +
+    scale_fill_discrete_sequential(palette = "Blues", nmax = 6, order = 3:6) +
+    theme_light() +
+    theme(strip.text = element_text(colour = 'black'),
+        axis.text.x = element_text(angle = 45, hjust = 1))
+
+quartz.save(file = here('Summary', paste0('Bargraph_all_glta_methyl_DMs_glucose_',as.character(drug),'uM.pdf')),
+    type = 'pdf', dpi = 300, height = 7, width = 9)
+
+
+
+# heatmap
+
+gltA_mc.sum %>%
+    ungroup %>%
+    mutate(Drug = as.factor(Drug)) %>%
+    plotHeatmap(x = 'Drug', y = 'Genes', fill = 'Median_Score')+
+    ylab('Strain')+
+    labs(fill = 'C. elegans phenotype')+
+    facet_wrap(~ Supplement_mM, ncol = 2)
+
+quartz.save(file = here('Summary', paste0('Heatmap_gltA_methyl.pdf')),
+    type = 'pdf', dpi = 300, height = 7, width = 9)
+
+
+gltA_mc.sum %>%
+    ungroup %>%
+    mutate(Drug = as.factor(Drug)) %>%
+    plotHeatmap(x = 'Drug', y = 'Genes', fill = 'BW_norm',grad = diffcolours, breaks = breaks, limits = limits)+
+    ylab('Strain')+
+    labs(fill = 'C. elegans phenotype')+
+    facet_wrap(~ Supplement_mM, ncol = 2)
+
+
+quartz.save(file = here('Summary', paste0('Heatmap_gltA_methyl_BWnorm.pdf')),
+    type = 'pdf', dpi = 300, height = 7, width = 9)
 
 
 
 
+###--------------------------
+
+
+# first, sum all score values by gene and condition
+glu.auc = gltA_mc %>% group_by(Genes, Replicate, Supplement, Supplement_mM) %>%
+    summarise(Sum = sum(Score)) 
+
+# filter values with NAs (maybe try to impute them with RF?)
+glu.auc = glu.auc %>% filter_at(vars(Sum), any_vars(!is.na(.))) 
+
+
+## we want to compare each gene against BW per condition
+# split data
+glu_0 = glu.auc %>%  filter(Supplement_mM == 0) %>% ungroup 
+glu_10 = glu.auc %>% filter(Supplement_mM == 10) %>% ungroup
+
+
+# remove BWs with my dummy function
+glu_0 = ctrls(glu_0)
+glu_10 = ctrls(glu_10)
+
+# extract the gene list for the loop
+genes = gltA_mc %>% ungroup %>% filter(Genes != 'BW') %>% select(Genes) %>% unique %>% data.frame 
+genes = as.character(genes$Genes)
+
+# the same but for the t.test
+ttest.res = rbind(av.test(glu_0, genes), av.test(glu_10, genes))
+
+
+# funny dataset
+ttest.res
+ttest.res[is.na(ttest.res)] = 1
+
+
+## after having done the statistical tests, we can filter those ones that have sig. differences
+# for this dataset I will use the t test results, as the other is completely useless (data too variable, and only 2 reps)
+
+glu.genes = ttest.res %>% filter(fdr <= 0.05) %>% select(Gene) %>% unique
+glu.genes = sort(as.character(glu.genes$Gene)) ; glu.genes = c('BW', glu.genes)
+glu.genes = factor(glu.genes, levels = glu.genes)
+
+## plot hits for glucose
+
+gltA_mc.sum %>%
+    ungroup %>%
+    filter(Genes %in% glu.genes) %>%
+    mutate(Drug = as.factor(Drug)) %>%
+    ggplot(aes(x = Supplement_mM, y = Median_Score, fill = interaction(Supplement_mM, Drug),  width = 0.9)) +
+    geom_bar(stat = "identity", position = position_dodge2(), colour = 'black') +
+    geom_errorbar(aes(ymin = Median_Score - MAD, ymax = Median_Score + MAD), width = 0.2, position=position_dodge(.9)) +
+    geom_point(data = gltA_pyr %>% 
+        filter(Genes %in% glu.genes) %>%
+                            mutate(Drug = as.factor(Drug)), aes(x = Supplement_mM, y = Score, group = Drug), 
+                            position = position_jitterdodge(jitter.width = 0.25, jitter.height = 0.05), alpha = 0.8) +
+    facet_wrap(~Genes, strip.position = 'top') +
+    coord_cartesian(ylim = c(1,4)) +
+    geom_vline(xintercept = 1.5, size = 0.8) +
+    scale_fill_manual(values = c('#8ABDCE','#BF82A6','#3ACDFF','#8E4E74', '#009BD0','#6B214C','#003749','#51193A'), name = 'Supplement - Drug') +
+    # scale_fill_discrete_sequential(palette = "Blues", nmax = 6, order = 3:6) +
+    theme_light() +
+    theme(strip.text = element_text(colour = 'black'))
+
+
+quartz.save(file = here('Summary', 'Bargraph_hits_glta_methyl_DMs_glucose_0to5uM.pdf'),
+    type = 'pdf', dpi = 300, height = 13, width = 17)
 
 
 
+# save statistics list
+list_of_datasets = list('Summary statistics' = gltA_mc.sum, 'AUC' = glu.auc, 't-student test' = ttest.res)
+
+write.xlsx(list_of_datasets, here('Summary', 'glta_methylcitrate_stats.xlsx'), colNames = T, rowNames = F) 
 
 
 
+length(glu.genes)
+
+# generate a small dataframe to divide the original dataframe
+div = c(rep(1, 11))
+df = data.frame(Genes = glu.genes, div)
+
+glu.auc %>%
+    ungroup %>%
+    filter(Genes %in% glu.genes) %>%
+    mutate(Genes = factor(Genes, levels = glu.genes)) %>%
+    group_by(Genes, Supplement_mM) %>%
+    summarise(Mean = mean(Sum), 
+                SD = sd(Sum)) %>%
+    left_join(df) %>%
+    ungroup %>%
+    ggplot(aes(x = Genes, y = Mean, fill = Supplement_mM,  width = 0.9)) +
+    geom_bar(aes(x = Genes), stat = "identity", position = position_dodge2(), colour = 'black') +
+    geom_errorbar(aes(x = Genes, ymin = Mean - SD, ymax = Mean + SD), width = 0.2, position = position_dodge(.9)) +
+    geom_point(data = glu.auc %>% 
+        filter(Genes %in% glu.genes) %>% ungroup %>%
+        mutate(Genes = as.character(Genes), Supplement_mM = as.character(Supplement_mM)) %>%
+        left_join(df), aes(x = Genes, y = Sum), 
+                            position = position_jitterdodge(jitter.width = 0.4, jitter.height = 0.05, dodge.width = 1), 
+                            alpha = 0.8, show.legend = FALSE) +
+    theme_light() +
+        labs(x = 'Genes',
+             y = 'AUC mean') +
+    facet_wrap(~div, scales = "free_x", nrow = 5) +
+    theme(strip.text = element_text(colour = 'black'),
+        axis.text.x = element_text(angle = 45, hjust = 1),
+        strip.background = element_blank(),  # delete facet_wrap 
+        strip.text.x = element_blank())         # delete facet_wrap 
+
+quartz.save(file = here('Summary', 'Bargraph_hits_glta_methyl_DMs_glucose_AUC.pdf'),
+    type = 'pdf', dpi = 300, height = 10, width = 11)
 
 
 
+glu.auc %>%
+    ungroup %>%
+    filter(Genes %in% glu.genes) %>%
+    mutate(Genes = factor(Genes, levels = glu.genes)) %>%
+    group_by(Genes, Supplement_mM) %>%
+    summarise(Mean = mean(Sum), 
+                SD = sd(Sum)) %>%
+    left_join(df) %>%
+    ungroup %>%
+    ggplot(aes(x = Genes, y = Mean, width = 0.9, colour = Supplement_mM)) +
+    # geom_errorbar(aes(x = Genes, ymin = Mean - SD, ymax = Mean + SD), width = 0.2, position = position_dodge(.9)) +
+    geom_point(data = glu.auc %>% 
+        filter(Genes %in% glu.genes) %>% ungroup %>%
+        mutate(Genes = factor(Genes, levels = glu.genes)) %>%
+        left_join(df), aes(x = Genes, y = Sum, group = Supplement_mM), 
+                            position = position_jitterdodge(jitter.width = 0.2, jitter.height = 0.05, dodge.width = 0.4), 
+                            show.legend = FALSE) +
+    geom_pointrange(aes(x = Genes, ymin = Mean - SD, ymax = Mean + SD), stat = "identity", position = position_dodge2(width = 0.4), 
+         alpha = 1, shape = '-', size = 0.8, fatten = 11) +
+    theme_light() +
+    scale_color_manual(values = c('black', '#FC1C32')) +
+        labs(x = 'Genes',
+             y = 'AUC mean') +
+    facet_wrap(~div, scales = "free_x", nrow = 5) +
+    theme(strip.text = element_text(colour = 'black'),
+        axis.text.x = element_text(angle = 45, hjust = 1),
+        strip.background = element_blank(),  # delete facet_wrap 
+        strip.text.x = element_blank())         # delete facet_wrap 
+
+quartz.save(file = here('Summary', 'Pointrange_hits_glta_methyl_DMs_glucose_AUC.pdf'),
+    type = 'pdf', dpi = 300, height = 5, width = 12)
 
 
 
