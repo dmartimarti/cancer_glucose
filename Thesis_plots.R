@@ -301,6 +301,105 @@ pca_plot("crp")
 
 
 
+
+
+###########################
+#### Time series 
+
+
+# Get timeseries data
+# It will take a while
+data.b.ts = read_csv('../Bacteria data/All_files/Data_Leo5/Timeseries.csv',quote = "\"") %>%
+  filter(Data == '750nm_f') %>% #Select only the relevant data to speed it up
+  gather(Time_s, OD, matches('\\d')) %>%
+  filter(!is.na(OD)) %>% #Remove empty values if there are missmatches
+  mutate(Strain = as.character(Strain),
+         Strain = recode(Strain,'BW25113'='BW'), #Change strain namings
+         ReplicateB = paste0('B', as.character(Replicate)), #Generate replicate ID which indicate that it's data for bacteria
+         Type = ifelse(Type == 'Control','C','T'),
+         Type = factor(Type,
+                     levels = c('C','T'),
+                     labels = c('Control','Treatment')),
+         Time_s = as.numeric(Time_s),
+         Time_h = Time_s/3600,
+         Row = str_match_all(Well,'[:digit:]{1,}'), #Get plate row names from well name. 
+         Col = str_match_all(Well,'[:alpha:]{1,}'), #Get plate column names from well name
+         Row = factor(Row, levels = 1:12), #Make them categorical variable with set order them
+         Col = factor(Col, levels = LETTERS[1:8])) #Make them categorical variable with set order them
+
+# [:digit:]{1,} - one or more digits
+# This is a 'regular expression'
+# More info here https://stringr.tidyverse.org/articles/regular-expressions.html
+
+data.b.ts = data.b.ts %>% mutate(OD = as.numeric(OD))
+
+
+
+# Growth curves for summary
+
+tsum = data.b.ts %>%
+  group_by(Strain, Type, Index, Plate, Well, Metabolite, MetaboliteU, Time_h) %>%
+  summarise(Mean = mean(OD), SD = sd(OD),SE = SD/sqrt(length(OD))) %>%
+  ungroup 
+
+
+Metcols = c("black", "red")
+names(Metcols) = c("Control","Treatment")
+Metlab = 'Type'
+
+
+
+mlevels = c('Negative Control_C','Uridine_N','L-Serine','Adenosine')
+
+mlabels = c('Control','Uridine','L-Serine','Adenosine')
+
+# This may take a while
+# plot growth curves by different conditions
+
+
+tsum %>%
+  filter(Strain == 'BW') %>%
+  filter(MetaboliteU %in% mlevels) %>%
+  mutate(MetaboliteU = factor(MetaboliteU, levels = mlevels, labels = mlabels)) %>%
+  ggplot(aes(x = Time_h, y = Mean, fill = Type, color = Type)) +
+  geom_ribbon(aes(ymin = Mean - SD, ymax = Mean + SD), color = NA, alpha = 0.2) +
+  geom_line() +
+  scale_x_continuous(breaks = seq(0, 24, by = 12)) +
+  ylab("OD") +
+  xlab("Time, h") +
+  labs(fill="Type") +
+  #facet_wrap(~MetaboliteU,ncol = 2)+
+  facet_wrap(~MetaboliteU,ncol = 2) +
+  scale_colour_manual(name = Metlab, values = Metcols) +
+  scale_fill_manual(name = Metlab, values = Metcols) +
+  theme(legend.position = "top") +
+  theme_light()
+
+## 
+
+# tsum %>%
+#   filter(MetaboliteU %in% mlevels) %>%
+#   mutate(MetaboliteU = factor(MetaboliteU, levels = mlevels, labels = mlabels)) %>%
+#   mutate(Strain = factor(Strain)) %>%
+#   ggplot( aes(x = Time_h, y = Mean, fill = Type, color = Type)) +
+#   geom_ribbon(aes(ymin = Mean - SD, ymax = Mean + SD), color = NA, alpha = 0.2) +
+#   geom_line() +
+#   scale_x_continuous(breaks = seq(0, 24, by = 12)) +
+#   ylab("OD") +
+#   xlab("Time, h") +
+#   labs(fill = "Type") +
+#   #facet_wrap(~MetaboliteU,ncol = 2)+
+#   facet_grid((MetaboliteU ~ Strain)) +
+#   scale_colour_manual(name = Metlab, values = Metcols) +
+#   scale_fill_manual(name = Metlab, values = Metcols) +
+#   theme(legend.position = "top", strip.text = element_text(size = 13))
+
+
+
+quartz.save(file = here('Summary', '4_way_growth_curves.pdf'),
+    type = 'pdf', dpi = 300, height = 8, width = 10)
+
+
 ############################
 
 
@@ -431,10 +530,11 @@ ggplot(first, aes()) +
                          breaks = c(1,2,3,4), limits = c(1,4), guide = "legend", name = 'C. elegans\nphenotype') +
   scale_y_continuous(breaks = -5:5)+
   coord_cartesian(xlim = c(-5, 2), ylim = c(-4, 4)) +
-  labs(title = paste(strain, " growth with 5FU treatment at 5 uM", sep = ''),
+  labs(title = paste(strain, " growth with 5FU treatment at 0 uM", sep = ''),
   x = expression(paste(italic("E. coli"), ' growth vs NGM - Control, logFC', sep = '')), 
   y = expression(paste(italic('E. coli'), ' growth vs NGM - 5-FU Treatment, logFC', sep = ''))) +
   theme(plot.title = element_text(hjust = 0.5, face = "bold")) +
+  # geom_text_repel(data = fourth, aes(x = x_logFC, y = y_logFC, label = ifelse(MetaboliteU %in% mlevels, MetaboliteU, '')), size = 4, box.padding = unit(1.6, "lines")) + # USE ONLY FOR DEMONSTRATIVE PURPOSES FOR LEO
   geom_text_repel(data = fourth, aes(x = x_logFC, y = y_logFC, label = ifelse(z_logFC >= 4, MetaboliteU, '')), box.padding = unit(0.6, "lines"), segment.alpha = 0.4) + # only name those nutr with C. elegans phenotype 3 or more
   # geom_text_repel(aes(label = ifelse(z_logFC >= 3 | z_logFC == 0, MetaboliteU, '')), box.padding = unit(0.6, "lines"), segment.alpha = 0.4) + # only name those nutr with C. elegans phenotype 3 or more
   guides(color = guide_legend()) +
@@ -453,6 +553,12 @@ ggplot(first, aes()) +
 quartz.save(file = here('Summary', paste0("Scatter_", strain, "_5uM.pdf")),
 	type = 'pdf', dpi = 300, height = 8, width = 10)
 
+
+# quartz.save(file = here('Summary', paste0("Scatter_EXAMPLE_", strain, "_5uM.pdf")),
+#     type = 'pdf', dpi = 300, height = 8, width = 10)
+
+
+geom_text_repel(aes(label = ifelse(Genes %in% c('Δglta ΔprpB::K','ΔgltA::K'), as.character(Genes), '')), position = pos, colour = 'red', size = 5, box.padding = 3.5) +
 
 # scales for different mutants:
 # BW: coord_cartesian(xlim = c(-5, 2), ylim = c(-4, 4))
@@ -1775,9 +1881,9 @@ quartz.save(file = here('Summary', 'Pointrange_AUC_hits_sub_lib_glucose_pyr1.pdf
 
 
 
-################################
-### Glucose sublibrary - pyr ###
-################################
+#################################
+### Glucose sublibrary - umps ###
+#################################
 
 
 # read and transform data
@@ -2637,7 +2743,7 @@ gltA_pyr.sum = gltA_pyr %>%
 
 # scatter plot
 
-drug = 5
+drug = 0
 pos = position_jitter(width = 0.05, height = 0.05, seed = 1) # to plot names in jitter positions
 gltA_pyr.sum %>% 
     filter(Drug == drug) %>% 
@@ -2648,9 +2754,10 @@ gltA_pyr.sum %>%
     geom_hline(yintercept = 0, colour = 'grey30') +
     geom_vline(xintercept = 0, colour = 'grey30') +
     geom_point(position = pos, size = 2) + 
+    coord_cartesian(ylim = c(-1,1)) + # for drug == 0
     # geom_text_repel(aes(label = Genes), position = pos) +
-    geom_text_repel(aes(label = ifelse(Genes != 'ΔgltA::K', as.character(Genes), '')), position = pos, colour = 'black', size = 2.5) +
-    geom_text_repel(aes(label = ifelse(Genes == 'ΔgltA::K', as.character(Genes), '')), position = pos, colour = 'red', size = 5, box.padding = 3.5) +
+    geom_text_repel(aes(label = ifelse(!Genes %in% c('Δglta ΔprpB::K','ΔgltA::K'), as.character(Genes), '')), position = pos, colour = 'black', size = 2.5) +
+    geom_text_repel(aes(label = ifelse(Genes %in% c('Δglta ΔprpB::K','ΔgltA::K'), as.character(Genes), '')), position = pos, colour = 'red', size = 5, box.padding = 3.5) +
     labs(title = expression(paste("5FU + Pyruvate effect on ", italic('C. elegans'), " N2 phenotype", sep = '')),
          x = expression(paste('Normalised median scores of ', italic('C. elegans'), ' N2 phenotype', sep = ' ')),
          y = expression(paste('Normalised median scores of ', italic('C. elegans'), ' N2 phenotype ' , bold('(Pyruvate)'), sep = ' '))) +
@@ -3178,6 +3285,860 @@ glu.auc %>%
 
 quartz.save(file = here('Summary', 'Pointrange_hits_glta_methyl_DMs_glucose_AUC.pdf'),
     type = 'pdf', dpi = 300, height = 5, width = 12)
+
+
+
+
+
+
+
+#################################################################
+### overexpressing prpB, acanB and prpR in glta, prpB and DM  ###
+#################################################################
+
+
+# load data
+
+mc_data = read_xlsx('other_develop_assays/9. DevelopAssay_glta_2-methylcitrate cycle_ASKA_sublibrary_5reps_10mM_Glu_13-11-18.xlsx', sheet = 'Summary_good') 
+
+
+mc_data = mc_data %>%
+    gather(Drug, Score, `0`, `1`, `2.5`, `5`) %>% 
+    mutate(Replicate = as.numeric(Replicate),
+        Genes = as.factor(Genes),
+        Supplement_mM = as.factor(Supplement_mM),
+        Supplement = as.factor(Supplement),
+        Drug = as.numeric(Drug)) 
+
+# create summary of data
+
+mc.sum = mc_data %>%
+    group_by(Supplement, Supplement_mM, Drug, Plasmid, Genes) %>%
+    summarise(Median_Score = median(Score, na.rm = TRUE),
+            MAD = mad(Score, na.rm = TRUE),
+            Mean = mean(Score, na.rm = TRUE),
+            SD = sd(Score, na.rm = TRUE)) %>%
+    mutate(BW_score = Median_Score[Genes == 'BW'],
+            BW_norm = Median_Score - BW_score) %>%
+    ungroup
+
+# generate new dataframe with BW values
+
+mc.ctr = mc.sum %>%
+    ungroup %>%
+    select(Supplement:Median_Score) %>%
+    filter(Genes == 'BW') %>%
+    rename(BW_score = Median_Score) %>%
+    select(-Genes)
+
+mc.sum = mc.sum %>%
+    ungroup %>%
+    left_join(mc.ctr) %>%
+    mutate(BW_norm = Median_Score - BW_score,
+           Supplement = 'Glucose')
+
+# check that the normalisation has worked
+filter(mc.sum, Plasmid == 'prpB', Supplement == 'Glucose') %>% data.frame
+
+
+# scatter plot
+drug = 0
+pos = position_jitter(width = 0.05, height = 0.05, seed = 1) # to plot names in jitter positions
+mc.sum %>%
+    filter(Drug == drug) %>% 
+    select(Supplement, Supplement_mM, Genes, Plasmid, BW_norm) %>%
+    unite(Supp, Supplement, Supplement_mM) %>%
+    spread(Supp, BW_norm) %>%
+        ggplot(aes(x = Glucose_0, y = Glucose_10, color = Genes, shape = Plasmid)) + 
+        geom_hline(yintercept = 0, colour = 'grey30') +
+        geom_vline(xintercept = 0, colour = 'grey30') +
+        geom_point(position = pos, size = 2.5) +    
+        coord_cartesian(xlim = c(-1,1), ylim = c(-1,1)) +
+        labs(title = expression(paste("ASKA library and gltA mutants effect on ", italic('C. elegans'), " phenotype, 5 uM 5FU", sep = '')),
+             x = expression(paste('Normalised median scores of ', italic('C. elegans'), ' phenotype', sep = ' ')),
+             y = expression(paste('Normalised median scores of ', italic('C. elegans'), ' phenotype ' , bold('(Glucose)'), sep = ' '))) +
+        theme(plot.title = element_text(size = 15, hjust = 0.5, face = "bold"),
+            panel.grid.major = element_line(colour = "grey90"),
+            panel.background = element_rect(fill = "white", colour = "grey50")) + 
+        guides(colour = guide_legend(override.aes = list(size = 4))) + # make lengend points larger
+        geom_text_repel(aes(label = paste(Genes, Plasmid, sep = ' '), colour = Genes), position = pos)
+
+quartz.save(file = here('Summary', paste0('Scatter_all_OE_glta_prpB_glucose_',drug,'uM.pdf')),
+    type = 'pdf', dpi = 300, height = 9, width = 11)
+
+# heatmap
+
+mc.sum %>%
+    ungroup %>%
+    mutate(Drug = as.factor(Drug)) %>%
+    plotHeatmap(x = 'Drug', y = 'Genes', fill = 'Median_Score') +
+    ylab('Strain') +
+    labs(fill = 'C. elegans phenotype') +
+    facet_wrap(~Supplement_mM + Plasmid, ncol = 4)
+
+quartz.save(file = here('Summary', paste0('Heatmap_all_OE_glta_prpB_glucose_0to5uM.pdf')),
+    type = 'pdf', dpi = 300, height = 6, width = 11)
+
+
+
+
+
+### Bargraphs
+
+# all glucose barplot
+mc.sum %>%
+    ungroup %>%
+    mutate(Drug = as.factor(Drug)) %>%
+    ggplot(aes(x = Supplement_mM, y = Median_Score, fill = interaction(Supplement_mM, Drug),  width = 0.9)) +
+    geom_bar(stat = "identity", position = position_dodge2(), colour = 'black') +
+    geom_errorbar(aes(ymin = Median_Score - MAD, ymax = Median_Score + MAD), width = 0.2, position=position_dodge(.9)) +
+    geom_point(data = mc_data %>% 
+                            mutate(Drug = as.factor(Drug)), aes(x = Supplement_mM, y = Score, group = Drug), 
+                            position = position_jitterdodge(jitter.width = 0.25, jitter.height = 0.05), alpha = 0.8) +
+    # facet_wrap(~Genes + Plasmid, strip.position = 'top') +
+    facet_grid(vars(Plasmid), vars(Genes)) +
+    coord_cartesian(ylim = c(1,4)) +
+    geom_vline(xintercept = 1.5, size = 0.8) +
+    scale_fill_manual(values = c('#8ABDCE','#BF82A6','#3ACDFF','#8E4E74', '#009BD0','#6B214C','#003749','#51193A'), name = 'Supplement - Drug') +
+    theme_light() +
+    labs(x = 'Supplement (in mM)',
+         y = 'Median') +
+    theme(strip.text = element_text(colour = 'black'))
+
+quartz.save(file = here('Summary', 'Bargraph_all_OE_glta_prpB_glucose_0to5uM.pdf'),
+    type = 'pdf', dpi = 300, height = 8, width = 10)
+
+
+# barplot per drug concentration
+drug = 5
+mc.sum %>%
+    ungroup %>%
+    filter(Drug == drug) %>%
+    mutate(Drug = as.factor(Drug)) %>%
+    ggplot(aes(x = Genes, y = Median_Score, fill = Drug,  width = 0.9)) +
+    geom_bar(stat = "identity", position = position_dodge2(), colour = 'black') +
+    geom_errorbar(aes(ymin = Median_Score - MAD, ymax = Median_Score + MAD), width = 0.2, position = position_dodge(.9)) +
+    geom_point(data = mc_data %>% 
+                            filter(Drug == drug) %>%
+                            mutate(Drug = as.factor(Drug)), aes(x = Genes, y = Score, group = Drug), 
+                            position = position_jitterdodge(jitter.width = 0.25, jitter.height = 0.05), alpha = 0.8) +
+    facet_wrap(~Supplement_mM + Plasmid, strip.position = 'top', nrow = 2) +
+    coord_cartesian(ylim = c(1,4)) +
+    scale_fill_discrete_sequential(palette = "Blues", nmax = 6, order = 3:6) +
+    theme_light() +
+    theme(strip.text = element_text(colour = 'black'),
+        axis.text.x = element_text(angle = 45, hjust = 1))
+
+quartz.save(file = here('Summary', paste0('Bargraph_all_OE_glta_prpB_glucose_',as.character(drug),'uM.pdf')),
+    type = 'pdf', dpi = 300, height = 7, width = 9)
+
+
+
+
+
+###--------------------------
+
+
+# first, sum all score values by gene and condition
+OE.auc = mc_data %>% group_by(Genes, Replicate, Supplement, Plasmid, Supplement_mM) %>%
+    summarise(Sum = sum(Score)) 
+
+OE.auc.sum = OE.auc %>% group_by(Genes, Supplement_mM, Plasmid, Supplement) %>%
+    summarise(Mean = mean(Sum, na.rm = TRUE),
+              SD = sd(Sum, na.rm = TRUE))
+
+# filter values with NAs (maybe try to impute them with RF?)
+OE.auc = OE.auc %>% filter_at(vars(Sum), any_vars(!is.na(.))) 
+
+
+## we want to compare each gene against BW per condition
+# split data
+"acnB" "none" "prpB" "prpR"
+
+OE_acnB_0 = OE.auc %>%  filter(Supplement_mM == 0 , Plasmid == 'acnB') %>% ungroup 
+OE_acnB_10 = OE.auc %>% filter(Supplement_mM == 10, Plasmid == 'acnB') %>% ungroup
+OE_none_0 = OE.auc %>%  filter(Supplement_mM == 0 , Plasmid == 'none') %>% ungroup 
+OE_none_10 = OE.auc %>% filter(Supplement_mM == 10, Plasmid == 'none') %>% ungroup
+OE_prpB_0 = OE.auc %>%  filter(Supplement_mM == 0 , Plasmid == 'prpB') %>% ungroup 
+OE_prpB_10 = OE.auc %>% filter(Supplement_mM == 10, Plasmid == 'prpB') %>% ungroup
+OE_prpR_0 = OE.auc %>%  filter(Supplement_mM == 0 , Plasmid == 'prpR') %>% ungroup 
+OE_prpR_10 = OE.auc %>% filter(Supplement_mM == 10, Plasmid == 'prpR') %>% ungroup
+
+
+# extract the gene list for the loop
+genes = mc_data %>% ungroup %>% filter(Genes != 'BW') %>% select(Genes) %>% unique %>% data.frame 
+genes = as.character(genes$Genes)
+
+# the same but for the t.test
+ttest.res1 = rbind(av.test(OE_acnB_0, genes), av.test(OE_acnB_10, genes)) %>% mutate(Plasmid = 'acnB')
+ttest.res2 = rbind(av.test(OE_none_0, genes), av.test(OE_none_10, genes)) %>% mutate(Plasmid = 'none')
+ttest.res3 = rbind(av.test(OE_prpB_0, genes), av.test(OE_prpB_10, genes)) %>% mutate(Plasmid = 'prpB')
+ttest.res4 = rbind(av.test(OE_prpR_0, genes), av.test(OE_prpR_10, genes)) %>% mutate(Plasmid = 'prpR')
+
+ttest.res = rbind(ttest.res1,ttest.res2,ttest.res3,ttest.res4)
+
+# funny dataset
+ttest.res
+ttest.res[is.na(ttest.res)] = 1
+
+
+# save statistics list
+list_of_datasets = list('Summary statistics' = mc.sum, 'AUC' = OE.auc, 'AUC_sum' = OE.auc.sum,'t-student test' = ttest.res)
+
+write.xlsx(list_of_datasets, here('Summary', 'OE_glta_prpB_stats.xlsx'), colNames = T, rowNames = F) 
+
+
+
+
+
+
+############################################################
+### pyruvate supplementation on glta and methyl mutants  ###
+############################################################
+
+pyr_meth = read_xlsx('other_develop_assays/10. DevelopAssay_glta_2-methylcitrate cycle_sublibrary_5reps_10mM_Pyruvate_13-11-18_2.xlsx', sheet = 'Summary_good') 
+
+pyr_meth = pyr_meth %>%
+    gather(Drug, Score, `0`, `1`, `2.5`, `5`) %>% 
+    mutate(Replicate = as.numeric(Replicate),
+        Genes = as.factor(Genes),
+        Supplement_mM = as.factor(Supplement_mM),
+        Supplement = as.factor(Supplement),
+        Drug = as.numeric(Drug)) 
+
+
+# create summary of data
+
+pyr_meth.sum = pyr_meth %>%
+    group_by(Supplement, Supplement_mM, Drug, Genes) %>%
+    summarise(Median_Score = median(Score, na.rm = TRUE),
+            MAD = mad(Score, na.rm = TRUE),
+            Mean = mean(Score, na.rm = TRUE),
+            SD = sd(Score, na.rm = TRUE)) %>%
+    mutate(BW_score = Median_Score[Genes == 'BW'],
+            BW_norm = Median_Score - BW_score) %>%
+    ungroup
+
+
+
+# scatter plot
+
+drug = 5
+pos = position_jitter(width = 0.05, height = 0.05, seed = 1) # to plot names in jitter positions
+pyr_meth.sum %>% 
+    filter(Drug == drug) %>% 
+    select(Supplement, Supplement_mM, Genes, BW_norm) %>%
+    unite(Supp, Supplement, Supplement_mM) %>%
+    spread(Supp, BW_norm) %>%
+    ggplot(aes(x = Pyruvate_0, y = Pyruvate_10)) + 
+    geom_hline(yintercept = 0, colour = 'grey30') +
+    geom_vline(xintercept = 0, colour = 'grey30') +
+    geom_point(position = pos, size = 2) + 
+    geom_text_repel(aes(label = Genes), position = pos) +
+    # coord_cartesian(ylim = c(-1,1), xlim = c(-1,1)) + # for drug == 0
+    # geom_text_repel(aes(label = ifelse(Genes != 'ΔgltA::K', as.character(Genes), '')), position = pos, colour = 'black', size = 2.5) +
+    # geom_text_repel(aes(label = ifelse(Genes == 'ΔgltA::K', as.character(Genes), '')), position = pos, colour = 'red', size = 5, box.padding = 3.5) +
+    labs(title = expression(paste("5FU + Pyruvate effect on ", italic('C. elegans'), " N2 phenotype", sep = '')),
+         x = expression(paste('Normalised median scores of ', italic('C. elegans'), ' N2 phenotype', sep = ' ')),
+         y = expression(paste('Normalised median scores of ', italic('C. elegans'), ' N2 phenotype ' , bold('(Pyruvate)'), sep = ' '))) +
+    theme(plot.title = element_text(size = 15, hjust = 0.5, face = "bold"),
+            panel.grid.major = element_line(colour = "grey90"),
+            panel.background = element_rect(fill = "white", colour = "grey50"),
+            legend.text = element_text(size = 6)) + 
+    guides(colour = guide_legend(override.aes = list(size = 4))) # make lengend points larger
+
+quartz.save(file = here('Summary', paste0('Scatter_methyl_muts_pyruvate_',as.character(drug),'uM.pdf')),
+    type = 'pdf', dpi = 300, height = 10, width = 12)
+
+
+
+
+
+### Bargraphs
+
+# all glucose barplot
+pyr_meth.sum %>%
+    ungroup %>%
+    mutate(Drug = as.factor(Drug)) %>%
+    ggplot(aes(x = Supplement_mM, y = Median_Score, fill = interaction(Supplement_mM, Drug),  width = 0.9)) +
+    geom_bar(stat = "identity", position = position_dodge2(), colour = 'black') +
+    geom_errorbar(aes(ymin = Median_Score - MAD, ymax = Median_Score + MAD), width = 0.2, position=position_dodge(.9)) +
+    geom_point(data = pyr_meth %>% 
+                            mutate(Drug = as.factor(Drug)), aes(x = Supplement_mM, y = Score, group = Drug), 
+                            position = position_jitterdodge(jitter.width = 0.25, jitter.height = 0.05), alpha = 0.8) +
+    facet_wrap(~Genes, strip.position = 'top') +
+    coord_cartesian(ylim = c(1,4)) +
+    geom_vline(xintercept = 1.5, size = 0.8) +
+    scale_fill_manual(values = c('#8ABDCE','#BF82A6','#3ACDFF','#8E4E74', '#009BD0','#6B214C','#003749','#51193A'), name = 'Supplement - Drug') +
+    theme_light() +
+    labs(x = 'Supplement (in mM)',
+         y = 'Median') +
+    theme(strip.text = element_text(colour = 'black'))
+
+quartz.save(file = here('Summary', 'Bargraph_all_methyl_muts_pyruvate_0to5uM.pdf'),
+    type = 'pdf', dpi = 300, height = 12, width = 15)
+
+
+
+# barplot per drug concentration
+drug = 5
+pyr_meth.sum %>%
+    ungroup %>%
+    filter(Drug == drug) %>%
+    mutate(Drug = as.factor(Drug)) %>%
+    ggplot(aes(x = Genes, y = Median_Score, fill = Drug,  width = 0.9)) +
+    geom_bar(stat = "identity", position = position_dodge2(), colour = 'black') +
+    geom_errorbar(aes(ymin = Median_Score - MAD, ymax = Median_Score + MAD), width = 0.2, position = position_dodge(.9)) +
+    geom_point(data = pyr_meth %>% 
+                            filter(Drug == drug) %>%
+                            mutate(Drug = as.factor(Drug)), aes(x = Genes, y = Score, group = Drug), 
+                            position = position_jitterdodge(jitter.width = 0.25, jitter.height = 0.05), alpha = 0.8) +
+    facet_wrap(~Supplement_mM, strip.position = 'top', nrow = 2) +
+    coord_cartesian(ylim = c(1,4)) +
+    scale_fill_discrete_sequential(palette = "Blues", nmax = 6, order = 3:6) +
+    theme_light() +
+    theme(strip.text = element_text(colour = 'black'),
+        axis.text.x = element_text(angle = 45, hjust = 1))
+
+quartz.save(file = here('Summary', paste0('Bargraph_all_methyl_muts_pyruvate_',as.character(drug),'uM.pdf')),
+    type = 'pdf', dpi = 300, height = 7, width = 9)
+
+
+
+# heatmap
+
+pyr_meth.sum %>%
+    ungroup %>%
+    mutate(Drug = as.factor(Drug)) %>%
+    plotHeatmap(x = 'Drug', y = 'Genes', fill = 'Median_Score')+
+    ylab('Strain')+
+    labs(fill = 'C. elegans phenotype')+
+    facet_wrap(~ Supplement_mM, ncol = 2)
+
+quartz.save(file = here('Summary', paste0('Heatmap_methyl_muts_pyruvate.pdf')),
+    type = 'pdf', dpi = 300, height = 7, width = 9)
+
+
+pyr_meth.sum %>%
+    ungroup %>%
+    mutate(Drug = as.factor(Drug)) %>%
+    plotHeatmap(x = 'Drug', y = 'Genes', fill = 'BW_norm',grad = diffcolours, breaks = breaks, limits = limits)+
+    ylab('Strain')+
+    labs(fill = 'C. elegans phenotype')+
+    facet_wrap(~ Supplement_mM, ncol = 2)
+
+
+quartz.save(file = here('Summary', paste0('Heatmap_methyl_muts_pyruvate_BWnorm.pdf')),
+    type = 'pdf', dpi = 300, height = 7, width = 9)
+
+
+
+
+###--------------------------
+
+
+# first, sum all score values by gene and condition
+glu.auc = pyr_meth %>% group_by(Genes, Replicate, Supplement, Supplement_mM) %>%
+    summarise(Sum = sum(Score)) 
+
+glu.auc.sum = glu.auc %>% group_by(Genes, Supplement_mM, Supplement) %>%
+    summarise(Mean = mean(Sum, na.rm = TRUE),
+              SD = sd(Sum, na.rm = TRUE))
+
+
+# filter values with NAs (maybe try to impute them with RF?)
+glu.auc = glu.auc %>% filter_at(vars(Sum), any_vars(!is.na(.))) 
+
+
+## we want to compare each gene against BW per condition
+# split data
+glu_0 = glu.auc %>%  filter(Supplement_mM == 0) %>% ungroup 
+glu_10 = glu.auc %>% filter(Supplement_mM == 10) %>% ungroup
+
+
+# remove BWs with my dummy function
+glu_0 = ctrls(glu_0)
+glu_10 = ctrls(glu_10)
+
+# extract the gene list for the loop
+genes = pyr_meth %>% ungroup %>% filter(Genes != 'BW') %>% select(Genes) %>% unique %>% data.frame 
+genes = as.character(genes$Genes)
+
+# the same but for the t.test
+ttest.res = rbind(av.test(glu_0, genes), av.test(glu_10, genes))
+
+
+# funny dataset
+ttest.res
+ttest.res[is.na(ttest.res)] = 1
+
+
+## after having done the statistical tests, we can filter those ones that have sig. differences
+# for this dataset I will use the t test results, as the other is completely useless (data too variable, and only 2 reps)
+
+glu.genes = ttest.res %>% filter(fdr <= 0.05) %>% select(Gene) %>% unique
+glu.genes = sort(as.character(glu.genes$Gene)) ; glu.genes = c('BW', glu.genes)
+glu.genes = factor(glu.genes, levels = glu.genes)
+
+## plot hits for glucose
+
+pyr_meth.sum %>%
+    ungroup %>%
+    filter(Genes %in% glu.genes) %>%
+    mutate(Drug = as.factor(Drug)) %>%
+    ggplot(aes(x = Supplement_mM, y = Median_Score, fill = interaction(Supplement_mM, Drug),  width = 0.9)) +
+    geom_bar(stat = "identity", position = position_dodge2(), colour = 'black') +
+    geom_errorbar(aes(ymin = Median_Score - MAD, ymax = Median_Score + MAD), width = 0.2, position=position_dodge(.9)) +
+    geom_point(data = pyr_meth %>% 
+        filter(Genes %in% glu.genes) %>%
+                            mutate(Drug = as.factor(Drug)), aes(x = Supplement_mM, y = Score, group = Drug), 
+                            position = position_jitterdodge(jitter.width = 0.25, jitter.height = 0.05), alpha = 0.8) +
+    facet_wrap(~Genes, strip.position = 'top') +
+    coord_cartesian(ylim = c(1,4)) +
+    geom_vline(xintercept = 1.5, size = 0.8) +
+    scale_fill_manual(values = c('#8ABDCE','#BF82A6','#3ACDFF','#8E4E74', '#009BD0','#6B214C','#003749','#51193A'), name = 'Supplement - Drug') +
+    # scale_fill_discrete_sequential(palette = "Blues", nmax = 6, order = 3:6) +
+    theme_light() +
+    theme(strip.text = element_text(colour = 'black'))
+
+
+quartz.save(file = here('Summary', 'Bargraph_hits_methyl_muts_pyruvate_0to5uM.pdf'),
+    type = 'pdf', dpi = 300, height = 13, width = 17)
+
+
+
+# save statistics list
+list_of_datasets = list('Summary statistics' = gltA_mc.sum, 'AUC' = glu.auc, 'AUC_sum' = glu.auc.sum,'t-student test' = ttest.res)
+
+write.xlsx(list_of_datasets, here('Summary', 'methyl_muts_pyruvate_stats.xlsx'), colNames = T, rowNames = F) 
+
+
+
+length(glu.genes)
+
+# generate a small dataframe to divide the original dataframe
+div = c(rep(1, 13))
+df = data.frame(Genes = glu.genes, div)
+
+glu.auc %>%
+    ungroup %>%
+    filter(Genes %in% glu.genes) %>%
+    mutate(Genes = factor(Genes, levels = glu.genes)) %>%
+    group_by(Genes, Supplement_mM) %>%
+    summarise(Mean = mean(Sum), 
+                SD = sd(Sum)) %>%
+    left_join(df) %>%
+    ungroup %>%
+    ggplot(aes(x = Genes, y = Mean, fill = Supplement_mM,  width = 0.9)) +
+    geom_bar(aes(x = Genes), stat = "identity", position = position_dodge2(), colour = 'black') +
+    geom_errorbar(aes(x = Genes, ymin = Mean - SD, ymax = Mean + SD), width = 0.2, position = position_dodge(.9)) +
+    geom_point(data = glu.auc %>% 
+        filter(Genes %in% glu.genes) %>% ungroup %>%
+        mutate(Genes = as.character(Genes), Supplement_mM = as.character(Supplement_mM)) %>%
+        left_join(df), aes(x = Genes, y = Sum), 
+                            position = position_jitterdodge(jitter.width = 0.4, jitter.height = 0.05, dodge.width = 1), 
+                            alpha = 0.8, show.legend = FALSE) +
+    theme_light() +
+        labs(x = 'Genes',
+             y = 'AUC mean') +
+    facet_wrap(~div, scales = "free_x", nrow = 5) +
+    theme(strip.text = element_text(colour = 'black'),
+        axis.text.x = element_text(angle = 45, hjust = 1),
+        strip.background = element_blank(),  # delete facet_wrap 
+        strip.text.x = element_blank())         # delete facet_wrap 
+
+quartz.save(file = here('Summary', 'Bargraph_hits_methyl_muts_pyruvate_AUC.pdf'),
+    type = 'pdf', dpi = 300, height = 6, width = 11)
+
+
+
+glu.auc %>%
+    ungroup %>%
+    filter(Genes %in% glu.genes) %>%
+    mutate(Genes = factor(Genes, levels = glu.genes)) %>%
+    group_by(Genes, Supplement_mM) %>%
+    summarise(Mean = mean(Sum), 
+                SD = sd(Sum)) %>%
+    left_join(df) %>%
+    ungroup %>%
+    ggplot(aes(x = Genes, y = Mean, width = 0.9, colour = Supplement_mM)) +
+    # geom_errorbar(aes(x = Genes, ymin = Mean - SD, ymax = Mean + SD), width = 0.2, position = position_dodge(.9)) +
+    geom_point(data = glu.auc %>% 
+        filter(Genes %in% glu.genes) %>% ungroup %>%
+        mutate(Genes = factor(Genes, levels = glu.genes)) %>%
+        left_join(df), aes(x = Genes, y = Sum, group = Supplement_mM), 
+                            position = position_jitterdodge(jitter.width = 0.2, jitter.height = 0.05, dodge.width = 0.4), 
+                            show.legend = FALSE) +
+    geom_pointrange(aes(x = Genes, ymin = Mean - SD, ymax = Mean + SD), stat = "identity", position = position_dodge2(width = 0.4), 
+         alpha = 1, shape = '-', size = 0.8, fatten = 11) +
+    theme_light() +
+    scale_color_manual(values = c('black', '#FC1C32')) +
+        labs(x = 'Genes',
+             y = 'AUC mean') +
+    facet_wrap(~div, scales = "free_x", nrow = 5) +
+    theme(strip.text = element_text(colour = 'black'),
+        axis.text.x = element_text(angle = 45, hjust = 1),
+        strip.background = element_blank(),  # delete facet_wrap 
+        strip.text.x = element_blank())         # delete facet_wrap 
+
+quartz.save(file = here('Summary', 'Pointrange_hits_methyl_muts_pyruvate_AUC.pdf'),
+    type = 'pdf', dpi = 300, height = 5, width = 12)
+
+
+
+
+
+
+
+
+
+##############################################
+### overexpressing prpR on all methyl muts ###
+##############################################
+
+
+# load data
+
+prpR = read_xlsx('other_develop_assays/19. DevelopAssay_glta_2-methylcitrate cycle_ASKA_prpR_OE_sublibrary_3reps_03-05-19.xlsx', sheet = 'Summary_good') 
+
+
+prpR = prpR %>%
+    gather(Drug, Score, `0`, `1`, `2.5`, `5`) %>% 
+    mutate(Replicate = as.numeric(Replicate),
+        Genes = as.factor(Genes),
+        Drug = as.numeric(Drug)) 
+
+# create summary of data
+
+prp.sum = prpR %>%
+    group_by(Drug, Plasmid, Genes) %>%
+    summarise(Median_Score = median(Score, na.rm = TRUE),
+            MAD = mad(Score, na.rm = TRUE),
+            Mean = mean(Score, na.rm = TRUE),
+            SD = sd(Score, na.rm = TRUE)) %>%
+    mutate(BW_score = Median_Score[Genes == 'BW'],
+            BW_norm = Median_Score - BW_score) %>%
+    ungroup
+
+# generate new dataframe with BW values
+
+mc.ctr = prp.sum %>%
+    ungroup %>%
+    select(Drug:Median_Score) %>%
+    filter(Genes == 'BW') %>%
+    rename(BW_score = Median_Score) %>%
+    select(-Genes)
+
+prp.sum = prp.sum %>%
+    ungroup %>%
+    left_join(mc.ctr) %>%
+    mutate(BW_norm = Median_Score - BW_score)
+
+# heatmap
+
+prp.sum %>%
+    ungroup %>%
+    mutate(Drug = as.factor(Drug)) %>%
+    plotHeatmap(x = 'Drug', y = 'Genes', fill = 'Median_Score') +
+    ylab('Strain') +
+    labs(fill = 'C. elegans phenotype') +
+    facet_wrap(~Plasmid, ncol = 2)
+
+quartz.save(file = here('Summary', paste0('Heatmap_OE_prpR_methyl_muts.pdf')),
+    type = 'pdf', dpi = 300, height = 6, width = 11)
+
+
+
+### Bargraphs
+
+# all glucose barplot
+prp.sum %>%
+    ungroup %>%
+    mutate(Drug = as.factor(Drug)) %>%
+    ggplot(aes(x = Plasmid, y = Median_Score, fill = interaction(Plasmid, Drug),  width = 0.9)) +
+    geom_bar(stat = "identity", position = position_dodge2(), colour = 'black') +
+    geom_errorbar(aes(ymin = Median_Score - MAD, ymax = Median_Score + MAD), width = 0.2, position=position_dodge(.9)) +
+    geom_point(data = prpR %>% 
+                            mutate(Drug = as.factor(Drug)), aes(x = Plasmid, y = Score, group = Drug), 
+                            position = position_jitterdodge(jitter.width = 0.25, jitter.height = 0.05), alpha = 0.8) +
+    facet_wrap(~Genes, strip.position = 'top') +
+    # facet_grid(vars(Plasmid), vars(Genes)) +
+    coord_cartesian(ylim = c(1,4)) +
+    geom_vline(xintercept = 1.5, size = 0.8) +
+    scale_fill_manual(values = c('#8ABDCE','#BF82A6','#3ACDFF','#8E4E74', '#009BD0','#6B214C','#003749','#51193A'), name = 'Supplement - Drug') +
+    theme_light() +
+    labs(x = 'Supplement (in mM)',
+         y = 'Median') +
+    theme(strip.text = element_text(colour = 'black'))
+
+quartz.save(file = here('Summary', 'Bargraph_all_OE_prpR_methyl_muts_0to5uM .pdf'),
+    type = 'pdf', dpi = 300, height = 8, width = 10)
+
+
+# barplot per drug concentration
+drug = 5
+prp.sum %>%
+    ungroup %>%
+    filter(Drug == drug) %>%
+    mutate(Drug = as.factor(Drug)) %>%
+    ggplot(aes(x = Genes, y = Median_Score, fill = Drug,  width = 0.9)) +
+    geom_bar(stat = "identity", position = position_dodge2(), colour = 'black') +
+    geom_errorbar(aes(ymin = Median_Score - MAD, ymax = Median_Score + MAD), width = 0.2, position = position_dodge(.9)) +
+    geom_point(data = prpR %>% 
+                            filter(Drug == drug) %>%
+                            mutate(Drug = as.factor(Drug)), aes(x = Genes, y = Score, group = Drug), 
+                            position = position_jitterdodge(jitter.width = 0.25, jitter.height = 0.05), alpha = 0.8) +
+    facet_wrap(~Plasmid, strip.position = 'top', nrow = 2) +
+    coord_cartesian(ylim = c(1,4)) +
+    scale_fill_discrete_sequential(palette = "Blues", nmax = 6, order = 3:6) +
+    theme_light() +
+    theme(strip.text = element_text(colour = 'black'),
+        axis.text.x = element_text(angle = 45, hjust = 1))
+
+quartz.save(file = here('Summary', paste0('Bargraph_all_OE_prpR_methyl_muts_',as.character(drug),'uM.pdf')),
+    type = 'pdf', dpi = 300, height = 7, width = 9)
+
+
+
+
+
+###--------------------------
+
+
+# first, sum all score values by gene and condition
+OE.auc = prpR %>% group_by(Genes, Replicate, Plasmid) %>%
+    summarise(Sum = sum(Score)) 
+
+OE.auc.sum = OE.auc %>% group_by(Genes, Plasmid) %>%
+    summarise(Mean = mean(Sum, na.rm = TRUE),
+              SD = sd(Sum, na.rm = TRUE))
+
+# filter values with NAs (maybe try to impute them with RF?)
+OE.auc = OE.auc %>% filter_at(vars(Sum), any_vars(!is.na(.))) 
+
+
+## we want to compare each gene against BW per condition
+# split data
+
+
+OE_prpR = OE.auc %>%  filter(Plasmid == 'prpR') %>% ungroup 
+OE_none = OE.auc %>%  filter(Plasmid == 'None') %>% ungroup
+
+
+# extract the gene list for the loop
+genes = prpR %>% ungroup %>% filter(Genes != 'BW') %>% select(Genes) %>% unique %>% data.frame 
+genes = as.character(genes$Genes)
+
+
+# function that calculates the comparison between BW and other genes in the datasets
+# lm version!
+av.test2 = function(data, genes) {
+    results = data.frame()
+    for (i in 1:length(genes)){
+        sub = data %>% filter(Genes %in% c('BW', genes[i]))
+        if(dim(sub)[1] <= 2) {next} # skips genes that are not present (kinda)
+        model = lm(Sum ~ Genes, data = sub)
+        df = tidy(model)[2,]
+        df['Gene'] = genes[i]
+        df['Plasmid'] = unique(data$Plasmid)
+        results = rbind(results,df)
+    }
+    results = results %>% mutate(p.stars = stars.pval(p.value), 
+            fdr = p.adjust(p.value, method = 'fdr'), fdr.stars = stars.pval(fdr)) %>%
+        select(Gene, Plasmid, estimate, std.error, statistic, p.value, p.stars, fdr, fdr.stars)
+    return(results)
+}
+
+
+# the same but for the t.test
+ttest.res = rbind(av.test2(OE_prpR, genes), av.test2(OE_none, genes)) 
+# funny dataset
+ttest.res
+ttest.res[is.na(ttest.res)] = 1
+
+
+# save statistics list
+list_of_datasets = list('Summary statistics' = prp.sum, 'AUC' = OE.auc, 'AUC_sum' = OE.auc.sum,'t-student test' = ttest.res)
+
+write.xlsx(list_of_datasets, here('Summary', 'OE_prpR_methyl_muts__stats.xlsx'), colNames = T, rowNames = F) 
+
+
+
+###
+
+glu.genes = ttest.res %>% filter(fdr <= 0.05) %>% select(Gene) %>% unique
+glu.genes = sort(as.character(glu.genes$Gene)) ; glu.genes = c('BW', glu.genes)
+glu.genes = factor(glu.genes, levels = glu.genes)
+
+## plot hits 
+
+prp.sum %>%
+    ungroup %>%
+    filter(Genes %in% glu.genes) %>%
+    mutate(Drug = as.factor(Drug)) %>%
+    ggplot(aes(x = Plasmid, y = Median_Score, fill = interaction(Plasmid, Drug),  width = 0.9)) +
+    geom_bar(stat = "identity", position = position_dodge2(), colour = 'black') +
+    geom_errorbar(aes(ymin = Median_Score - MAD, ymax = Median_Score + MAD), width = 0.2, position=position_dodge(.9)) +
+    geom_point(data = prpR %>% 
+        filter(Genes %in% glu.genes) %>%
+                            mutate(Drug = as.factor(Drug)), aes(x = Plasmid, y = Score, group = Drug), 
+                            position = position_jitterdodge(jitter.width = 0.25, jitter.height = 0.05), alpha = 0.8) +
+    facet_wrap(~Genes, strip.position = 'top') +
+    coord_cartesian(ylim = c(1,4)) +
+    geom_vline(xintercept = 1.5, size = 0.8) +
+    scale_fill_manual(values = c('#8ABDCE','#BF82A6','#3ACDFF','#8E4E74', '#009BD0','#6B214C','#003749','#51193A'), name = 'Supplement - Drug') +
+    # scale_fill_discrete_sequential(palette = "Blues", nmax = 6, order = 3:6) +
+    theme_light() +
+    theme(strip.text = element_text(colour = 'black'))
+
+
+quartz.save(file = here('Summary', 'Bargraph_hits_OE_prpR_methyl_mutsto5uM.pdf'),
+    type = 'pdf', dpi = 300, height = 13, width = 17)
+
+
+length(glu.genes)
+
+# generate a small dataframe to divide the original dataframe
+div = c(rep(1, 7))
+df = data.frame(Genes = glu.genes, div)
+
+OE.auc %>%
+    ungroup %>%
+    filter(Genes %in% glu.genes) %>%
+    mutate(Genes = factor(Genes, levels = glu.genes)) %>%
+    group_by(Genes, Plasmid) %>%
+    summarise(Mean = mean(Sum), 
+                SD = sd(Sum)) %>%
+    left_join(df) %>%
+    ungroup %>%
+    ggplot(aes(x = Genes, y = Mean, fill = Plasmid,  width = 0.9)) +
+    geom_bar(aes(x = Genes), stat = "identity", position = position_dodge2(), colour = 'black') +
+    geom_errorbar(aes(x = Genes, ymin = Mean - SD, ymax = Mean + SD), width = 0.2, position = position_dodge(.9)) +
+    geom_point(data = OE.auc %>% 
+        filter(Genes %in% glu.genes) %>% ungroup %>%
+        mutate(Genes = as.character(Genes), Plasmid = as.character(Plasmid)) %>%
+        left_join(df), aes(x = Genes, y = Sum), 
+                            position = position_jitterdodge(jitter.width = 0.4, jitter.height = 0.05, dodge.width = 1), 
+                            alpha = 0.8, show.legend = FALSE) +
+    theme_light() +
+        labs(x = 'Genes',
+             y = 'AUC mean') +
+    facet_wrap(~div, scales = "free_x", nrow = 5) +
+    theme(strip.text = element_text(colour = 'black'),
+        axis.text.x = element_text(angle = 45, hjust = 1),
+        strip.background = element_blank(),  # delete facet_wrap 
+        strip.text.x = element_blank())         # delete facet_wrap 
+
+quartz.save(file = here('Summary', 'Bargraph_hits_OE_prpR_methyl_muts_AUC.pdf'),
+    type = 'pdf', dpi = 300, height = 6, width = 11)
+
+
+
+OE.auc %>%
+    ungroup %>%
+    filter(Genes %in% glu.genes) %>%
+    mutate(Genes = factor(Genes, levels = glu.genes)) %>%
+    group_by(Genes, Plasmid) %>%
+    summarise(Mean = mean(Sum), 
+                SD = sd(Sum)) %>%
+    left_join(df) %>%
+    ungroup %>%
+    ggplot(aes(x = Genes, y = Mean, width = 0.9, colour = Plasmid)) +
+    # geom_errorbar(aes(x = Genes, ymin = Mean - SD, ymax = Mean + SD), width = 0.2, position = position_dodge(.9)) +
+    geom_point(data = OE.auc %>% 
+        filter(Genes %in% glu.genes) %>% ungroup %>%
+        mutate(Genes = factor(Genes, levels = glu.genes)) %>%
+        left_join(df), aes(x = Genes, y = Sum, group = Plasmid), 
+                            position = position_jitterdodge(jitter.width = 0.2, jitter.height = 0.05, dodge.width = 0.4), 
+                            show.legend = FALSE) +
+    geom_pointrange(aes(x = Genes, ymin = Mean - SD, ymax = Mean + SD), stat = "identity", position = position_dodge2(width = 0.4), 
+         alpha = 1, shape = '-', size = 0.8, fatten = 11) +
+    theme_light() +
+    scale_color_manual(values = c('black', '#FC1C32')) +
+        labs(x = 'Genes',
+             y = 'AUC mean') +
+    facet_wrap(~div, scales = "free_x", nrow = 5) +
+    theme(strip.text = element_text(colour = 'black'),
+        axis.text.x = element_text(angle = 45, hjust = 1),
+        strip.background = element_blank(),  # delete facet_wrap 
+        strip.text.x = element_blank())         # delete facet_wrap 
+
+quartz.save(file = here('Summary', 'Pointrange_hits_OE_prpR_methyl_muts_AUC.pdf'),
+    type = 'pdf', dpi = 300, height = 5, width = 12)
+
+
+
+
+
+
+#################################################################
+### supplementing gltA and methyl muts with Methylisocitrate  ###
+#################################################################
+
+pyr_meth = read_xlsx('other_develop_assays/20. DevelopAssay_methylcitrate cycle muts_3reps_10mM_2-Methyisocitric_acid_03-06-19.xlsx', sheet = 'Summary_good') 
+
+pyr_meth = pyr_meth %>%
+    gather(Drug, Score, `0`, `1`, `2.5`, `5`) %>% 
+    mutate(Replicate = as.numeric(Replicate),
+        Genes = as.factor(Genes),
+        Supplement_mM = as.factor(Supplement_mM),
+        Supplement = as.factor(Supplement),
+        Drug = as.numeric(Drug)) 
+
+
+# create summary of data
+
+pyr_meth.sum = pyr_meth %>%
+    group_by(Supplement, Supplement_mM, Drug, Genes) %>%
+    summarise(Median_Score = median(Score, na.rm = TRUE),
+            MAD = mad(Score, na.rm = TRUE),
+            Mean = mean(Score, na.rm = TRUE),
+            SD = sd(Score, na.rm = TRUE)) %>%
+    mutate(BW_score = Median_Score[Genes == 'BW'],
+            BW_norm = Median_Score - BW_score) %>%
+    ungroup
+
+
+
+# scatter plot
+
+drug = 5
+pos = position_jitter(width = 0.05, height = 0.05, seed = 1) # to plot names in jitter positions
+pyr_meth.sum %>% 
+    filter(Drug == drug) %>% 
+    select(Supplement, Supplement_mM, Genes, BW_norm) %>%
+    unite(Supp, Supplement, Supplement_mM) %>%
+    spread(Supp, BW_norm) %>%
+    ggplot(aes(x = Pyruvate_0, y = Pyruvate_10)) + 
+    geom_hline(yintercept = 0, colour = 'grey30') +
+    geom_vline(xintercept = 0, colour = 'grey30') +
+    geom_point(position = pos, size = 2) + 
+    geom_text_repel(aes(label = Genes), position = pos) +
+    # coord_cartesian(ylim = c(-1,1), xlim = c(-1,1)) + # for drug == 0
+    # geom_text_repel(aes(label = ifelse(Genes != 'ΔgltA::K', as.character(Genes), '')), position = pos, colour = 'black', size = 2.5) +
+    # geom_text_repel(aes(label = ifelse(Genes == 'ΔgltA::K', as.character(Genes), '')), position = pos, colour = 'red', size = 5, box.padding = 3.5) +
+    labs(title = expression(paste("5FU + Pyruvate effect on ", italic('C. elegans'), " N2 phenotype", sep = '')),
+         x = expression(paste('Normalised median scores of ', italic('C. elegans'), ' N2 phenotype', sep = ' ')),
+         y = expression(paste('Normalised median scores of ', italic('C. elegans'), ' N2 phenotype ' , bold('(Pyruvate)'), sep = ' '))) +
+    theme(plot.title = element_text(size = 15, hjust = 0.5, face = "bold"),
+            panel.grid.major = element_line(colour = "grey90"),
+            panel.background = element_rect(fill = "white", colour = "grey50"),
+            legend.text = element_text(size = 6)) + 
+    guides(colour = guide_legend(override.aes = list(size = 4))) # make lengend points larger
+
+quartz.save(file = here('Summary', paste0('Scatter_methyl_muts_pyruvate_',as.character(drug),'uM.pdf')),
+    type = 'pdf', dpi = 300, height = 10, width = 12)
+
+
+
+
+
+
+
+
+
+
+
 
 
 
