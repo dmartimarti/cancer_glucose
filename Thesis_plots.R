@@ -905,7 +905,7 @@ quartz.save(file = here('Summary', 'Scatter_sub_lib_galactose_5uM.pdf'),
 # version 2
 # set variable names for the facet wrap
 # this is a general bargraph to plot everything 
-variable_names <- c(
+variable_names = c(
   '1' = "1 mM Glycerol",
   '10' = "10 mM Glycerol"
 )
@@ -4317,6 +4317,434 @@ glu.auc %>%
 
 quartz.save(file = here('Summary', 'Pointrange_all_methyl_muts_methylisocit_AUC.pdf'),
     type = 'pdf', dpi = 300, height = 5, width = 12)
+
+
+
+
+
+
+
+
+
+
+
+
+################################################################
+### BIG screen purine and oxidative phosphorylation analysis ###
+################################################################
+
+
+
+
+### load the data
+
+# use this dataset
+glucose 
+
+# load the file with the pathways. Remember there are 3 version, the last one (kegg3)
+pathways = read_xlsx(here('Sub_library/big_screen','EcoCyc_pathways_KeioSublibrary_08-12-18.xlsx'), 
+    sheet = 'paths')
+
+pathways = pathways %>% 
+    mutate(Genes = as.factor(Genes),
+           Pathway = as.factor(Pathway),
+           KEGG1 = as.factor(KEGG1),
+           KEGG2 = as.factor(KEGG2),
+           KEGG3 = as.factor(KEGG3))
+
+# summary of the data
+
+sublib.sum = glucose %>%
+  group_by(Supplement, Supplement_mM, Drug, Genes) %>%
+  summarise(Median_Score = median(Score, na.rm = TRUE),
+            Mean = mean(Score, na.rm = TRUE),
+            SD = sd(Score, na.rm = TRUE)) %>%
+  mutate(BW_Score = Median_Score[Genes == 'BW'],
+         BW_Mean = Mean[Genes == 'BW']) %>%
+  ungroup %>%
+  group_by(Genes, Drug) %>%
+  mutate(No_supplement = ifelse("0" %in% Supplement_mM, Median_Score[Supplement_mM == '0'], NA)) %>% # Get phenotype values at Supplement_mM=0 
+  ungroup %>%
+  mutate(BW_norm = Median_Score - BW_Score,
+         BW_Mean_norm = Mean - BW_Mean,
+         Suppl_norm = Median_Score - No_supplement,
+         Interaction = Median_Score - BW_Score - No_supplement,
+         Supplement = 'Glucose')
+
+
+# range of colours
+colours17 = c('#000000','#8C158C','#8C158C','#0A2CFF','#006006',
+            '#FF008C','#9D4300','#7B008C','#008BF6','#5EAA44',
+            '#FF1500','#A42900','#006A54','#00CDFF','#F0BF8F',
+            '#B5B0B8','#FAE603')
+colours_kegg2 = c('#F0BF8F','#000000','#8C158C','#0A2CFF','#006006',
+                  '#008BF6','#5EAA44','#FF1500','#CC80E6','#BAE303')
+colours_kegg3 = c('#8A7090','#000000','#53BAE2','#EF6713','#58A32D','#EF1613','#F45A95','#8C5A3A')
+
+
+pos = position_jitter(width = 0.05, height = 0.05, seed = 1) # to plot names in jitter positions
+
+# test if the data is OK
+
+sublib.sum %>% 
+    left_join(pathways) %>%
+    filter(Drug == 5) %>% 
+    select(Supplement, Supplement_mM, Genes, BW_norm, Pathway:KEGG3) %>%
+    unite(Supp, Supplement, Supplement_mM) %>%
+    spread(Supp, BW_norm) %>%
+    ggplot(aes(x = Glucose_0, y = Glucose_10)) + 
+    geom_hline(yintercept = 0, colour = 'grey30') +
+    geom_vline(xintercept = 0, colour = 'grey30') +
+    geom_point(aes(colour = KEGG3), position = pos, size = 2) + 
+    scale_color_manual(values = colours_kegg3) + 
+    scale_fill_manual(values = colours_kegg3) +
+    # geom_text_repel(aes(label = ifelse(Pathway == 'ribonucleotides de novo biosynthesis', as.character(Genes), '')), position = pos)
+    geom_text_repel(aes(label = Genes, colour = KEGG3), position = pos) +
+    labs(title = "5FU + Supplement (Glucose) effect on different BW mutants",
+         x = expression(paste('Normalised median scores of ', italic('C. elegans'), ' phenotype', sep = ' ')),
+         y = expression(paste('Normalised median scores of ', italic('C. elegans'), ' phenotype ' , bold('(Glucose)'), sep = ' '))) +
+    theme(plot.title = element_text(size = 15, hjust = 0.5, face = "bold"),
+        panel.grid.major = element_line(colour = "grey90"),
+        panel.background = element_rect(fill = "white", colour = "grey50")) + 
+    guides(colour = guide_legend(override.aes = list(size = 4))) # make lengend points larger
+
+
+###
+### load the KEIO library data
+
+
+# load data
+## REMEMBER, PLATE A AND PLATE B ARE NOW 97 AND 99
+keiolib = read_xlsx(here('Sub_library/big_screen','Keio Library.xlsx'), sheet = 'ALL_final') 
+
+keiolib = keiolib %>%
+    filter(!is.na(Gene), !(Gene %in% c('WT', 'present', 'no bact' )))
+
+
+## running some checks
+
+# is there any gene repeated? 
+
+subset = keiolib %>% filter(Gene != 'Control')
+length(unique(subset$Gene)) == length(subset$Gene)
+# if TRUE, everything is fine
+
+
+
+# transform data into 1 column data frame
+keiolib = keiolib %>% 
+    gather(Sample, Score, Control_1:GluFU_3) %>%
+    separate(Sample, c('Sample', 'Replicate'), sep = '_') %>%
+    mutate_at(c('Plate', 'Column', 'Row', 'Gene', 'Sample'), as.factor) %>%
+    mutate(Score = as.numeric(Score))
+
+
+# Controls median
+controls = keiolib %>%
+    filter(Gene == 'Control') %>%
+    mutate(Score = as.numeric(Score)) %>%
+    group_by(Sample) %>%
+    summarise(Median = median(Score))
+
+# we can use the values of the first row of the Controls as the median, it has the same values
+controls = filter(keiolib, Gene == 'Control', Sample == 'Control')[1,]
+controls = rbind(controls, filter(keiolib, Gene == 'Control', Sample == 'FU')[1,])
+controls = rbind(controls, filter(keiolib, Gene == 'Control', Sample == 'Glu')[1,])
+controls = rbind(controls, filter(keiolib, Gene == 'Control', Sample == 'GluFU')[1,])
+
+
+## summarise the data
+keio.sum = keiolib %>%
+    filter(Gene != 'Control') %>%
+    rbind(., controls) %>%
+    group_by(Sample, Gene) %>%
+    summarise(Median_Score = median(Score, na.rm = TRUE),
+              Mean = mean(Score, na.rm = TRUE),
+              SD = sd(Score, na.rm = TRUE)) %>%
+    mutate(BW_Score = Median_Score[Gene == 'Control'],
+           BW_Mean = Mean[Gene == 'Control']) %>%
+    ungroup %>%
+    mutate(BW_norm = Median_Score - BW_Score,
+           BW_Mean_norm = Mean - BW_Mean,
+           Supplement = 'Glucose')
+
+# adding a helper column
+keio.sum['Supplement_mM'] = 0
+keio.sum[keio.sum$Sample == 'Glu',]$Supplement_mM = 10
+keio.sum[keio.sum$Sample == 'GluFU',]$Supplement_mM = 10
+
+
+
+### test data if everything is OK
+pos = position_jitter(width = 0.15, height = 0.15, seed = 1) # to plot names in jitter positions
+keio.sum %>% 
+    filter(Sample %in% c('FU', 'GluFU')) %>%
+    select(Supplement, Supplement_mM, Gene, BW_norm) %>%
+    unite(Supp, Supplement, Supplement_mM) %>%
+    spread(Supp, BW_norm) %>%
+    ggplot(aes(x = Glucose_0, y = Glucose_10)) +
+    geom_hline(yintercept = 0, colour = 'grey30') +
+    geom_vline(xintercept = 0, colour = 'grey30') +
+    geom_point(position = pos, size = 2, alpha = .2) +
+    # geom_text_repel(aes(label = ifelse(Glucose_0 > 1.5 & abs(Glucose_10) > 0.5, as.character(Gene), '')), position = pos) +
+    # geom_text_repel(aes(label = ifelse((abs(Glucose_0) > 1.5 | abs(Glucose_10) > 0.5), as.character(Gene), '')), position = pos) +
+    labs(title = "5FU + Supplement (Glucose) effect on different BW mutants",
+         x = expression(paste('Normalised median scores of ', italic('C. elegans'), ' phenotype', sep = ' ')),
+         y = expression(paste('Normalised median scores of ', italic('C. elegans'), ' phenotype ' , bold('(Glucose)'), sep = ' '))) +
+    theme(plot.title = element_text(size = 15, hjust = 0.5, face = "bold"),
+        panel.grid.major = element_line(colour = "grey90"),
+        panel.background = element_rect(fill = "white", colour = "grey50")) 
+
+
+
+####
+## now load the info from the supplementary material from Leo's previous work
+
+
+# load data
+supp = read_xlsx(here('Sub_library/big_screen','mmc2.xlsx'), sheet = 'Enrichment_with_genes') 
+
+# oxidative phosphorylation 
+ox_res = supp %>% 
+    select(Category, Term_ID, Term, Gene, Plate) %>%
+    filter(Term == 'Oxidative phosphorylation')
+
+# purine metabolism
+pur_met = supp %>% 
+    select(Category, Term_ID, Term, Gene, Plate) %>%
+    filter(Term == 'Purine metabolism')
+
+
+
+
+# is any of these genes in the original sublibrary?
+intersect(unique(sublib$Genes), ox_res$Gene)
+# there are four genes found to be repeated in the sublibrary: "sdhA", "sdhB", "sdhC", "sdhD"
+
+# subset the keiolib with the genes from the oxidative phosphorilation
+
+keio.genes = keio.sum %>% 
+    mutate(Gene = as.character(Gene)) %>%
+    filter(Gene %in% ox_res$Gene) %>% 
+    mutate(Gene = recode(Gene, sdhA = 'sdhA_K',
+                               sdhB = 'sdhB_K',
+                               sdhC = 'sdhC_K',
+                               sdhD = 'sdhD_K'), 
+           Drug = 0,
+           Drug = ifelse(Sample %in% c('FU', 'GluFU'), 5, 0),
+           Pathway = 'Oxidative phosphorylation') %>%
+    rename(Genes = Gene) %>%
+    select(-Sample)
+
+keio.pur.genes = keio.sum %>% 
+    mutate(Gene = as.character(Gene)) %>%
+    filter(Gene %in% pur_met$Gene) %>% 
+    mutate(Gene = recode(Gene, pykA = 'pykA_K',
+                               pgm = 'pgm_K',
+                               nrdF = 'nrdF_K',
+                               nrdE = 'nrdE_K',
+                               nrdD = 'nrdD_K',
+                               mazG = 'mazG_K',
+                               ndk = 'ndk_K',
+                               yjjG = 'yjjG_K',
+                               pykF = 'pykF_K'),
+           Drug = 0,
+           Drug = ifelse(Sample %in% c('FU', 'GluFU'), 5, 0),
+           Pathway = 'Purine metabolism') %>%
+    rename(Genes = Gene) %>%
+    select(-Sample)
+
+
+
+
+# join both datasets
+join = sublib.sum %>% 
+    select(Genes, Median_Score, Mean, SD, BW_Score, BW_Mean, BW_norm, BW_Mean_norm, Supplement, Supplement_mM, Drug) %>%
+    left_join(pathways[,c(1,5)]) %>% 
+    rename(Pathway = KEGG3) %>%
+    rbind(keio.genes, keio.pur.genes)
+
+
+
+joined_colours = c('#8A7090','#000000','#53BAE2','#EF6713','#58A32D','#EF1613','#F45A95','#8C5A3A', 'grey50', '#FF00DC')
+
+join %>% 
+    filter(Drug == 5) %>% 
+    select(Supplement, Supplement_mM, Genes, BW_norm, Pathway:Pathway) %>%
+    unite(Supp, Supplement, Supplement_mM) %>%
+    spread(Supp, BW_norm) %>%
+    ggplot(aes(x = Glucose_0, y = Glucose_10)) + 
+    geom_hline(yintercept = 0, colour = 'grey30') +
+    geom_vline(xintercept = 0, colour = 'grey30') +
+    geom_point(aes(colour = Pathway), position = pos, size = 2) + 
+    scale_color_manual(values = joined_colours) + 
+    scale_fill_manual(values = joined_colours) +
+    # geom_text_repel(aes(label = ifelse(Pathway == 'ribonucleotides de novo biosynthesis', as.character(Genes), '')), position = pos)
+    geom_text_repel(aes(label = Genes, colour = Pathway), position = pos) +
+    labs(title = "5FU + Supplement (Glucose) effect on different BW mutants",
+         x = expression(paste('Normalised median scores of ', italic('C. elegans'), ' phenotype', sep = ' ')),
+         y = expression(paste('Normalised median scores of ', italic('C. elegans'), ' phenotype ' , bold('(Glucose)'), sep = ' '))) +
+    theme(plot.title = element_text(size = 15, hjust = 0.5, face = "bold"),
+        panel.grid.major = element_line(colour = "grey90"),
+        panel.background = element_rect(fill = "white", colour = "grey50")) + 
+    guides(colour = guide_legend(override.aes = list(size = 4))) # make lengend points larger
+
+quartz.save(file = here('Summary', 'sublibrary_extra_pathways.pdf'),
+    type = 'pdf', dpi = 300, height = 10, width = 12)
+
+
+
+
+# only the two new pathways with gltA and pyrE
+join %>% 
+    filter(Drug == 5, Pathway %in% c('Oxidative phosphorylation', 'Purine metabolism')) %>% 
+    rbind(., join %>% filter(Drug == 5, Genes %in% c('pyrE', 'gltA'))) %>%
+    select(Supplement, Supplement_mM, Genes, BW_norm, Pathway:Pathway) %>%
+    unite(Supp, Supplement, Supplement_mM) %>%
+    spread(Supp, BW_norm) %>%
+    ggplot(aes(x = Glucose_0, y = Glucose_10)) + 
+    geom_hline(yintercept = 0, colour = 'grey30') +
+    geom_vline(xintercept = 0, colour = 'grey30') +
+    geom_point(aes(colour = Pathway), position = pos, size = 2) + 
+    scale_color_manual(values = c('#BF112E', '#C7046D', '#A86200', '#0A2DF5')) + 
+    scale_fill_manual(values = c('#BF112E', '#C7046D', '#A86200', '#0A2DF5')) +
+    # geom_text_repel(aes(label = ifelse(Pathway == 'ribonucleotides de novo biosynthesis', as.character(Genes), '')), position = pos)
+    geom_text_repel(aes(label = Genes, colour = Pathway), position = pos) +
+    labs(title = "5FU + Supplement (Glucose) effect on different BW mutants",
+         x = expression(paste('Normalised median scores of ', italic('C. elegans'), ' phenotype', sep = ' ')),
+         y = expression(paste('Normalised median scores of ', italic('C. elegans'), ' phenotype ' , bold('(Glucose)'), sep = ' '))) +
+    theme(plot.title = element_text(size = 15, hjust = 0.5, face = "bold"),
+        panel.grid.major = element_line(colour = "grey90"),
+        panel.background = element_rect(fill = "white", colour = "grey50")) + 
+    guides(colour = guide_legend(override.aes = list(size = 4))) # make lengend points larger
+
+
+
+quartz.save(file = here('Summary', 'sublibrary_extra_pathways_purine.pdf'),
+    type = 'pdf', dpi = 300, height = 10, width = 12)
+
+
+
+
+## statistics 
+# preparation of data
+
+# keio.ctr = keiolib %>%
+#     mutate(Gene = as.character(Gene), 
+#            Gene = recode(Gene, 'Control' = 'BW'),
+#            Drug = 0,
+#            Drug = ifelse(Sample %in% c('FU', 'GluFU'), 5, 0),
+#            Pathway = 'Control') %>%
+#     filter(Gene == 'BW') %>%
+#     rename(Genes = Gene) %>%
+#     select(-Sample)
+
+# controls
+keio.ctr = controls %>% 
+    mutate(Gene = as.character(Gene), 
+           Gene = recode(Gene, 'Control' = 'BW'),
+           Drug = 0,
+           Supplement_mM = 10,
+           Drug = ifelse(Sample %in% c('FU', 'GluFU'), 5, 0),
+           Supplement_mM = ifelse(Sample %in% c('Glu', 'GluFU'), 10, 0),
+           Pathway = 'Control') %>%
+    rename(Genes = Gene) %>%
+    select(-Sample)
+
+keio.ctr2 = keio.ctr %>% mutate(Replicate = 2)
+keio.ctr3 = keio.ctr %>% mutate(Replicate = 3)
+
+
+# purines
+keio.pur = keiolib %>% 
+    mutate(Gene = as.character(Gene)) %>%
+    filter(Gene %in% pur_met$Gene) %>% 
+    mutate(Drug = 0,
+           Supplement_mM = 10,
+           Drug = ifelse(Sample %in% c('FU', 'GluFU'), 5, 0),
+           Supplement_mM = ifelse(Sample %in% c('Glu', 'GluFU'), 10, 0),
+           Pathway = 'Purine metabolism') %>%
+    rename(Genes = Gene) %>%
+    select(-Sample)
+
+# ox phosphorylation
+keio.ox = keiolib %>% 
+    mutate(Gene = as.character(Gene)) %>%
+    filter(Gene %in% ox_res$Gene) %>% 
+    mutate(
+           Drug = 0,
+           Supplement_mM = 10,
+           Drug = ifelse(Sample %in% c('FU', 'GluFU'), 5, 0),
+           Supplement_mM = ifelse(Sample %in% c('Glu', 'GluFU'), 10, 0),
+           Pathway = 'Oxidative phosphorylation') %>%
+    rename(Genes = Gene) %>%
+    select(-Sample)
+
+keio.sub = rbind(keio.ctr, keio.ctr2, keio.ctr3, keio.pur, keio.ox)
+
+
+
+keio.sum.pur = keio.sum %>% 
+    filter(Gene %in% keio.sub$Genes) %>%
+    mutate(Gene = as.character(Gene)) %>%  
+    left_join(keio.sub %>% rename(Gene = Genes) %>% 
+        select(Gene, Pathway)) %>%
+    unique(.)
+
+
+
+# first, sum all score values by gene and condition
+keio.auc = keio.sub %>% group_by(Genes, Replicate, Supplement_mM) %>%
+    summarise(Sum = sum(Score)) 
+
+
+
+# save statistics list
+list_of_datasets = list('Summary statistics' = keio.sum.pur, 'AUC' = keio.auc)
+
+write.xlsx(list_of_datasets, here('Summary', 'KEIO_purine_oxphosphorylation.xlsx'), colNames = T, rowNames = F) 
+
+
+
+
+
+# # filter values with NAs (maybe try to impute them with RF?)
+# keio.auc = keio.auc %>% filter_at(vars(Sum), any_vars(!is.na(.))) 
+
+
+# ## we want to compare each gene against BW per condition
+# # split data
+# glu_0 = keio.auc %>%  filter(Supplement_mM == 0) 
+# glu_10 = keio.auc %>% filter(Supplement_mM == 10)
+
+
+
+
+
+
+
+# # # remove BWs with my dummy function
+# # glu_0 = ctrls(glu_0)
+# # glu_10 = ctrls(glu_10)
+
+# # extract the gene list for the loop
+# genes = glucose.tf %>% ungroup %>% filter(Genes != 'BW') %>% select(Genes) %>% unique %>% data.frame 
+# genes = as.character(genes$Genes)
+
+# # calculate the Mood's test (median test) for every condition
+# med.res = rbind(m.test(glu_0, genes), m.test(glu_10, genes))
+# # the same but for the t.test
+# ttest.res = rbind(av.test(glu_0, genes), av.test(glu_10, genes))
+
+
+# ## after having done the statistical tests, we can filter those ones that have sig. differences
+# # for this dataset I will use the t test results, as the other is completely useless (data too variable, and only 2 reps)
+
+# glu.genes = ttest.res %>% filter(fdr <= 0.05) %>% select(Gene) %>% unique
+# glu.genes = sort(as.character(glu.genes$Gene)) ; glu.genes = c('BW', glu.genes)
+# glu.genes = factor(glu.genes, levels = glu.genes)
+
+
 
 
 
