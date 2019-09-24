@@ -1719,6 +1719,9 @@ ggsave(file = paste0(odir,"/glucose_Growth_curves.pdf"),
 worm.sum[worm.sum$Strain == 'CRP', ]$Strain = 'crp'
 worm.sum$Strain = as.factor(worm.sum$Strain)
 
+worm.sum = worm.sum %>% mutate(
+              Median = ifelse(Median == 0, 1, Median))
+
 unique(worm.sum$Strain)
 unique(worm.sum$Experiment)
 
@@ -1729,8 +1732,8 @@ for (name in unique(worm.sum$Strain)){
 # select only one experiment and strain
 # contrasts and other main variables of this part
 
-strain = 'BW'
-experiment = "T1"
+strain = 'crp'
+experiment = "T86"
 str_C = paste(strain, '_C', sep = '')
 str_T = paste(strain, '_T', sep = '')
 str_CT = paste(strain, '_5FU', sep = '')
@@ -1841,7 +1844,7 @@ NGMb
 
 adjustments[adjustments$Contrast == alln,]
 
- gradcolours<-c('black','yellow','orange','red')
+# gradcolours<-c('black','yellow','orange','red')
 # gradcolours2<-c('blue','cyan','black','yellow','red')
 #gradcolours = c('#000000', '#4E4972', '#63D471', '#B55F00', '#C21C22')
 
@@ -1862,9 +1865,12 @@ adjustments[adjustments$Contrast == alln,]
 # jointcast %>%
 #   filter(BW_C_logFC>1.25 & BW_T_logFC<0 & Ce_Dev5_Median==1)
 
+gradcolours = c('#71B83B','yellow','orange','red')
+
 
 jointresults.multi %>%
   filter(x_Contrast == str_C & y_Contrast == str_T & z_Contrast == 'Ce_Dev5') %>%
+  filter(z_logFC != is.na(z_logFC)) %>%
   # mutate(z_logFC = 4) %>%
   ggplot(aes(x = x_logFC, y = y_logFC)) +
   geom_abline(intercept = 0, slope = 1, alpha = 0.3, color = 'grey', linetype = 'longdash') +
@@ -1873,18 +1879,18 @@ jointresults.multi %>%
   geom_hline(aes(yintercept = 0), alpha = 0.9, color = 'grey')+
   geom_errorbarh(aes(xmax = x_logFC + x_SE, xmin = x_logFC - x_SE), height = 0, alpha = 0.3, color = 'grey50') +
   geom_errorbar(aes(ymax = y_logFC + y_SE, ymin = y_logFC - y_SE), width = 0, alpha = 0.3, color = 'grey50') +
-  geom_point(aes(colour = z_logFC), alpha = 0.7, size = 2) +
+  geom_point(aes(colour = z_logFC), alpha = 0.9, size = 2) +
   scale_size(range = c(1,5), name = 'C. elegans\nphenotype') +
   scale_colour_gradientn(colours = gradcolours,
-                         breaks = c(0,1,2,3,4), limits = c(0,4), guide = "legend", name = 'C. elegans\nphenotype') +
+                         breaks = c(1,2,3,4), limits = c(1,4), guide = "legend", name = 'C. elegans\nphenotype') +
   scale_y_continuous(breaks = -5:5)+
   coord_cartesian(xlim = c(-4, 3), ylim = c(-3, 4)) +
-  labs(title = paste(strain, " growth with 5FU treatment at 0 uM", sep = ''),
+  labs(title = paste(strain, " growth with 5FU treatment at 86 uM", sep = ''),
   x = "E. coli growth vs NGM - Control, logFC", 
   y = 'E. coli growth vs NGM - 5-FU Treatment, logFC' ) +
   theme(plot.title = element_text(hjust = 0.5, face = "bold")) +
   # geom_text_repel(aes(label = ifelse(z_logFC >= 4, MetaboliteU, '')), box.padding = unit(0.6, "lines"), segment.alpha = 0.4) + # only name those nutr with C. elegans phenotype 3 or more
-  # geom_text_repel(aes(label = ifelse(z_logFC >= 3 | z_logFC == 0, MetaboliteU, '')), box.padding = unit(0.6, "lines"), segment.alpha = 0.4) + # only name those nutr with C. elegans phenotype 3 or more
+  geom_text_repel(aes(label = ifelse(z_logFC >= 3 | z_logFC == 0, MetaboliteU, '')), box.padding = unit(0.6, "lines"), segment.alpha = 0.4) + # only name those nutr with C. elegans phenotype 3 or more
   guides(color = guide_legend()) +
   theme(panel.grid.major = element_line(size = 0.06, colour = "grey50"),
       # panel.grid.major.y = element_blank(),
@@ -1894,9 +1900,10 @@ jointresults.multi %>%
       legend.title = element_text(size = 15),
       axis.text.x = element_text(size = 10),
       axis.text.y = element_text(size = 10)) +
-  guides(colour = guide_legend(override.aes = list(size = 4)))
+  guides(colour = guide_legend(override.aes = list(size = 4))) +
+  annotate(geom = 'text', x = -2, y = 1.5, label = paste('y = ', round(NGMa,3), 'x +', round(NGMb,3), sep = ''), size = 5)
 
-ggsave(file = paste0(odir,"/Scatter_", strain, "_0uM_screen.pdf"),
+ggsave(file = paste0(odir,"/Scatter_", strain, "_86uM_screen.pdf"),
        width = 120, height = 100, units = 'mm', scale = 2, device = 'pdf')
 
 
