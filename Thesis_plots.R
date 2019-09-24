@@ -784,6 +784,65 @@ write.xlsx(list_of_datasets, here('Summary', '4way_stats.xlsx'), colNames = T, r
 
 
 
+#######################################################
+### Enrichment analysis of metabolites and pathways ###
+#######################################################
+
+# variables to use for this analysis
+results
+data.wa
+info
+
+# load other helper files for KEGG and EcoCyc enrichment
+# KEGG mappings
+kegg.mappings = read_csv(here('Bacteria data',"All_KEGG_mappings_Complete.csv")) %>%
+  separate_rows(all.mapped) %>%
+  filter(!is.na(all.mapped)) %>%
+  group_by(all.mapped) %>%
+  summarise(Pathway_IDs = paste(unique(PathwayID), collapse = ';'),
+            Pathways = paste(unique(Description), collapse = ';'))
+
+#EcoCyc mappings
+EC_mappings = read_csv(here('Bacteria data','EcoCyc_Class_mappings.csv'))
+
+# filter some results that are not useful now
+res = results %>% filter(Contrast_type == 'Treatment')
+
+# some strange thing
+ecomulti = multiplex(res, c("Plate","Well","Index","MetaboliteU","EcoCycID","KEGG_ID"),3)
+
+# 
+all.results.KEGG = res %>%
+  left_join(kegg.mappings,by = c('KEGG_ID'='all.mapped')) %>%
+  left_join(EC_mappings) 
+  # %>%
+  # select(Organism,Organism_short,OMC:KEGG_ID,Pathway_IDs,Pathways,EcoCyc_Instances,EcoCyc_Classes,everything())
+
+
+
+
+EcoCyc.enrichment = all.results.KEGG %>%
+  left_join(EC_mappings) %>%
+  left_join(info) %>%
+  filter(!is.na(FDR) & !is.na(EcoCyc_Classes)) %>%
+  enrichment(
+             featureid = 'EcoCyc_Instances',
+             groups = c('Contrast','Strain', 'Class')) 
+
+
+  %>%
+  mutate(logFDR=ifelse(-log10(FDR)<0,0,-log10(FDR)),
+         logFDRbin=cut(logFDR,breaks=enrbrks,labels=enrlbls,right=FALSE),
+         Type=factor(Type,levels=c("All","Up","Down")),
+         Class=str_replace_all(as.character(Class),"\\|","")) 
+
+
+EcoCyc.enrichment %>%
+  filter(Type!="All" & OMC %in% c("Ec_G_T-C","Ce_F_T-C") & !Class %in% EChm$Class)%>%
+  select(-c(NoInstances:Comparison),-c(Organism_short,Measure,Contrast,OMC) ) %>%
+  write_csv(paste0(odir,'/EcoCyc_enrichment.csv'))
+
+
 
 #---------------------------------------------
 #---------------------------------------------
