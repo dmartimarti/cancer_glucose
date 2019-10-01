@@ -529,13 +529,14 @@ ggplot(first, aes()) +
   scale_colour_gradientn(colours = gradcolours,
                          breaks = c(1,2,3,4), limits = c(1,4), guide = "legend", name = 'C. elegans\nphenotype') +
   scale_y_continuous(breaks = -5:5)+
-  coord_cartesian(xlim = c(-5, 2), ylim = c(-4, 4)) +
+  coord_cartesian(xlim = c(-3, 3), ylim = c(-3, 4)) +
   labs(title = paste(strain, " growth with 5FU treatment at 0 uM", sep = ''),
   x = expression(paste(italic("E. coli"), ' growth vs NGM - Control, logFC', sep = '')), 
   y = expression(paste(italic('E. coli'), ' growth vs NGM - 5-FU Treatment, logFC', sep = ''))) +
   theme(plot.title = element_text(hjust = 0.5, face = "bold")) +
   # geom_text_repel(data = fourth, aes(x = x_logFC, y = y_logFC, label = ifelse(MetaboliteU %in% mlevels, MetaboliteU, '')), size = 4, box.padding = unit(1.6, "lines")) + # USE ONLY FOR DEMONSTRATIVE PURPOSES FOR LEO
   geom_text_repel(data = fourth, aes(x = x_logFC, y = y_logFC, label = ifelse(z_logFC >= 4, MetaboliteU, '')), box.padding = unit(0.6, "lines"), segment.alpha = 0.4) + # only name those nutr with C. elegans phenotype 3 or more
+  geom_text_repel(data = third, aes(x = x_logFC, y = y_logFC, label = ifelse(z_logFC >= 3, MetaboliteU, '')), box.padding = unit(0.6, "lines"), segment.alpha = 0.4) + # only name those nutr with C. elegans phenotype 3 or more
   # geom_text_repel(aes(label = ifelse(z_logFC >= 3 | z_logFC == 0, MetaboliteU, '')), box.padding = unit(0.6, "lines"), segment.alpha = 0.4) + # only name those nutr with C. elegans phenotype 3 or more
   guides(color = guide_legend()) +
   theme(panel.grid.major = element_line(size = 0.06, colour = "grey50"),
