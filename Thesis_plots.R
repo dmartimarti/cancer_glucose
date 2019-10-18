@@ -831,11 +831,6 @@ EcoCyc.enrichment = all.results.KEGG %>%
              groups = c('Contrast','Strain', 'Class')) 
 
 
-  %>%
-  mutate(logFDR=ifelse(-log10(FDR)<0,0,-log10(FDR)),
-         logFDRbin=cut(logFDR,breaks=enrbrks,labels=enrlbls,right=FALSE),
-         Type=factor(Type,levels=c("All","Up","Down")),
-         Class=str_replace_all(as.character(Class),"\\|","")) 
 
 
 EcoCyc.enrichment %>%
@@ -850,9 +845,69 @@ EcoCyc.enrichment %>%
 #---------------------------------------------
 
 
+### using Goseq
+
+# load EC classes
+EC_classes = read_csv(here('Bacteria data',"Ecoli_All_class_instances_non_redundant.csv")) 
+EC_classes = EC_classes[,-1]
+
+
+res = results %>% filter(Contrast_type == 'Treatment')
+
+res.BW = res %>% filter(Strain == 'BW', Contrast == 'BW_5FU')
+# remove the NAs
+resdat = res.BW[complete.cases(res.BW$FDR),]
+
+
+degenes = as.integer(resdat$FDR<0.05)
+# degenes = as.integer(resdat$FDR<0.05 & abs(resdat$log2FoldChange) > 1)
+names(degenes) = resdat$EcoCycID
+
+# remove duplicate gene names
+degenes = degenes[match(unique(names(degenes)),names(degenes))]
+
+go.class = EC_classes %>% select(Class, Instance)
+# go.class = info %>% filter(Plate %in% c('PM1', 'PM2A', 'PM3B', 'PM4A')) %>% select(EcoCycID, Class)
+
+
+goseq::goseq(degenes, gene2cat = go.class, method = 'Hypergeometric')
+
+
+### manual enrichment analysis
+
+# total metab
+met = res.BW %>% filter(Metabolite != 'Negative Control') %>% select(EcoCycID) %>% t %>% as.vector
+sig.met = res.BW %>% filter(Metabolite != 'Negative Control', FDR < 0.05) %>% select(EcoCycID) %>% t %>% as.vector
+
+
+go.class = EC_classes %>% filter(NoInstances > 2)
+
+# lets try this class = |Sugar-alcohols|
+
+
+class.met = go.class %>% filter(Class == '|Amides|') %>% select(Instance) %>% t %>% as.vector
+
+
+N = length(met)
+m = length(class.met)
+n = N - m
+k = length(sig.met)
+x = length(class.met[class.met %in% sig.met])
+
+phyper(q = x-1, m = m, n = n, k = k, lower.tail = FALSE)
 
 
 
+classes = unique(go.class$Class)
+dummy = c()
+for (class in classes){
+  class.met = go.class %>% filter(Class == class) %>% select(Instance) %>% t %>% as.vector
+  n = N - m
+  k = length(sig.met)
+  x = length(class.met[class.met %in% sig.met])
+  fit = phyper(q = x-1, m = m, n = n, k = k, lower.tail = FALSE)
+  dummy = c(dummy, fit)
+}
 
 
 ###########################
