@@ -231,7 +231,7 @@ PlotScatter2 = function(data, x = 'Glucose_0', y = 'Glucose_10', grad = colours_
 	scale_color_manual(values = grad) + 
     scale_fill_manual(values = grad) +
 	# geom_text_repel(aes(label = ifelse(Pathway == 'ribonucleotides de novo biosynthesis', as.character(Genotype), '')), position = pos)
-	geom_text_repel(aes(label = Genotype, colour = KEGG3), position = pos) +
+	geom_text_repel(aes(label = Genotype, colour = KEGG3), position = pos, size = 6) +
 	labs(title = "5FU + Supplement (Glucose) effect on different BW mutants",
 		 x = expression(paste('Normalised median scores of ', italic('C. elegans'), ' phenotype', sep = ' ')),
 		 y = expression(paste('Normalised median scores of ', italic('C. elegans'), ' phenotype ' , bold('(Glucose)'), sep = ' '))) +
