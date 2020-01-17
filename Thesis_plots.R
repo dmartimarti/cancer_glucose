@@ -870,7 +870,7 @@ go.class = EC_classes %>% select(Class, Instance)
 # go.class = info %>% filter(Plate %in% c('PM1', 'PM2A', 'PM3B', 'PM4A')) %>% select(EcoCycID, Class)
 
 
-goseq::goseq(degenes, gene2cat = go.class, method = 'Hypergeometric')
+# goseq::goseq(degenes, gene2cat = go.class, method = 'Hypergeometric')
 
 
 ### manual enrichment analysis
@@ -880,13 +880,18 @@ met = res.BW %>% filter(Metabolite != 'Negative Control') %>% select(EcoCycID) %
 sig.met = res.BW %>% filter(Metabolite != 'Negative Control', FDR < 0.05) %>% select(EcoCycID) %>% t %>% as.vector
 
 
-go.class = EC_classes %>% filter(NoInstances > 2)
+go.class = EC_classes %>% 
+    filter(NoInstances > 2) 
+
+
+# go.class = go.class %>%
+#     filter(Instance %in% met)
+
 
 # lets try this class = |Sugar-alcohols|
 
 
-class.met = go.class %>% filter(Class == '|Amides|') %>% select(Instance) %>% t %>% as.vector
-
+class.met = go.class %>% filter(Class == '|Sugar-alcohols|') %>% select(Instance) %>% t %>% as.vector
 
 N = length(met)
 m = length(class.met)
@@ -894,7 +899,7 @@ n = N - m
 k = length(sig.met)
 x = length(class.met[class.met %in% sig.met])
 
-phyper(q = x-1, m = m, n = n, k = k, lower.tail = FALSE)
+phyper(q = x - 1, m = m, n = n, k = k, lower.tail = FALSE)
 
 
 
@@ -908,6 +913,219 @@ for (class in classes){
   fit = phyper(q = x-1, m = m, n = n, k = k, lower.tail = FALSE)
   dummy = c(dummy, fit)
 }
+
+
+names(dummy) = classes
+
+dummy[dummy < 0.05]
+
+
+met %in% go.class$Instance
+
+
+
+### ok, summary until this point of the code. I got the hypergeometric test to work with our 
+### samples, which is good. I would need to make it a function. But, it seems that the database
+### I was using is not good, it does not contain all the names Im interested, so I need to make
+### a good one from another file from Pov's folders
+
+# read file
+EC_classes = read_csv(here('Bacteria data',"All_results_side_by_side_withKEGGEcoCycClass.csv")) %>%
+    select(Plate:EcoCyc_Classes) 
+
+
+# separate rows with strsplit 
+# EC_classes %>% 
+#     mutate(EcoCyc_Classes = strsplit(as.character(EcoCyc_Classes), ';')) %>% 
+#     unnest(EcoCyc_Classes)
+
+# v2, with separate_rows
+EC_classes = EC_classes %>% 
+    separate_rows(EcoCyc_Classes, sep = ';')
+
+# test if all metabolites are included in the list
+met %in% EC_classes$EcoCycID
+
+
+
+
+class.met = EC_classes %>% filter(EcoCyc_Classes == '|Sugar-alcohols|') %>% select(EcoCycID) %>% t %>% as.vector
+
+N = length(met)
+m = length(class.met)
+n = N - m
+k = length(sig.met)
+x = length(class.met[class.met %in% sig.met])
+
+phyper(q = x - 1, m = m, n = n, k = k, lower.tail = FALSE)
+
+
+
+
+classes = unique(EC_classes$EcoCyc_Classes)
+dummy = c()
+for (class in classes){
+  class.met = EC_classes %>% filter(EcoCyc_Classes == class) %>% select(EcoCycID) %>% t %>% as.vector
+  n = N - m
+  k = length(sig.met)
+  x = length(class.met[class.met %in% sig.met])
+  fit = phyper(q = x-1, m = m, n = n, k = k, lower.tail = FALSE)
+  dummy = c(dummy, fit)
+}
+
+dummy = p.adjust(dummy, method = 'fdr')
+
+names(dummy) = classes
+
+dummy[dummy < 0.05]
+
+###
+# let's do it with every set
+
+res.BW = res %>% filter(Strain == 'BW', Contrast == 'BW_5FU')
+res.pyrE = res %>% filter(Strain == 'pyrE', Contrast == 'pyrE_5FU')
+res.TM = res %>% filter(Strain == 'TM', Contrast == 'TM_5FU')
+
+
+# total metab
+met = res.BW %>% filter(Metabolite != 'Negative Control') %>% select(EcoCycID) %>% t %>% as.vector
+
+# significative metabolites 
+sig.met.BW = res.BW %>% filter(Metabolite != 'Negative Control', FDR < 0.05) %>% select(EcoCycID) %>% t %>% as.vector
+sig.met.pyrE = res.pyrE %>% filter(Metabolite != 'Negative Control', FDR < 0.05) %>% select(EcoCycID) %>% t %>% as.vector
+sig.met.TM = res.TM %>% filter(Metabolite != 'Negative Control', FDR < 0.05) %>% select(EcoCycID) %>% t %>% as.vector
+
+
+# calculate enrichment values
+# BW
+classes = unique(EC_classes$EcoCyc_Classes)
+enrich.BW = c()
+for (class in classes){
+  class.met = EC_classes %>% filter(EcoCyc_Classes == class) %>% select(EcoCycID) %>% t %>% as.vector
+  n = N - m
+  k = length(sig.met.BW)
+  x = length(class.met[class.met %in% sig.met.BW])
+  fit = phyper(q = x-1, m = m, n = n, k = k, lower.tail = FALSE)
+  enrich.BW = c(enrich.BW, fit)
+}
+
+enrich.BW = p.adjust(enrich.BW, method = 'fdr')
+names(enrich.BW) = classes
+enrich.BW[enrich.BW < 0.05]
+
+# pyrE
+classes = unique(EC_classes$EcoCyc_Classes)
+enrich.pyrE = c()
+for (class in classes){
+  class.met = EC_classes %>% filter(EcoCyc_Classes == class) %>% select(EcoCycID) %>% t %>% as.vector
+  n = N - m
+  k = length(sig.met.pyrE)
+  x = length(class.met[class.met %in% sig.met.pyrE])
+  fit = phyper(q = x-1, m = m, n = n, k = k, lower.tail = FALSE)
+  enrich.pyrE = c(enrich.pyrE, fit)
+}
+
+enrich.pyrE = p.adjust(enrich.pyrE, method = 'fdr')
+names(enrich.pyrE) = classes
+enrich.pyrE[enrich.pyrE < 0.05]
+
+# TM
+classes = unique(EC_classes$EcoCyc_Classes)
+enrich.TM = c()
+for (class in classes){
+  class.met = EC_classes %>% filter(EcoCyc_Classes == class) %>% select(EcoCycID) %>% t %>% as.vector
+  n = N - m
+  k = length(sig.met.TM)
+  x = length(class.met[class.met %in% sig.met.TM])
+  fit = phyper(q = x-1, m = m, n = n, k = k, lower.tail = FALSE)
+  enrich.TM = c(enrich.TM, fit)
+}
+
+enrich.TM = p.adjust(enrich.TM, method = 'fdr')
+names(enrich.TM) = classes
+enrich.TM[enrich.TM < 0.05]
+
+
+
+
+
+
+join.res = res %>% 
+    filter(Contrast %in% c('BW_5FU', 'TM_5FU', 'pyrE_5FU')) %>%
+    left_join(worm.sum) %>%
+
+
+# calculate enrichment values
+# BW
+# significative metabolites 
+res.BW = join.res %>% filter(Strain == 'BW', Experiment == 'T5')
+sig.met.BW = res.BW %>% filter(Metabolite != 'Negative Control', Median == 4) %>% select(EcoCycID) %>% t %>% as.vector
+
+classes = unique(EC_classes$EcoCyc_Classes)
+enrich.BW = c()
+for (class in classes){
+  class.met = EC_classes %>% filter(EcoCyc_Classes == class) %>% select(EcoCycID) %>% t %>% as.vector
+  n = N - m
+  k = length(sig.met.BW)
+  x = length(class.met[class.met %in% sig.met.BW])
+  fit = phyper(q = x-1, m = m, n = n, k = k, lower.tail = FALSE)
+  enrich.BW = c(enrich.BW, fit)
+}
+
+enrich.BW = p.adjust(enrich.BW, method = 'fdr')
+names(enrich.BW) = classes
+enrich.BW[enrich.BW < 0.05]
+
+
+
+
+# pyrE
+
+res.pyrE = join.res %>% filter(Strain == 'pyrE', Experiment == 'T5')
+sig.met.pyrE = res.pyrE %>% filter(Metabolite != 'Negative Control', Median == 4) %>% select(EcoCycID) %>% t %>% as.vector
+
+classes = unique(EC_classes$EcoCyc_Classes)
+enrich.pyrE = c()
+for (class in classes){
+  class.met = EC_classes %>% filter(EcoCyc_Classes == class) %>% select(EcoCycID) %>% t %>% as.vector
+  n = N - m
+  k = length(sig.met.pyrE)
+  x = length(class.met[class.met %in% sig.met.pyrE])
+  fit = phyper(q = x-1, m = m, n = n, k = k, lower.tail = FALSE)
+  enrich.pyrE = c(enrich.pyrE, fit)
+}
+
+enrich.pyrE = p.adjust(enrich.pyrE, method = 'fdr')
+names(enrich.pyrE) = classes
+enrich.pyrE[enrich.pyrE < 0.05]
+
+# TM
+res.TM = join.res %>% filter(Strain == 'TM', Experiment == 'T250')
+sig.met.TM = res.TM %>% filter(Metabolite != 'Negative Control', Median == 4) %>% select(EcoCycID) %>% t %>% as.vector
+
+
+classes = unique(EC_classes$EcoCyc_Classes)
+enrich.TM = c()
+for (class in classes){
+  class.met = EC_classes %>% filter(EcoCyc_Classes == class) %>% select(EcoCycID) %>% t %>% as.vector
+  n = N - m
+  k = length(sig.met.TM)
+  x = length(class.met[class.met %in% sig.met.TM])
+  fit = phyper(q = x-1, m = m, n = n, k = k, lower.tail = FALSE)
+  enrich.TM = c(enrich.TM, fit)
+}
+
+enrich.TM = p.adjust(enrich.TM, method = 'fdr')
+names(enrich.TM) = classes
+enrich.TM[enrich.TM < 0.05]
+
+
+
+
+
+
+
+
 
 
 ###########################
@@ -4858,6 +5076,223 @@ write.xlsx(list_of_datasets, here('Summary', 'KEIO_purine_oxphosphorylation.xlsx
 # glu.genes = ttest.res %>% filter(fdr <= 0.05) %>% select(Gene) %>% unique
 # glu.genes = sort(as.character(glu.genes$Gene)) ; glu.genes = c('BW', glu.genes)
 # glu.genes = factor(glu.genes, levels = glu.genes)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+########################################################################
+########################################################################
+####################### Plots for QQ Poster ############################
+########################################################################
+########################################################################
+
+
+###
+### 4-way plot
+###
+
+# read contrast adjustments, it seems there is a bug in some part of the
+# code and it's repeating the same values from only condition into the others
+
+adjustments = as_tibble(read.csv('Contrast_adjustments.csv'))
+
+# is a hell of a code, it's super messy, but it works...
+
+worm.sum[worm.sum$Strain == 'CRP', ]$Strain = 'crp'
+worm.sum$Strain = as.factor(worm.sum$Strain)
+
+
+
+# print the list of variables 
+for (name in unique(worm.sum$Strain)){
+  print(name)
+  print(unique((worm.sum %>% filter(Strain == name))$Experiment))
+}
+
+# select only one experiment and strain
+# contrasts and other main variables of this part
+
+strain = 'BW'
+experiment = "T5"
+
+
+str_C = paste(strain, '_C', sep = '')
+str_T = paste(strain, '_T', sep = '')
+str_CT = paste(strain, '_5FU', sep = '')
+alln = paste(strain, '_5FU_Alln', sep = '')
+adjs = paste(strain, '_5FU_adj', sep = '')
+
+
+# for example, to mimic Pov's code
+worm.sum %>% filter(Experiment == experiment, Strain == strain)
+
+worm.old = worm.sum %>%
+  filter(Experiment == experiment & Strain == strain) %>% 
+  ungroup %>%
+  mutate(Description = 'C. elegans development at 5uM 5-FU',
+         Contrast = 'Ce_Dev5',   # C. elegans developement with 5FU
+         Contrast_type = 'Treatment',
+         FDR = NA) %>%
+  select(Description, Contrast, Contrast_type, Plate, Well, logFC = Median, SE = SD, FDR)
+
+# check that we filtered stuff properly
+worm.old %>%
+  group_by(Plate) %>%
+  summarise(N = n())
+
+
+# Join bacterial and worm results (change contrasts)
+jointresults = allresults$results %>%
+  filter((Contrast %in% c(str_C, str_T, str_CT, alln))) %>%
+  mutate(Contrast = fct_recode(Contrast, adjs = alln)) %>% 
+  select(Description, Contrast, Contrast_type, Plate, Well, logFC, SE, FDR) %>%
+  bind_rows(worm.old) %>%
+  left_join(info) %>%
+  select(Description:Well,Index:KEGG_ID,logFC:FDR)
+
+
+jointcast = jointresults %>%
+  select(Contrast, Plate, Well, Index, Metabolite, MetaboliteU, EcoCycID, KEGG_ID, logFC, SE, FDR) %>%
+  gather(Stat, Value, logFC, SE, FDR) %>%
+  unite(CS, Contrast, Stat) %>%
+  spread(CS, Value) %>%
+  rename(Ce_Dev5_Median = Ce_Dev5_logFC, Ce_Dev5_SD = Ce_Dev5_SE) %>%
+  select(-Ce_Dev5_FDR)
+
+
+# write.csv(jointresults,paste(odir,'/Ecoli_results_All_As_old_screen.csv', sep = ''),row.names = FALSE)
+# write.csv(jointcast,paste(odir,'/Ecoli_results_sidebyside_As_old_screen.csv', sep = ''),row.names = FALSE)
+
+ 
+# Multiplex 
+jointresults.multi = multiplex(jointresults,c("Plate","Well","Index","Metabolite","MetaboliteU","EcoCycID","KEGG_ID"))
+jointresults.multi2 = multiplex(jointresults,c("Plate","Well","Index","Metabolite","MetaboliteU","EcoCycID","KEGG_ID"),2)
+
+
+
+
+########################
+NGMa = adjustments[adjustments$Contrast == alln, ]$a
+NGMb = adjustments[adjustments$Contrast == alln, ]$b
+
+
+
+gradcolours = c('#71B83B','yellow','orange','red')
+
+
+
+
+total = jointresults.multi %>%
+  filter(x_Contrast == str_C & y_Contrast == str_T & z_Contrast == 'Ce_Dev5')
+
+first = jointresults.multi %>%
+  filter(x_Contrast == str_C & y_Contrast == str_T & z_Contrast == 'Ce_Dev5') %>%
+  filter(z_logFC <=1)
+
+second = jointresults.multi %>%
+  filter(x_Contrast == str_C & y_Contrast == str_T & z_Contrast == 'Ce_Dev5') %>%
+  filter(z_logFC >1 & z_logFC <= 2)
+
+third = jointresults.multi %>%
+  filter(x_Contrast == str_C & y_Contrast == str_T & z_Contrast == 'Ce_Dev5') %>%
+  filter(z_logFC >2 & z_logFC <= 3)
+
+fourth = jointresults.multi %>%
+  filter(x_Contrast == str_C & y_Contrast == str_T & z_Contrast == 'Ce_Dev5') %>%
+  filter(z_logFC >3 & z_logFC <= 4)
+
+
+ggplot(first, aes()) +
+  geom_abline(intercept = 0, slope = 1, alpha = 1, color = 'grey', linetype = 'longdash') +
+  geom_abline(aes(intercept = NGMb, slope = NGMa), alpha = 0.8, color = 'red') +
+  geom_vline(aes(xintercept = 0), alpha = 0.9, color = 'grey') +
+  geom_hline(aes(yintercept = 0), alpha = 0.9, color = 'grey') +
+  geom_errorbarh(data = total, aes(y = y_logFC, xmax = x_logFC + x_SE, xmin = x_logFC - x_SE), height = 0, alpha = 0.3, color = 'grey50') +
+  geom_errorbar(data = total, aes(x = x_logFC, ymax = y_logFC + y_SE, ymin = y_logFC - y_SE), width = 0, alpha = 0.3, color = 'grey50') +
+  geom_point(aes(x = x_logFC, y = y_logFC, colour = z_logFC), alpha = 0.85, size = 4) +
+  geom_point(data = second, aes(x = x_logFC, y = y_logFC, colour = z_logFC), alpha = 0.85, size = 4) +
+  geom_point(data = third, aes(x = x_logFC, y = y_logFC, colour = z_logFC), alpha = 0.85, size = 4) +
+  geom_point(data = fourth, aes(x = x_logFC, y = y_logFC, colour = z_logFC), alpha = 0.85, size = 4) +
+  scale_size(range = c(1,5), name = 'C. elegans\nphenotype') +
+  scale_colour_gradientn(colours = gradcolours,
+                         breaks = c(1,2,3,4), limits = c(1,4), guide = "legend", name = 'C. elegans\nphenotype') +
+  scale_y_continuous(breaks = -5:5)+
+  coord_cartesian(xlim = c(-5, 2), ylim = c(-4, 4)) +
+  labs(title = paste(strain, " growth with 5FU treatment at 5 uM", sep = ''),
+  x = expression(paste(italic("E. coli"), ' growth vs NGM - Control, logFC', sep = '')), 
+  y = expression(paste(italic('E. coli'), ' growth vs NGM - 5-FU Treatment, logFC', sep = ''))) +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold")) +
+  # geom_text_repel(data = fourth, aes(x = x_logFC, y = y_logFC, label = ifelse(MetaboliteU %in% mlevels, MetaboliteU, '')), size = 4, box.padding = unit(1.6, "lines")) + # USE ONLY FOR DEMONSTRATIVE PURPOSES FOR LEO
+  geom_text_repel(data = fourth, aes(x = x_logFC, y = y_logFC, label = ifelse(z_logFC >= 4, MetaboliteU, '')), box.padding = unit(0.2, "lines"), segment.alpha = 0.6, size = 5.5) + # only name those nutr with C. elegans phenotype 3 or more
+  # geom_text_repel(data = third, aes(x = x_logFC, y = y_logFC, label = ifelse(z_logFC >= 3, MetaboliteU, '')), box.padding = unit(0.6, "lines"), segment.alpha = 0.4) + # only name those nutr with C. elegans phenotype 3 or more
+  # geom_text_repel(aes(label = ifelse(z_logFC >= 3 | z_logFC == 0, MetaboliteU, '')), box.padding = unit(0.6, "lines"), segment.alpha = 0.4) + # only name those nutr with C. elegans phenotype 3 or more
+  guides(color = guide_legend()) +
+  theme(panel.grid.major = element_line(size = 0.06, colour = "grey50"),
+      # panel.grid.major.y = element_blank(),
+      panel.grid.minor.y = element_blank(),
+      panel.background = element_rect(fill = "white", colour = "grey50"),
+      legend.text = element_text(size = 15),
+      legend.title = element_text(size = 15),
+      axis.text.x = element_text(size = 10),
+      axis.text.y = element_text(size = 10)) +
+  guides(colour = guide_legend(override.aes = list(size = 4)))
+
+
+quartz.save(file = here('Summary', paste0("QQPOSTER_Scatter_", strain, "_5uM.pdf")),
+  type = 'pdf', dpi = 300, height = 8, width = 10)
+
+
+# quartz.save(file = here('Summary', paste0("Scatter_EXAMPLE_", strain, "_5uM.pdf")),
+#     type = 'pdf', dpi = 300, height = 8, width = 10)
+
+
+geom_text_repel(aes(label = ifelse(Genes %in% c('Δglta ΔprpB::K','ΔgltA::K'), as.character(Genes), '')), position = pos, colour = 'red', size = 5, box.padding = 3.5) +
+
+# scales for different mutants:
+# BW: coord_cartesian(xlim = c(-5, 2), ylim = c(-4, 4))
+# pyrE: coord_cartesian(xlim = c(-5, 2), ylim = c(-4, 4))
+# TM: coord_cartesian(xlim = c(-4, 2), ylim = c(-4, 2.5))
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
