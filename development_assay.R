@@ -1033,7 +1033,7 @@ ggsave(file = paste(odir,glpk_dir,"/Line_ctr_norm.pdf", sep = ''),
 ## second part
 
 
-glpK_data2 = read_xlsx('Develop_data/2. DevelopAssay_OPp,glpK muts_Glycerol Supp_01_12_2017.xlsx', sheet = 'Tidy') 
+glpK_data2 = read_xlsx('Develop_data/2. DevelopAssay_OPp,glpK muts_Glycerol Supp_01_12_2017.xlsx', sheet = 'Tidy')  
 
 
 glpK_data2 = glpK_data2 %>%
