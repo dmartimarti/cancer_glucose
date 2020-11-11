@@ -414,15 +414,22 @@ label = scores %>% filter(x_Contrast == 'BW_C') %>% select(MetaboliteU) %>% t %>
 df = data.frame(BW, pyrE, TM, wBW, wpyrE, wTM, label) 
 
 thr = 4
-df = df %>% mutate(size = case_when(wBW >= thr | wpyrE >= thr | wTM >= thr ~ 14,
-                               wBW < thr | wpyrE < thr | wTM < thr ~ 3))
+df = df %>% mutate(Size = case_when(wBW >= thr | wpyrE >= thr | wTM >= thr ~ 14,
+                               wBW < thr | wpyrE < thr | wTM < thr ~ 2)) %>% 
+  mutate(Phenotype = case_when(wTM == 4 ~ 'TM',
+                               wBW == 4 & wpyrE == 4 ~ 'BW and pyrE',
+                               wpyrE == 4 & wBW != 4 ~ 'pyrE',
+                               wpyrE != 4 & wBW == 4 ~ 'BW',
+                               TRUE ~ 'Other'),
+         Phenotype = as.factor(Phenotype)) %>% 
+  as_tibble
 
 # axis layout
 axis <- function(title) {
   list(
     title = title,
     titlefont = list(
-      size = 20
+      size = 10
     ),
     tickfont = list(
       size = 15
@@ -441,15 +448,16 @@ fig <- fig %>% add_trace(
   b = ~pyrE,
   c = ~TM,
   text = ~label,
+  color = ~Phenotype,
   marker = list( 
-    # symbol = 100,
-    color = '#DB7365',
-    size = ~size,
-    line = list('width' = 2)
+    # color = '#DB7365',
+    size = ~Size,
+    line = list('width' = 2),
+    sizemode = 'diameter'
   )
 )
 fig <- fig %>% layout(
-  # title = "Simple Ternary Plot with Markers",
+  title = "Simple Ternary Plot with Markers",
   ternary = list(
     sum = 100,
     aaxis = axis('BW'),
@@ -462,6 +470,61 @@ fig
 
 
 df %>% View
+
+
+# version without irrelevant points
+
+df.reduced = df %>% filter(size == 14) %>% 
+  mutate(Phenotype = case_when(wTM == 4 ~ 'TM',
+                               wBW == 4 & wpyrE == 4 ~ 'BW and pyrE',
+                               wpyrE == 4 & wBW != 4 ~ 'pyrE',
+                               wpyrE != 4 & wBW == 4 ~ 'BW'))
+
+# axis layout
+axis <- function(title) {
+  list(
+    # title = title,
+    titlefont = list(
+      size = 20
+    ),
+    tickfont = list(
+      size = 15
+    ),
+    tickcolor = 'rgba(0,0,0,0)',
+    ticklen = 5
+  )
+}
+
+
+fig <- df.reduced %>% plot_ly()
+fig <- fig %>% add_trace(
+  type = 'scatterternary',
+  mode = 'markers',
+  a = ~BW,
+  b = ~pyrE,
+  c = ~TM,
+  text = ~label,
+  color = ~Phenotype,
+  marker = list( 
+    # symbol = 1,
+    
+    size = ~size,
+    line = list('width' = 2)
+  )
+)
+fig <- fig %>% layout(
+  # title = "Simple Ternary Plot with Markers",
+  ternary = list(
+      sum = 100,
+      aaxis = list(title = 'BW', min=0.3),
+      baxis = list(title = 'pyrE', min=0.1),
+      caxis = list(title = 'TM', min = 0)
+    )
+)
+
+fig
+
+
 
 
 
