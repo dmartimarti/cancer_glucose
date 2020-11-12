@@ -1,5 +1,25 @@
 ############################
+# load libraries
+library(tidyverse)
+library(readxl)
+library(ComplexHeatmap)
+library(circlize)
+library(ggrepel)
+library(PFun)
+library(forcats)
+library(FactoMineR) # for PCA
+library(factoextra) # for PCA
+library(gtools)
+library(broom)
+library(here)
+library(openxlsx)
+library(coin)
+library(RVAideMemoire)
+library(colorspace)
+library(plotly)
+library(ggpubr)
 
+options(width = 170)
 
 # 4-way plot --------------------------------------------------------------
 
@@ -378,7 +398,7 @@ ggsave(p4, file = here('Summary', '4wayScreening_score.pdf'),
 
 ### ternary plot ####
 
-library(plotly)
+
 
 remove = c('Tween 20', 'Tween 40', 'Tween 80')
 
@@ -424,6 +444,12 @@ df = df %>% mutate(Size = case_when(wBW >= thr | wpyrE >= thr | wTM >= thr ~ 14,
          Phenotype = as.factor(Phenotype)) %>% 
   as_tibble
 
+df_small = df %>% 
+  filter(Size == 2)
+
+df_big = df %>% 
+  filter(Size == 14)
+
 # axis layout
 axis <- function(title) {
   list(
@@ -440,8 +466,27 @@ axis <- function(title) {
 }
 
 
-fig <- df %>% plot_ly()
+fig <- df_small %>% plot_ly()
+# add small points
 fig <- fig %>% add_trace(
+  type = 'scatterternary',
+  mode = 'markers',
+  a = ~BW,
+  b = ~pyrE,
+  c = ~TM,
+  text = ~label,
+  name = 'Other',
+  marker = list( 
+    size = 2,
+    color = '#08DB60',
+    line = list('width' = 2),
+    sizemode = 'diameter',
+    opacity = 0.5
+  )
+)
+
+fig = fig %>% add_trace(
+  data = df_big,
   type = 'scatterternary',
   mode = 'markers',
   a = ~BW,
@@ -450,23 +495,25 @@ fig <- fig %>% add_trace(
   text = ~label,
   color = ~Phenotype,
   marker = list( 
-    # color = '#DB7365',
-    size = ~Size,
-    line = list('width' = 2),
+    size = 14,
+    # color = '#DB392E',
+    line = list('width' = 1),
     sizemode = 'diameter'
   )
 )
+
 fig <- fig %>% layout(
-  title = "Simple Ternary Plot with Markers",
   ternary = list(
     sum = 100,
-    aaxis = axis('BW'),
-    baxis = axis('pyrE'),
-    caxis = axis('TM')
+    aaxis = list(title = 'BW', min=0.3),
+    baxis = list(title = 'pyrE', min=0.1),
+    caxis = list(title = 'TM', min = 0)
   )
 )
 
 fig
+
+orca(fig, here('Summary',"4wayScreening_score_ternary.pdf"))
 
 
 df %>% View
@@ -479,21 +526,6 @@ df.reduced = df %>% filter(size == 14) %>%
                                wBW == 4 & wpyrE == 4 ~ 'BW and pyrE',
                                wpyrE == 4 & wBW != 4 ~ 'pyrE',
                                wpyrE != 4 & wBW == 4 ~ 'BW'))
-
-# axis layout
-axis <- function(title) {
-  list(
-    # title = title,
-    titlefont = list(
-      size = 20
-    ),
-    tickfont = list(
-      size = 15
-    ),
-    tickcolor = 'rgba(0,0,0,0)',
-    ticklen = 5
-  )
-}
 
 
 fig <- df.reduced %>% plot_ly()
