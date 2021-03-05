@@ -1,4 +1,3 @@
-############################
 # load libraries
 library(tidyverse)
 library(readxl)
@@ -396,7 +395,10 @@ ggsave(p4, file = here('Summary', '4wayScreening_score.pdf'),
 
 
 
-### ternary plot ####
+
+
+
+# ternary plot ------------------------------------------------------------
 
 
 
@@ -434,8 +436,8 @@ label = scores %>% filter(x_Contrast == 'BW_C') %>% select(MetaboliteU) %>% t %>
 df = data.frame(BW, pyrE, TM, wBW, wpyrE, wTM, label) 
 
 thr = 4
-df = df %>% mutate(Size = case_when(wBW >= thr | wpyrE >= thr | wTM >= thr ~ 14,
-                               wBW < thr | wpyrE < thr | wTM < thr ~ 2)) %>% 
+df = df %>% mutate(Size = case_when(wBW >= thr | wpyrE >= thr | wTM >= thr ~ 5,
+                               wBW < thr | wpyrE < thr | wTM < thr ~ 1)) %>% 
   mutate(Phenotype = case_when(wTM == 4 ~ 'TM',
                                wBW == 4 & wpyrE == 4 ~ 'BW and pyrE',
                                wpyrE == 4 & wBW != 4 ~ 'pyrE',
@@ -445,10 +447,10 @@ df = df %>% mutate(Size = case_when(wBW >= thr | wpyrE >= thr | wTM >= thr ~ 14,
   as_tibble
 
 df_small = df %>% 
-  filter(Size == 2)
+  filter(Size == 1)
 
 df_big = df %>% 
-  filter(Size == 14)
+  filter(Size == 5)
 
 # axis layout
 axis <- function(title) {
@@ -488,11 +490,13 @@ fig <- fig %>% add_trace(
 fig = fig %>% add_trace(
   data = df_big,
   type = 'scatterternary',
-  mode = 'markers',
+  # mode = 'markers',
+  mode = 'text',
   a = ~BW,
   b = ~pyrE,
   c = ~TM,
   text = ~label,
+  textposition = "top right",
   color = ~Phenotype,
   marker = list( 
     size = 14,
@@ -513,7 +517,9 @@ fig <- fig %>% layout(
 
 fig
 
-orca(fig, here('Summary',"4wayScreening_score_ternary.pdf"))
+# to save files from plot_ly
+server = orca_serve()
+server$export(fig,here('Summary',"4wayScreening_score_ternary.pdf"))
 
 
 df %>% View
@@ -558,7 +564,21 @@ fig
 
 
 
+library(ggtern)
 
-
+df %>% 
+  ggtern(aes(pyrE,BW,TM, color = Phenotype, size = Size)) +
+  # stat_density_tern(geom = 'polygon',
+  #                   bdl = 0.01,
+  #                   n = 100,
+  #                   aes(fill=..level..,
+  #                       alpha=..level../5),
+  #                   weight = 1,
+  #                   base = "ilr") +
+  geom_point() +
+  theme_rgbw() +
+  labs(title = "4-way screen")    +
+  scale_fill_gradient(low = "blue",high = "red") +
+  guides(fill = "none", alpha = "none", size = 'none')
 
 
