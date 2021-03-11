@@ -436,7 +436,7 @@ label = scores %>% filter(x_Contrast == 'BW_C') %>% select(MetaboliteU) %>% t %>
 df = data.frame(BW, pyrE, TM, wBW, wpyrE, wTM, label) 
 
 thr = 4
-df = df %>% mutate(Size = case_when(wBW >= thr | wpyrE >= thr | wTM >= thr ~ 5,
+df = df %>% mutate(Size = case_when(wBW >= thr | wpyrE >= thr | wTM >= thr ~ 3,
                                wBW < thr | wpyrE < thr | wTM < thr ~ 1)) %>% 
   mutate(Phenotype = case_when(wTM == 4 ~ 'TM',
                                wBW == 4 & wpyrE == 4 ~ 'BW and pyrE',
@@ -468,9 +468,9 @@ axis <- function(title) {
 }
 
 
-fig <- df_small %>% plot_ly()
+fig = df_small %>% plot_ly()
 # add small points
-fig <- fig %>% add_trace(
+fig = fig %>% add_trace(
   type = 'scatterternary',
   mode = 'markers',
   a = ~BW,
@@ -479,9 +479,8 @@ fig <- fig %>% add_trace(
   text = ~label,
   name = 'Other',
   marker = list( 
-    size = 2,
-    color = '#08DB60',
-    line = list('width' = 2),
+    size = 4,
+    color = '#0CEB96',
     sizemode = 'diameter',
     opacity = 0.5
   )
@@ -499,9 +498,8 @@ fig = fig %>% add_trace(
   textposition = "top right",
   color = ~Phenotype,
   marker = list( 
-    size = 14,
+    size = 10,
     # color = '#DB392E',
-    line = list('width' = 1),
     sizemode = 'diameter'
   )
 )
@@ -509,7 +507,7 @@ fig = fig %>% add_trace(
 fig <- fig %>% layout(
   ternary = list(
     sum = 100,
-    aaxis = list(title = 'BW', min=0.3),
+    aaxis = list(title = 'BW', min=0.1),
     baxis = list(title = 'pyrE', min=0.1),
     caxis = list(title = 'TM', min = 0)
   )
@@ -564,10 +562,19 @@ fig
 
 
 
+
+
+### ggtern ####
+
 library(ggtern)
 
 df %>% 
-  ggtern(aes(pyrE,BW,TM, color = Phenotype, size = Size)) +
+  mutate(Phenotype = factor(Phenotype, levels = c('BW','BW and pyrE',
+                                                  'pyrE','TM','Other'))) %>% 
+  mutate(label = case_when(Phenotype == 'Other' ~ '',
+                           TRUE ~ label)) %>% 
+  ggtern(aes(pyrE,BW,TM, color = Phenotype, size = Size,
+             alpha = Size)) +
   # stat_density_tern(geom = 'polygon',
   #                   bdl = 0.01,
   #                   n = 100,
@@ -578,7 +585,32 @@ df %>%
   geom_point() +
   theme_rgbw() +
   labs(title = "4-way screen")    +
+  scale_color_manual(values = c('#DB1D51', # red
+                                '#F28413', # orange
+                                '#D6D613', # yellow
+                                '#5913F2', # dark blue
+                                '#0CEB96'  # light blue
+                                )) + 
   scale_fill_gradient(low = "blue",high = "red") +
-  guides(fill = "none", alpha = "none", size = 'none')
+  scale_size(range = c(1, 3)) +
+  scale_alpha(range = c(0.4,1)) + 
+  guides(fill = "none", alpha = "none", size = 'none') +
+  annotate(geom  = 'text',
+                    # nuc  # sug  #pyrE  #BW
+           x     = c(0.5  , 0.2 , 0.2 , 0.2),
+           y     = c(0.5  , 0.2 , 0.45 , 0.8),
+           z     = c(0.1 , 1 , 0.3 , 0.3),
+           # angle = c(0,30,60),
+           # vjust = c(1.5,0.5,-0.5),
+           label = c("Pyrimidines","Sugars","Thymidine","Uridine"),
+           color = c("#F28413","#5913F2",'#B0B000','#DB1D51')) +
+  theme_nomask() +
+  labs(color = 'Rescued\nphenotype') + 
+  theme(legend.key = element_rect(fill = NA, color = NA))
+
+
+ggsave(file = here('Summary', '4wayScreening_ggtern.pdf'),
+       height = 9, width = 12)
+
 
 
