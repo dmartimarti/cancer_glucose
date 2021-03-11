@@ -2255,7 +2255,7 @@ glu.sum = glucose %>%
 
 ### SCATTER PLOT
 
-drug = 2.5
+drug = 5
 pos = position_jitter(width = 0.05, height = 0.05, seed = 1) # to plot names in jitter positions
 glu.sum %>% 
     filter(Drug == drug) %>% 
@@ -2270,7 +2270,7 @@ glu.sum %>%
     # scale_color_manual(values = grad) + 
     # scale_fill_manual(values = grad) +
     # geom_text_repel(aes(label = ifelse(Genes == 'ppnP', as.character(Genes), '')), position = pos) + # this point went rogue
-    geom_text_repel(aes(label = Genes), position = pos) +
+    geom_text_repel(aes(label = Genes), position = pos, max.overlaps = 100) +
     labs(title = expression(paste("5FU + Glucose effect on ", italic('C. elegans'), " N2 phenotype", sep = '')),
          x = expression(paste('Normalised median scores of ', italic('C. elegans'), ' N2 phenotype', sep = ' ')),
          y = expression(paste('Normalised median scores of ', italic('C. elegans'), ' N2 phenotype ' , bold('(Glucose)'), sep = ' '))) +
