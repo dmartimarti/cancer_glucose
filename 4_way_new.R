@@ -18,7 +18,7 @@ library(colorspace)
 library(plotly)
 library(ggpubr)
 
-options(width = 170)
+# options(width = 150)
 
 # 4-way plot --------------------------------------------------------------
 
@@ -566,6 +566,8 @@ fig
 
 ### ggtern ####
 
+# versio without nucleotide classes
+
 library(ggtern)
 
 df %>% 
@@ -612,5 +614,139 @@ df %>%
 ggsave(file = here('Summary', '4wayScreening_ggtern.pdf'),
        height = 9, width = 12)
 
+
+
+### ggtern with classes ####
+
+df_class = EC_classes %>% rename(label = MetaboliteU) %>%
+  select(label, EcoCyc_Classes) %>%
+  full_join(df)
+
+# classes from enrichment
+tm_cats = c('|Alcohols|','|Carbohydrates|','|Glycans|',
+            '|Hexitols|','|Sugar−alcohols|','|Sugar|')
+
+bw_cats = c('|All−Nucleosides|','|Nucleosides|','|Nucleotides|',
+            '|Organic−heterocyclic−compound|','|Organonitrogen−Heterocyclic−Compounds|',
+            '|Pyrimidine−Nucleosides|','|Pyrimidine−ribonucleotides|',
+            '|Pyrimidines|')
+
+total_cats = c(tm_cats,bw_cats)
+
+# clean the dataset and create two categories for sugars and nucleotides, 
+# drop na values, and tidy everything a bit more
+df_class = df_class %>%
+  mutate(
+    Phenotype = factor(Phenotype, levels = c('BW','BW and pyrE',
+                                             'pyrE','TM','Other')),
+    EcoCyc_Classes = case_when(EcoCyc_Classes %in% tm_cats & Phenotype != 'Other' ~ 'Sugars',
+                                    EcoCyc_Classes %in% bw_cats & Phenotype != 'Other' ~ 'Nucleotides',
+                                    TRUE ~ '')) %>%
+  distinct(label,.keep_all = T) %>%
+  mutate(label = case_when(Phenotype == 'Other' ~ '',
+                           TRUE ~ label)) %>%
+  drop_na(BW)
+
+# fix table
+df_class = df_class %>%
+  mutate(EcoCyc_Classes = case_when(
+    Phenotype %in% c('BW and pyrE','BW','pyrE') ~ 'Nucleotides',
+    Phenotype == 'TM' ~ 'Sugars',
+    TRUE ~ ''))
+
+# Plot with density according to metabolites
+
+df_class %>%
+    filter(EcoCyc_Classes %in% c('Sugars','Nucleotides')) %>%
+    ggtern(aes(pyrE,BW,TM,
+               color = EcoCyc_Classes)) +
+    stat_density_tern(geom = 'polygon',
+                      size = 0.5,
+                      bdl = 0.05,
+                      n = 100,
+                      aes(alpha=..level..,
+                          color = EcoCyc_Classes),
+                      weight = 1,
+                      base = "ilr") + 
+  geom_point(data = df_class, pch = 21, 
+             color = 'grey70',
+             aes(group = Phenotype, 
+                 fill = Phenotype, 
+                 size=Size)) +
+  scale_fill_manual(
+    values = c('#DB1D51', # red
+               '#F28413', # orange
+               '#D6D613', # yellow
+               '#5913F2', # dark blue
+               '#0CEB96'  # light blue
+    )
+  ) +
+  scale_color_manual(
+    values = c(
+      '#FA754B', # orange
+      '#3D9EF0'# blue
+      )
+  ) + 
+  theme_rgbw() +
+  scale_size(range = c(1, 5)) +
+  guides(alpha = "none", size = 'none') +
+  theme_nomask() +
+  labs(color = 'Rescued\nphenotype') + 
+  theme(legend.key = element_rect(fill = NA, color = NA))
+
+ggsave(file = here('Summary', '4wayScreening_ggtern_class_density_v1.pdf'),
+       height = 9, width = 12)
+
+
+
+
+### ggtern with class filling ####
+
+# Plot with density according to metabolites
+
+df_class %>%
+  filter(EcoCyc_Classes %in% c('Sugars','Nucleotides')) %>%
+  ggtern(aes(pyrE,BW,TM,
+             color = EcoCyc_Classes)) +
+  stat_density_tern(geom = 'polygon',
+                    size = 0.5,
+                    bdl = 0.058,
+                    n = 100,
+                    aes(alpha=..level..,
+                        fill = EcoCyc_Classes),
+                    weight = 1,
+                    base = "ilr") + 
+  geom_point(data = df_class, pch = 21, 
+             color = 'grey70',
+             aes(group = Phenotype, 
+                 fill = Phenotype, 
+                 size=Size)) +
+  scale_fill_manual(
+    values = c('#DB1D51', # red
+               '#FA4F22', # orange
+               '#FA754B',  # orange CLASS
+               '#0CEB96', # light blue
+               '#D6D613', # yellow
+               '#3D9EF0', # blue CLASS
+               '#5913F2' # dark blue
+               
+    )
+  ) +
+  scale_color_manual(
+    values = c(
+      '#FA754B', # orange
+      '#3D9EF0'  # blue
+    )
+  ) + 
+  theme_rgbw() +
+  scale_size(range = c(1, 5)) +
+  guides(alpha = "none", size = 'none') +
+  theme_nomask() +
+  labs(color = 'Rescued\nphenotype') + 
+  theme(legend.key = element_rect(fill = NA, color = NA))
+
+
+ggsave(file = here('Summary', '4wayScreening_ggtern_class_density_v4.pdf'),
+       height = 9, width = 12)
 
 
