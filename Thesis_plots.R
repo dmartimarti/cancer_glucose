@@ -19,7 +19,7 @@ library(RVAideMemoire)
 library(colorspace)
 
 
-options(width = 170)
+# options(width = 170)
 
 # set working directory to selected directory
 # setwd("/Users/dmarti14/Documents/MRC_Postdoc/Projects/Leo/DATA_TO_PLOT")
