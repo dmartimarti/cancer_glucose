@@ -1,0 +1,1209 @@
+library(readr)
+library(multcomp)
+library(tidyverse)
+library(here)
+library(ComplexHeatmap)
+library(openxlsx)
+# library(PFun)
+library(broom)
+
+
+theme_set(theme_classic())
+
+# load the data -----------------------------------------------------------
+
+data = read_delim("stats_perseus_full.tsv", 
+                  "\t", escape_double = FALSE, trim_ws = TRUE)
+
+names(data)
+
+names(data) = gsub(' ', '_', names(data))
+
+data
+
+
+
+
+### TABLE TIDYING
+# create groups depending on their DE profiles
+
+data = data %>% 
+  mutate(FU_C = case_when(`Student's_T-test_Significant_5FU_Control` == '+' & `Student's_T-test_Difference_5FU_Control` < 0 ~ -1,
+                          `Student's_T-test_Significant_5FU_Control` == '+' & `Student's_T-test_Difference_5FU_Control` > 0 ~ 1,
+                          TRUE ~ 0),
+         micit1mM_C = case_when(`Student's_T-test_Significant_1mM_Micit_Control` == '+' & `Student's_T-test_Difference_1mM_Micit_Control` < 0 ~ -1,
+                                `Student's_T-test_Significant_1mM_Micit_Control` == '+' & `Student's_T-test_Difference_1mM_Micit_Control` > 0 ~ 1,
+                                 TRUE ~ 0),
+         micit10mM_C = case_when(`Student's_T-test_Significant_10mM_Micit_Control` == '+' & `Student's_T-test_Difference_10mM_Micit_Control` < 0 ~ -1,
+                                 `Student's_T-test_Significant_10mM_Micit_Control` == '+' & `Student's_T-test_Difference_10mM_Micit_Control` > 0 ~ 1,
+                                  TRUE ~ 0),
+         micit1mM_5FU_C = case_when(`Student's_T-test_Significant_5FU_1mM_Micit_Control` == '+' & `Student's_T-test_Difference_5FU_1mM_Micit_Control` < 0 ~ -1,
+                                    `Student's_T-test_Significant_5FU_1mM_Micit_Control` == '+' & `Student's_T-test_Difference_5FU_1mM_Micit_Control` > 0 ~ 1,
+                                     TRUE ~ 0),
+         micit10mM_5FU_C = case_when(`Student's_T-test_Significant_5FU_10mM_Micit_Control` == '+' & `Student's_T-test_Difference_5FU_10mM_Micit_Control` < 0 ~ -1,
+                                     `Student's_T-test_Significant_5FU_10mM_Micit_Control` == '+' & `Student's_T-test_Difference_5FU_10mM_Micit_Control` > 0 ~ 1,
+                                     TRUE ~ 0),
+         .after = "KEGG_name") 
+
+
+# let's rename columns and remove the ones that are useless
+
+names(data)
+
+data_tidy = data %>% 
+  select(Protein_IDs:Gene_names, Control:KEGG_name, -`Q-value`,
+         mol_weight = `Mol._weight_[kDa]`,
+         # 5FU_control
+         logPval_FU_C = `-Log_Student's_T-test_p-value_5FU_Control`,
+         Qval_FU_C = `Student's_T-test_q-value_5FU_Control`,
+         difference_FU_C = `Student's_T-test_Difference_5FU_Control`,
+         # 1 mM micit
+         logPval_micit1mM_C = `-Log_Student's_T-test_p-value_1mM_Micit_Control`,
+         Qval_micit1mM_C = `Student's_T-test_q-value_1mM_Micit_Control`,
+         difference_micit1mM_C = `Student's_T-test_Difference_1mM_Micit_Control`,
+         # 10 mM micit
+         logPval_micit10mM_C = `-Log_Student's_T-test_p-value_10mM_Micit_Control`,
+         Qval_micit10mM_C = `Student's_T-test_q-value_10mM_Micit_Control`,
+         difference_micit10mM_C = `Student's_T-test_Difference_10mM_Micit_Control`,
+         # 5FU + 1 mM micit
+         logPval_micit1mM_5FU_C = `-Log_Student's_T-test_p-value_5FU_1mM_Micit_Control`,
+         Qval_micit1mM_5FU_C = `Student's_T-test_Test_statistic_5FU_1mM_Micit_Control`,
+         difference_micit1mM_5FU_C = `Student's_T-test_Difference_5FU_1mM_Micit_Control`,
+         # 5FU + 10 mM micit
+         logPval_micit10mM_5FU_C = `-Log_Student's_T-test_p-value_5FU_10mM_Micit_Control`,
+         Qval_micit10mM_5FU_C = `Student's_T-test_q-value_5FU_10mM_Micit_Control`,
+         difference_micit10mM_5FU_C = `Student's_T-test_Difference_5FU_10mM_Micit_Control`
+  )
+
+
+write_csv(data_tidy, here('summary','Stats_with_differences_full.csv'))
+
+
+
+
+# convert data to long format
+
+names(data)
+
+data_long = data_tidy %>% 
+  pivot_longer(Control:`5FU_10mM_Micit_4`, names_to = 'Sample', values_to = 'Intensity') 
+
+# fix variable names
+data_long = data_long %>% select(Gene_names, Sample, Intensity, everything()) %>% 
+  mutate(Sample = case_when(Sample == 'Control_1' | Sample == 'Control_2' | Sample == 'Control_3' | Sample == 'Control_4' ~ 'Control',
+                            Sample == '5FU_1' | Sample == '5FU_2' | Sample == '5FU_3' | Sample == '5FU_4' ~ '5FU',
+                            Sample == '1mM_Micit_1' | Sample == '1mM_Micit_2' | Sample == '1mM_Micit_3' | Sample == '1mM_Micit_4' ~ '1mM_Micit',
+                            Sample == '5FU_1mM_Micit_1' | Sample == '5FU_1mM_Micit_2' | Sample == '5FU_1mM_Micit_3' | Sample == '5FU_1mM_Micit_4' ~ '5FU_1mM_Micit',
+                            Sample == '10mM_Micit_1' | Sample == '10mM_Micit_2' | Sample == '10mM_Micit_3' | Sample == '10mM_Micit_4' ~ '10mM_Micit',
+                            Sample == '5FU_10mM_Micit_1' | Sample == '5FU_10mM_Micit_2' | Sample == '5FU_10mM_Micit_3' | Sample == '5FU_10mM_Micit_4' ~ '5FU_10mM_Micit',
+                            TRUE ~ Sample),
+         Sample = factor(Sample)) %>% 
+  arrange(desc(Sample))
+
+data_long
+
+data_long %>% 
+  select(Gene_names, Sample, Intensity) %>% 
+  write_csv(here('summary','data_long.csv'))
+
+
+# UpSet general -----------------------------------------------------------
+
+library(UpSetR)
+
+
+### global differences ####
+
+data
+
+FU_genes = data %>% 
+  filter(`Student's_T-test_Significant_5FU_Control` == '+') %>% 
+  select(Gene_names)  %>% drop_na(Gene_names) %>% t %>% as.character
+
+micit_10mM_genes = data %>% 
+  filter(`Student's_T-test_Significant_10mM_Micit_Control` == '+') %>% 
+  select(Gene_names)  %>% drop_na(Gene_names) %>% t %>% as.character
+
+micit_1mM_5FU_genes = data %>% 
+  filter(`Student's_T-test_Significant_5FU_1mM_Micit_Control` == '+') %>% 
+  select(Gene_names)  %>% drop_na(Gene_names) %>% t %>% as.character
+
+micit_10mM_5FU_genes = data %>% 
+  filter(`Student's_T-test_Significant_5FU_10mM_Micit_Control` == '+') %>% 
+  select(Gene_names)  %>% drop_na(Gene_names) %>% t %>% as.character
+
+
+
+
+list_full = list(
+  '5FU' = FU_genes,
+  'Micit 10mM' = micit_10mM_genes,
+  '5FU+Micit 1mM' = micit_1mM_5FU_genes,
+  '5FU+Micit 10mM' = micit_10mM_5FU_genes
+)
+
+
+# generate a combination matrix
+m1 = make_comb_mat(list_full)
+
+m2 = make_comb_mat(list_full, mode = "intersect")
+
+# size of the groups
+comb_size(m1)
+comb_size(m2)
+
+
+UpSet(m1)
+
+
+dev.copy2pdf(device = cairo_pdf,
+             file = here('summary', 'upset_full_distinct.pdf'),
+             width = 8, height = 6, useDingbats = FALSE)
+
+
+UpSet(m2)
+
+
+dev.copy2pdf(device = cairo_pdf,
+             file = here('summary', 'upset_full_intersect.pdf'),
+             width = 8, height = 6, useDingbats = FALSE)
+
+
+
+
+
+
+
+# upset up/down -----------------------------------------------------------
+
+
+# 5FU
+FU_genes_down = data %>% 
+  filter(`Student's_T-test_Significant_5FU_Control` == '+' & `Student's_T-test_Difference_5FU_Control` < 0) %>% 
+  select(Gene_names)  %>% drop_na(Gene_names) %>% t %>% as.character
+
+FU_genes_up = data %>% 
+  filter(`Student's_T-test_Significant_5FU_Control` == '+' & `Student's_T-test_Difference_5FU_Control` > 0) %>% 
+  select(Gene_names)  %>% drop_na(Gene_names) %>% t %>% as.character
+
+
+# micit 10 mM
+micit_10mM_genes_down = data %>% 
+  filter(`Student's_T-test_Significant_10mM_Micit_Control` == '+' & `Student's_T-test_Difference_10mM_Micit_Control` < 0) %>% 
+  select(Gene_names)  %>% drop_na(Gene_names) %>% t %>% as.character
+
+micit_10mM_genes_up = data %>% 
+  filter(`Student's_T-test_Significant_10mM_Micit_Control` == '+' & `Student's_T-test_Difference_10mM_Micit_Control` > 0) %>% 
+  select(Gene_names)  %>% drop_na(Gene_names) %>% t %>% as.character
+
+
+# 5FU + 1mM micit
+micit_1mM_5FU_genes_down = data %>% 
+  filter(`Student's_T-test_Significant_5FU_1mM_Micit_Control` == '+' & `Student's_T-test_Difference_5FU_1mM_Micit_Control` < 0) %>% 
+  select(Gene_names)  %>% drop_na(Gene_names) %>% t %>% as.character
+
+micit_1mM_5FU_genes_up = data %>% 
+  filter(`Student's_T-test_Significant_5FU_1mM_Micit_Control` == '+' & `Student's_T-test_Difference_5FU_1mM_Micit_Control` > 0) %>% 
+  select(Gene_names)  %>% drop_na(Gene_names) %>% t %>% as.character
+
+
+# 5FU + 10mM micit
+micit_10mM_5FU_genes_down = data %>% 
+  filter(`Student's_T-test_Significant_5FU_10mM_Micit_Control` == '+' & `Student's_T-test_Difference_5FU_10mM_Micit_Control` < 0) %>% 
+  select(Gene_names)  %>% drop_na(Gene_names) %>% t %>% as.character
+
+micit_10mM_5FU_genes_up = data %>% 
+  filter(`Student's_T-test_Significant_5FU_10mM_Micit_Control` == '+' & `Student's_T-test_Difference_5FU_10mM_Micit_Control` > 0) %>% 
+  select(Gene_names)  %>% drop_na(Gene_names) %>% t %>% as.character
+
+
+
+
+list_directions = list(
+  '5FU down' = FU_genes_down,
+  '5FU up' = FU_genes_up,
+  'Micit 10 mM down' = micit_10mM_genes_down,
+  'Micit 10 mM up' = micit_10mM_genes_up,
+  '5FU + Micit 1 mM down' = micit_1mM_5FU_genes_down,
+  '5FU + Micit 1 mM up' = micit_1mM_5FU_genes_up,
+  '5FU + Micit 10 mM down' = micit_10mM_5FU_genes_down,
+  '5FU + Micit 10 mM up' = micit_10mM_5FU_genes_up
+)
+
+
+# generate a combination matrix
+m1 = make_comb_mat(list_directions)
+
+m2 = make_comb_mat(list_directions, mode = "intersect")
+
+
+
+
+UpSet(m1)
+
+
+dev.copy2pdf(device = cairo_pdf,
+             file = here('summary', 'upset_directions_distinct.pdf'),
+             width = 8, height = 6, useDingbats = FALSE)
+
+
+UpSet(m2)
+
+
+dev.copy2pdf(device = cairo_pdf,
+             file = here('summary', 'upset_directions_intersect.pdf'),
+             width = 8, height = 6, useDingbats = FALSE)
+  
+
+
+
+
+## extracting gene sets ####-----------------------------------------------
+
+# gene order:
+# 5FU || 10mM Micit || 5FU+1mM Micit || 5FU+10mM Micit
+# down/up
+
+comb_name(m2, readable = T)
+
+# 5FU ∩ 10 mM Micit
+FU_Micit1_down = extract_comb(m2, "10100000")
+FU_Micit1_up = extract_comb(m2, "01010000")
+
+# 5FU ∩ 5FU+1mM Micit
+FU_Micit1FU_down = extract_comb(m2, "10001000")
+FU_Micit1FU_up = extract_comb(m2, "01000100")
+
+# 5FU ∩ 5FU+10mM Micit
+FU_Micit10FU_down = extract_comb(m2, "10000010")
+FU_Micit10FU_up = extract_comb(m2, "01000001")
+
+# 10mM micit ∩ 5FU+10mM Micit
+Micit10_Micit10FU_down = extract_comb(m2, "00100010")
+Micit10_Micit10FU_up = extract_comb(m2, "00010001")
+
+## Specific combinations
+# 5FU+micit 10mM ∩ 5FU+micit 1mM
+Micit10FU_Micit1FU_down = extract_comb(m2, "00001010")
+Micit10FU_Micit1FU_up = extract_comb(m2, "00000101")
+
+# 5FU+10mM micit ∩ 5FU+1mM micit U 10mM Micit
+trio_down = extract_comb(m2, "00101010")
+trio_up = extract_comb(m2, "00010101")
+
+
+# 5FU + 1mM ! 5FU
+
+
+setdiff(micit_1mM_5FU_genes_up, FU_genes_up)
+length(setdiff(micit_1mM_5FU_genes_up, FU_genes_up))
+length(micit_1mM_5FU_genes_up)
+length(FU_genes_up)
+
+setdiff(micit_1mM_5FU_genes_down, FU_genes_down)
+length(setdiff(micit_1mM_5FU_genes_down, FU_genes_down))
+length(micit_1mM_5FU_genes_down)
+length(FU_genes_down)
+
+
+
+FU_Micit1_diff_down = setdiff(micit_1mM_5FU_genes_down, FU_genes_down)
+FU_Micit1_diff_up = setdiff(micit_1mM_5FU_genes_up, FU_genes_up)
+
+
+
+
+# make a file of genes in each contrast
+explanations = c('5FU ∩ 10 mM Micit', '5FU ∩ 5FU+1mM Micit',
+                 ' 5FU ∩ 5FU+10mM Micit', '10mM micit ∩ 5FU+10mM Micit',
+                 '5FU+micit 10mM ∩ 5FU+micit 1mM', 
+                 '5FU+10mM micit ∩ 5FU+1mM micit ∩ 10mM Micit',
+                 '5FU + 1mM micit ! 5FU')
+
+table_names = c('FU_Micit1', 'FU_Micit1FU', 'FU_Micit10FU', 'Micit10_Micit10FU',
+                'Micit10FU_Micit1FU', 'trio', 'FU_Micit1_diff')
+
+exp_df = tibble(explanations, table_names)
+
+library(openxlsx)
+
+list_of_tables = list(
+  'Metadata' = exp_df,
+  FU_Micit1_down = unlist(str_split(FU_Micit1_down, pattern = ';')),
+  FU_Micit1_up = unlist(str_split(FU_Micit1_up, pattern = ';')),
+  FU_Micit1FU_down = unlist(str_split(FU_Micit1FU_down, pattern = ';')),
+  FU_Micit1FU_up = unlist(str_split(FU_Micit1FU_up, pattern = ';')),
+  FU_Micit10FU_down = unlist(str_split(FU_Micit10FU_down, pattern = ';')),
+  FU_Micit10FU_up = unlist(str_split(FU_Micit10FU_up, pattern = ';')),
+  Micit10_Micit10FU_down = unlist(str_split(Micit10_Micit10FU_down, pattern = ';')),
+  Micit10_Micit10FU_up = unlist(str_split(Micit10_Micit10FU_up, pattern = ';')),
+  Micit10FU_Micit1FU_down = unlist(str_split(Micit10FU_Micit1FU_down, pattern = ';')),
+  Micit10FU_Micit1FU_up =unlist(str_split(Micit10FU_Micit1FU_up, pattern = ';')),
+  trio_down = unlist(str_split(trio_down, pattern = ';')),
+  trio_up = unlist(str_split(trio_up, pattern = ';')),
+  FU_Micit1_diff_down = unlist(str_split(FU_Micit1_diff_down, pattern = ';')),
+  FU_Micit1_diff_up = unlist(str_split(FU_Micit1_diff_up, pattern = ';'))
+)
+
+write.xlsx(list_of_tables, here('summary','Protein_sets.xlsx'))
+
+
+for (i in 2:length(list_of_tables)) {
+  file_name = names(list_of_tables)[i]
+  write.table(list_of_tables[[i]],here('summary/protein_groups_intersection', 
+                                     paste0(file_name,'.txt')),
+              quote=F,col.names = F,row.names = F)
+}
+
+
+
+# saving the original protein differences
+list_of_tables = list(
+  FU_genes_down = unlist(str_split(FU_genes_down, pattern = ';')),
+  FU_genes_up = unlist(str_split(FU_genes_up, pattern = ';')),
+  micit_10mM_genes_down = unlist(str_split(micit_10mM_genes_down, pattern = ';')),
+  micit_10mM_genes_up = unlist(str_split(micit_10mM_genes_up, pattern = ';')),
+  micit_1mM_5FU_genes_down = unlist(str_split(micit_1mM_5FU_genes_down, pattern = ';')),
+  micit_1mM_5FU_genes_up = unlist(str_split(micit_1mM_5FU_genes_up, pattern = ';')),
+  micit_10mM_5FU_genes_down = unlist(str_split(micit_10mM_5FU_genes_down, pattern = ';')),
+  micit_10mM_5FU_genes_up = unlist(str_split(micit_10mM_5FU_genes_up, pattern = ';'))
+)
+
+write.xlsx(list_of_tables, here('summary','Proteins_directions_MainGroups.xlsx'))
+
+# loop to save everything in a folder
+for (i in 1:length(list_of_tables)) {
+  file_name = names(list_of_tables)[i]
+  write.table(list_of_tables[[i]],here('summary/protein_groups', 
+                                       paste0(file_name,'.txt')),
+              quote=F,col.names = F,row.names = F)
+}
+
+
+
+# plot examples of genes
+gene = c('RPL5','EIF5A;EIF5AL1')
+data_long %>% filter(Gene_names %in%  gene) %>% 
+  # filter(Sample != 'Control') %>% 
+  ggplot(aes(x = Sample, y = Intensity, fill = Sample)) +
+  geom_boxplot() +
+  geom_point(position = position_jitterdodge()) +
+  labs(title = gene) +
+  facet_wrap(~Gene_names)
+
+
+
+
+
+# radarplot ---------------------------------------------------------------
+library(tau)
+library(fmsb)
+library(readxl)
+
+
+### LOAD DATA
+# 1mM micit + 5FU
+micit_1mM_5FU_enrich_down = read_excel("summary/protein_groups/output/micit_1mM_5FU_genes_down_output.xlsx", 
+                                              sheet = "Process") %>% 
+  select(-`...1`)
+
+micit_1mM_5FU_enrich_up = read_excel("summary/protein_groups/output/micit_1mM_5FU_genes_up_output.xlsx", 
+                                       sheet = "Process") %>% 
+  select(-`...1`)
+
+# 10mM micit + 5FU
+micit_10mM_5FU_enrich_down = read_excel("summary/protein_groups/output/micit_10mM_5FU_genes_down_output.xlsx", 
+                                               sheet = "Process")%>% 
+  select(-`...1`)
+
+micit_10mM_5FU_enrich_up = read_excel("summary/protein_groups/output/micit_10mM_5FU_genes_up_output.xlsx", 
+                                        sheet = "Process")%>% 
+  select(-`...1`)
+
+# 10mM micit
+micit_10mM_enrich_down = read_excel("summary/protein_groups/output/micit_10mM_genes_down_output.xlsx", 
+                                        sheet = "Process")%>% 
+  select(-`...1`)
+
+micit_10mM_enrich_up = read_excel("summary/protein_groups/output/micit_10mM_genes_up_output.xlsx", 
+                                      sheet = "Process")%>% 
+  select(-`...1`)
+
+# 5FU
+FU_enrich_down = read_excel("summary/protein_groups/output/FU_genes_down_output.xlsx", 
+                                   sheet = "Process") %>% 
+  select(-`...1`)
+
+FU_enrich_up = read_excel("summary/protein_groups/output/FU_genes_up_output.xlsx", 
+                             sheet = "Process") %>% 
+  select(-`...1`)
+
+
+### FUNCTIONS 
+terms_in_words = function(terms, elms=10){
+  word_count = textcnt(terms,  split = ' ',method = "string", 
+                       n = 1L)
+  
+  df = data.frame(matrix(word_count)) %>%
+    mutate(words = names(word_count)) 
+  
+  names(df) = c('count', 'words')
+  
+  df = tibble(df)
+  
+  df = df %>% arrange(desc(count)) %>% 
+    filter(!words %in% c('to', 'of', 'activity','process', 'metabolic', 
+                         'regulation', 'cellular', 'cell', 'compound',
+                         'in','to','from','g1/s','in.')) %>% 
+    head(elms) %>% 
+    mutate(count = count/sum(count))
+  
+  return(df)
+}
+
+
+down = terms_in_words(micit_1mM_5FU_enrich_down$description) %>% mutate(direction = 'down')
+up = terms_in_words(micit_1mM_5FU_enrich_up$description) %>% mutate(direction = 'up')
+
+
+radar_plot = function(down,up){
+  test_radar = down %>% bind_rows(up)
+  test_radar = test_radar %>% 
+    pivot_wider(names_from = words, values_from = count) %>% 
+    replace(is.na(.), 0) %>% 
+    data.frame
+  
+  rownames(test_radar) = test_radar[,1]
+  test_radar[,1] = NULL
+  
+  test_radar['Max',] = max(test_radar)
+  test_radar['Min',] = 0
+  
+  test_radar = test_radar[c(3,4,1,2),]
+  
+  radarchart(test_radar)
+  op <- par(mar = c(1, 2, 2, 1))
+  create_beautiful_radarchart(test_radar, caxislabels = c(0, 0.25, 0.5, 0.75, 1),
+                              color = c("#00AFBB", "#E7B800"))
+  legend(
+    x = "bottom", legend = rownames(test_radar[-c(1,2),]), horiz = TRUE,
+    bty = "n", pch = 20 , col = c("#00AFBB", "#E7B800"),
+    text.col = "black", cex = 1, pt.cex = 1.5
+  )
+  par(op)
+  
+}
+
+
+create_beautiful_radarchart <- function(data, color = "#00AFBB", 
+                                        vlabels = colnames(data), vlcex = 0.7,
+                                        caxislabels = NULL, title = NULL, ...){
+  radarchart(
+    data, axistype = 1,
+    # Customize the polygon
+    pcol = color, pfcol = scales::alpha(color, 0.5), plwd = 2, plty = 1,
+    # Customize the grid
+    cglcol = "grey", cglty = 1, cglwd = 0.8,
+    # Customize the axis
+    axislabcol = "grey", 
+    # Variable labels
+    vlcex = vlcex, vlabels = vlabels,
+    caxislabels = caxislabels, title = title, ...
+  )
+}
+
+
+### PLOT RESULTS
+# 1mM micit + 5FU
+down = terms_in_words(micit_1mM_5FU_enrich_down$description, elms = 15) %>% mutate(direction = 'down')
+up = terms_in_words(micit_1mM_5FU_enrich_up$description, elms = 15) %>% mutate(direction = 'up')
+
+radar_plot(down,up)
+
+dev.copy2pdf(device = cairo_pdf,
+             file = here('summary', 'micit1mM_5FU_radarplot_process.pdf'),
+             width = 8, height = 8, useDingbats = FALSE)
+
+# 10mM micit + 5FU
+down = terms_in_words(micit_10mM_5FU_enrich_down$description, elms = 15) %>% mutate(direction = 'down')
+up = terms_in_words(micit_10mM_5FU_enrich_up$description, elms = 15) %>% mutate(direction = 'up')
+
+radar_plot(down,up)
+
+dev.copy2pdf(device = cairo_pdf,
+             file = here('summary', 'micit10mM_5FU_radarplot_process.pdf'),
+             width = 8, height = 8, useDingbats = FALSE)
+
+# 10mM micit
+down = terms_in_words(micit_10mM_enrich_down$description, elms = 15) %>% mutate(direction = 'down')
+up = terms_in_words(micit_10mM_enrich_up$description, elms = 15) %>% mutate(direction = 'up')
+
+radar_plot(down,up)
+
+dev.copy2pdf(device = cairo_pdf,
+             file = here('summary', 'micit10mM_radarplot_process.pdf'),
+             width = 8, height = 8, useDingbats = FALSE)
+
+
+# 5FU
+down = terms_in_words(FU_enrich_down$description, elms = 15) %>% mutate(direction = 'down')
+up = terms_in_words(FU_enrich_up$description, elms = 15) %>% mutate(direction = 'up')
+
+radar_plot(down,up)
+
+dev.copy2pdf(device = cairo_pdf,
+             file = here('summary', '5FU_radarplot_process.pdf'),
+             width = 8, height = 8, useDingbats = FALSE)
+
+
+
+
+
+# t-test with interactions ------------------------------------------------
+
+
+# first do a test
+
+test = data_long %>% 
+  filter(Gene_names == 'RPL5') %>% 
+  mutate(Sample = factor(Sample, levels = c('Control', 
+                                            '5FU',
+                                            '1mM_Micit',
+                                            '10mM_Micit',
+                                            '5FU_1mM_Micit', 
+                                            '5FU_10mM_Micit')))
+
+model1 = lm(Intensity ~ 0 +Sample, data = test)
+summary(model1)
+
+test %>% 
+  group_by(Sample) %>% 
+  summarise(Mean = mean(Intensity))
+
+means = test %>% 
+  group_by(Sample) %>% 
+  summarise(Mean = mean(Intensity))
+
+K = matrix(c(-1,   # Control
+             1,  # 5FU
+             0,  # 1mM_Micit
+             0,  # 10mM_Micit
+             0,  # 5FU_1mM_Micit
+             0),  # 5FU_10mM_Micit
+           1)
+
+
+t <- glht(model1, linfct = mcp(Sample = K), test = adjusted('none'))
+tidy(summary(t, test = adjusted('none')))
+
+
+# plot examples of genes
+gene = c('RRM2')
+data_long %>% filter(Gene_names %in%  gene) %>% 
+  mutate(Sample = factor(Sample, levels = c('Control', 
+                                            '5FU',
+                                            '1mM_Micit',
+                                            '10mM_Micit',
+                                            '5FU_1mM_Micit', 
+                                            '5FU_10mM_Micit'))) %>% 
+  # filter(Sample != 'Control') %>% 
+  ggplot(aes(x = Sample, y = Intensity, fill = Sample)) +
+  geom_boxplot() +
+  geom_point(position = position_jitterdodge()) +
+  labs(title = gene) +
+  facet_wrap(~Gene_names)
+
+
+
+
+### start building our test
+# first let's remove things that have n <= 2
+
+data_long %>% 
+  group_by(Gene_names) %>% 
+  drop_na(Intensity, Gene_names) %>% 
+  count(Sample) %>% 
+  arrange(desc(n)) %>% 
+  ggplot(aes(n)) +
+  geom_histogram()
+
+
+
+## FILTER LIST
+# get the list of genes with only 1 datapoint or less in Control 
+
+removals = data_long %>% 
+  group_by(Gene_names) %>% 
+  drop_na(Intensity, Gene_names) %>% 
+  count(Sample) %>% 
+  filter(n < 2) %>% 
+  distinct(Gene_names) %>% t %>%  as.character
+
+# removing NA groups
+removals_na = data_long %>% group_by(Gene_names, Sample) %>% 
+  summarise(na_count = sum(is.na(Intensity))) %>% 
+  arrange(desc(na_count)) %>% 
+  filter(na_count > 3) %>% distinct(Gene_names) %>% t %>% as.character
+
+# final list of removals
+removals = unique(c(removals,removals_na))
+
+## read contrasts
+library(readxl)
+Contrasts = read_excel("Contrasts.xlsx")
+
+contr_mat = as.matrix(Contrasts[,5:10])
+
+contr_factors = Contrasts[,1:4]
+
+
+row.names(contr_mat) = Contrasts$contrast
+
+
+statsR_raw = data_long %>% 
+  mutate(Sample = factor(Sample, levels = c('Control', 
+                                            '5FU',
+                                            '1mM_Micit',
+                                            '10mM_Micit',
+                                            '5FU_1mM_Micit', 
+                                            '5FU_10mM_Micit'))) %>% 
+  filter(!(Gene_names %in% removals)) %>% 
+  drop_na(Intensity) %>% 
+  group_by(Gene_names) %>% 
+  nest() %>% 
+  mutate(model = map(data, lm, formula = 'Intensity ~ 0 + Sample'),
+         inter = map(model, glht, linfct = contr_mat, test = adjusted('none')),
+         inter_sum = map(inter, summary, test = adjusted('none')),       ## this way I can extract raw p-values
+         inter_tidy = map(inter_sum, tidy))
+
+
+
+# summary(statsR_raw$inter[[1]])
+# statsR_raw$inter_sum[[1]]
+
+
+
+statsR = statsR_raw %>% 
+  select(Gene_names, inter_tidy) %>% 
+  unnest(cols = c(inter_tidy)) %>% 
+  mutate(p.stars = gtools::stars.pval(p.value)) %>% 
+  group_by(contrast) %>% 
+  mutate(FDR = p.adjust(p.value, method = 'fdr')) %>% 
+  ungroup %>% 
+  mutate(FDR_stars = gtools::stars.pval(FDR))
+
+
+statsR = statsR %>% left_join(contr_factors) %>% 
+  select(Gene_names, Contrast_type:Target,contrast,everything())
+
+write.xlsx(statsR, here('summary','Stats_R_interactions.xlsx'))
+
+
+
+
+
+### protein groups from R stats ####
+
+# this xlsx will be fed to the python script to extract categories and so on
+# save protein groups
+FU_UP = statsR %>% filter(contrast == '5FU-Ctrl', FDR < 0.05, estimate > 0) %>% 
+  select(genes = Gene_names) %>% separate_rows(genes, sep = ';')
+FU_DOWN = statsR %>% filter(contrast == '5FU-Ctrl', FDR < 0.05, estimate < 0)%>% 
+  select(genes = Gene_names) %>% separate_rows(genes, sep = ';')
+
+micit10_UP = statsR %>% filter(contrast == '10mMmicit - Ctrl', FDR < 0.05, estimate > 0)%>% 
+  select(genes = Gene_names) %>% separate_rows(genes, sep = ';')
+micit10_DOWN = statsR %>% filter(contrast == '10mMmicit - Ctrl', FDR < 0.05, estimate < 0)%>% 
+  select(genes = Gene_names)%>% separate_rows(genes, sep = ';')
+
+micit1_5FU_UP = statsR %>% filter(contrast == '5FU_1mM_Micit - Ctrl', FDR < 0.05, estimate > 0)%>% 
+  select(genes = Gene_names) %>% separate_rows(genes, sep = ';')
+micit1_5FU_DOWN = statsR %>% filter(contrast == '5FU_1mM_Micit - Ctrl', FDR < 0.05, estimate < 0)%>% 
+  select(genes = Gene_names)%>% separate_rows(genes, sep = ';')
+
+micit10_5FU_UP = statsR %>% filter(contrast == '5FU_10mM_Micit - Ctrl', FDR < 0.05, estimate > 0)%>% 
+  select(genes = Gene_names) %>% separate_rows(genes, sep = ';')
+micit10_5FU_DOWN = statsR %>% filter(contrast == '5FU_10mM_Micit - Ctrl', FDR < 0.05, estimate < 0)%>% 
+  select(genes = Gene_names) %>% separate_rows(genes, sep = ';')
+
+list_of_tables = list(
+  FU_UP = FU_UP,
+  FU_DOWN = FU_DOWN,
+  micit10_UP = micit10_UP,
+  micit10_DOWN = micit10_DOWN,
+  micit1_5FU_UP = micit1_5FU_UP,
+  micit1_5FU_DOWN = micit1_5FU_DOWN,
+  micit10_5FU_UP = micit10_5FU_UP,
+  micit10_5FU_DOWN = micit10_5FU_DOWN
+)
+
+write.xlsx(list_of_tables, here('summary','Protein_sets.xlsx'))
+
+
+
+# exploratory plots -------------------------------------------------------
+
+
+
+# plot examples of genes
+gene = c('MYC')
+data_long %>% filter(Gene_names %in%  gene) %>% 
+  mutate(Sample = factor(Sample, levels = c('Control', 
+                                            '5FU',
+                                            '1mM_Micit',
+                                            '10mM_Micit',
+                                            '5FU_1mM_Micit', 
+                                            '5FU_10mM_Micit'))) %>% 
+  # filter(Sample != 'Control') %>% 
+  ggplot(aes(x = Sample, y = Intensity, fill = Sample)) +
+  geom_boxplot() +
+  geom_point(position = position_jitterdodge()) +
+  # labs(title = gene) +
+  facet_wrap(~Gene_names) +
+  theme(axis.text.x = element_text(hjust = 1, angle=45))
+
+
+
+
+gene = c('PTPRF','PDCD4','TYMS','RRM2','KIAA0101','CDKN1A')
+for (gen in gene){
+  data_long %>% filter(Gene_names %in%  gen) %>% 
+    mutate(Sample = factor(Sample, levels = c('Control', 
+                                              '5FU',
+                                              '1mM_Micit',
+                                              '10mM_Micit',
+                                              '5FU_1mM_Micit', 
+                                              '5FU_10mM_Micit'))) %>% 
+    # filter(Sample != 'Control') %>% 
+    ggplot(aes(x = Sample, y = Intensity, fill = Sample)) +
+    geom_boxplot() +
+    geom_point(position = position_jitterdodge()) +
+    # labs(title = gene) +
+    facet_wrap(~Gene_names) +
+    theme(axis.text.x = element_text(hjust = 1, angle=45))
+  ggsave(here('summary',paste0(gen,'_boxplot.pdf')), height = 6, width = 8)
+}
+
+
+
+
+
+
+
+
+# Heatmaps ----------------------------------------------------------------
+
+# this specifies the groups to filter in the Rstats
+contr_groups = c('5FU - 1mM_Micit', '5FU-Ctrl','10mMmicit - Ctrl','1mMmicit - Ctrl',
+                 '5FU_1mM_Micit - Ctrl', '5FU_10mM_Micit - Ctrl')
+
+### top 100 ####
+
+
+large_effect_prots = statsR %>% 
+  mutate(estimate = abs(estimate)) %>% 
+  arrange(desc(estimate)) %>% 
+  filter(FDR < 0.05) %>% 
+  distinct(Gene_names, .keep_all = TRUE) %>% 
+  head(100) %>% 
+  separate_rows(Gene_names, sep = ';') %>% 
+  select(Gene_names) %>% t %>% as.character()
+
+write.table(large_effect_prots, 'large_effect_prots.txt',
+            quote = F, row.names = F, col.names = F)
+
+# KEGG pathways
+data_long %>% 
+  filter(!(Gene_names %in% removals)) %>% 
+  filter(Gene_names %in% large_effect_prots) %>% 
+  distinct(Gene_names,.keep_all = T) %>% 
+  select(Gene_names, KEGG_name)  %>% 
+  # separate(KEGG_name,sep=';',into=)
+  separate_rows(KEGG_name, sep = ';') %>% 
+  filter(!(KEGG_name %in% c('Phototransduction - fly','Cell cycle - yeast',
+                          'Meiosis - yeast','Amoebiasis','Toxoplasmosis',
+                          'Vascular smooth muscle contraction',
+                          'Proximal tubule bicarbonate reclamation','Malaria'))) %>% 
+  count(Gene_names) %>% arrange(desc(n))
+
+
+heat_zscore_wide = data_long %>% 
+  filter(!(Gene_names %in% removals)) %>% 
+  filter(Gene_names %in% large_effect_prots) %>% 
+  group_by(Gene_names, Sample) %>% 
+  summarise(Mean = mean(Intensity, na.rm = TRUE)) %>% 
+  mutate(z_score = scale(Mean)) %>% 
+  select(-Mean) %>% 
+  pivot_wider(names_from = Sample, values_from = z_score)
+
+pval_top = statsR %>% 
+  filter(!(Gene_names %in% removals)) %>% 
+  filter(Gene_names %in% large_effect_prots, contrast %in% contr_groups) %>% 
+  # create dummy variable for Control
+  mutate(FDR_stars = case_when(contrast == '5FU - 1mM_Micit' ~ '',
+                               TRUE ~ FDR_stars),
+         Target = case_when(contrast == '5FU - 1mM_Micit' ~ 'Control',
+                            TRUE ~ Target)) %>% 
+  select(Gene_names,Target,FDR_stars) %>% 
+  pivot_wider(names_from = Target, values_from = FDR_stars)
+
+# generate matrices
+heat_mat = as.matrix(heat_zscore_wide[,2:7])
+row.names(heat_mat) = heat_zscore_wide$Gene_names
+
+pval_mat = as.matrix(pval_top[,2:7])
+row.names(pval_mat) = pval_top$Gene_names
+
+
+Heatmap(heat_mat,
+        cell_fun = function(j, i, x, y, width, height, fill) {
+          grid.text(sprintf("%s", pval_mat[i, j]), x, y, gp = gpar(fontsize = 10))
+        },
+        name = "z-score",
+        column_km = 3,
+        # row_km = 3,
+        row_names_gp = gpar(fontsize = 5),
+        column_names_rot =30, 
+        column_names_side = "top",
+        column_names_gp = gpar(fontsize = 4))
+
+
+dev.copy2pdf(device = cairo_pdf,
+             file = here('summary/heatmaps', 'heatmap_top100.pdf'),
+             width = 5, height = 9, useDingbats = FALSE)
+
+
+
+### global heatmap ####
+
+
+heat_zscore_wide_all = data_long %>% 
+  filter(!(Gene_names %in% removals)) %>% 
+  # filter(Gene_names %in% large_effect_prots) %>% 
+  group_by(Gene_names, Sample) %>% 
+  summarise(Mean = mean(Intensity, na.rm = TRUE)) %>% 
+  mutate(z_score = scale(Mean)) %>% 
+  select(-Mean) %>% 
+  pivot_wider(names_from = Sample, values_from = z_score)
+
+
+
+
+heat_mat_all = as.matrix(heat_zscore_wide_all[,2:7])
+
+row.names(heat_mat_all) = heat_zscore_wide_all$Gene_names
+
+
+Heatmap(heat_mat_all,
+        name = "z-score",
+        column_km = 3,
+        # row_km = 3,
+        na_col = "black",
+        row_names_gp = gpar(fontsize = 4),
+        column_names_rot =30, 
+        column_names_side = "top",
+        column_names_gp = gpar(fontsize = 4),
+        show_row_names = FALSE)
+
+
+dev.copy2pdf(device = cairo_pdf,
+             file = here('summary/heatmaps', 'heatmap_total.pdf'),
+             width = 5, height = 6, useDingbats = FALSE)
+
+
+
+
+
+
+
+### TCA genes ####
+tca = data %>% 
+  filter(str_detect(KEGG_name,'TCA') ) %>% 
+  select(Gene_names) %>% 
+  t %>% as.character()
+
+
+# calculate means and zscore and put it wider
+heat_tca = data_long %>% 
+  filter(!(Gene_names %in% removals)) %>% 
+  filter(Gene_names %in% tca) %>% 
+  group_by(Gene_names, Sample) %>% 
+  summarise(Mean = mean(Intensity, na.rm = TRUE)) %>% 
+  mutate(z_score = scale(Mean)) %>% 
+  select(-Mean) %>% 
+  pivot_wider(names_from = Sample, values_from = z_score)
+
+pval_top = statsR %>% 
+  filter(!(Gene_names %in% removals)) %>% 
+  filter(Gene_names %in% tca, 
+         contrast %in% contr_groups) %>% 
+  # create dummy variable for Control
+  mutate(FDR_stars = case_when(contrast == '5FU - 1mM_Micit' ~ '',
+                               TRUE ~ FDR_stars),
+         Target = case_when(contrast == '5FU - 1mM_Micit' ~ 'Control',
+                            TRUE ~ Target)) %>% 
+  select(Gene_names,Target,FDR_stars) %>% 
+  pivot_wider(names_from = Target, values_from = FDR_stars)
+
+
+heat_mat = as.matrix(heat_tca[,2:7])
+row.names(heat_mat) = heat_tca$Gene_names
+
+pval_mat = as.matrix(pval_top[,2:7])
+row.names(pval_mat) = pval_top$Gene_names
+
+
+Heatmap(heat_mat,
+        cell_fun = function(j, i, x, y, width, height, fill) {
+          grid.text(sprintf("%s", pval_mat[i, j]), x, y, gp = gpar(fontsize = 10))
+        },
+        name = "z-score",
+        column_km = 3,
+        # row_km = 3,
+        row_names_gp = gpar(fontsize = 4),
+        column_names_rot =30, 
+        column_names_side = "top",
+        column_names_gp = gpar(fontsize = 4))
+
+dev.copy2pdf(device = cairo_pdf,
+             file = here('summary/heatmaps', 'heatmap_TCA.pdf'),
+             width = 5, height = 7, useDingbats = FALSE)
+
+
+
+### mTOR genes ####
+
+mtor = data %>% 
+  filter(str_detect(KEGG_name,'mTOR') | str_detect(GOBP_name, 'mTOR') |  
+           str_detect(GOMF_name, 'mTOR')) %>% 
+  select(Gene_names) %>% 
+  t %>% as.character()
+
+
+
+# calculate means and zscore and put it wider
+heat_mtor = data_long %>% 
+  filter(!(Gene_names %in% removals)) %>% 
+  filter(Gene_names %in% mtor) %>% 
+  group_by(Gene_names, Sample) %>% 
+  summarise(Mean = mean(Intensity, na.rm = TRUE)) %>% 
+  mutate(z_score = scale(Mean)) %>% 
+  select(-Mean) %>% 
+  pivot_wider(names_from = Sample, values_from = z_score)
+
+pval_mtor = statsR %>% 
+  filter(!(Gene_names %in% removals)) %>% 
+  filter(Gene_names %in% mtor, contrast %in% contr_groups) %>% 
+  # create dummy variable for Control
+  mutate(FDR_stars = case_when(contrast == '5FU - 1mM_Micit' ~ '',
+                               TRUE ~ FDR_stars),
+         Target = case_when(contrast == '5FU - 1mM_Micit' ~ 'Control',
+                            TRUE ~ Target)) %>% 
+  select(Gene_names,Target,FDR_stars) %>% 
+  pivot_wider(names_from = Target, values_from = FDR_stars)
+  
+# generate matrices
+heat_mat = as.matrix(heat_mtor[,2:7])
+row.names(heat_mat) = heat_mtor$Gene_names
+
+pval_mat = as.matrix(pval_mtor[,2:7])
+row.names(pval_mat) = pval_mtor$Gene_names
+
+
+Heatmap(heat_mat, 
+        name = "z-score",
+        column_km = 3,
+        # row_km = 3,
+        row_names_gp = gpar(fontsize = 4),
+        column_names_rot =30, 
+        column_names_side = "top",
+        column_names_gp = gpar(fontsize = 6),
+        cell_fun = function(j, i, x, y, width, height, fill) {
+          grid.text(sprintf("%s", pval_mat[i, j]), x, y, gp = gpar(fontsize = 10))
+        })
+
+dev.copy2pdf(device = cairo_pdf,
+             file = here('summary/heatmaps', 'heatmap_mTOR.pdf'),
+             width = 5, height = 6, useDingbats = FALSE)
+
+
+
+
+
+
+
+### p53 genes ####
+
+p53 = data %>% 
+  filter(str_detect(KEGG_name,'p53') | str_detect(GOBP_name, 'p53') |  
+           str_detect(GOMF_name, 'p53')) %>% 
+  select(Gene_names) %>% 
+  t %>% as.character()
+
+
+
+# calculate means and zscore and put it wider
+heat = data_long %>% 
+  filter(!(Gene_names %in% removals)) %>% 
+  filter(Gene_names %in% p53) %>% 
+  group_by(Gene_names, Sample) %>% 
+  summarise(Mean = mean(Intensity, na.rm = TRUE)) %>% 
+  mutate(z_score = scale(Mean)) %>% 
+  select(-Mean) %>% 
+  pivot_wider(names_from = Sample, values_from = z_score)
+
+pval_mtor = statsR %>% 
+  filter(!(Gene_names %in% removals)) %>% 
+  filter(Gene_names %in% p53, contrast %in% contr_groups) %>% 
+  # create dummy variable for Control
+  mutate(FDR_stars = case_when(contrast == '5FU - 1mM_Micit' ~ '',
+                               TRUE ~ FDR_stars),
+         Target = case_when(contrast == '5FU - 1mM_Micit' ~ 'Control',
+                            TRUE ~ Target)) %>% 
+  select(Gene_names,Target,FDR_stars) %>% 
+  pivot_wider(names_from = Target, values_from = FDR_stars)
+
+# generate matrices
+heat_mat = as.matrix(heat[,2:7])
+row.names(heat_mat) = heat$Gene_names
+
+pval_mat = as.matrix(pval_mtor[,2:7])
+row.names(pval_mat) = pval_mtor$Gene_names
+
+
+Heatmap(heat_mat, 
+        name = "z-score",
+        column_km = 3,
+        # row_km = 3,
+        row_names_gp = gpar(fontsize = 4),
+        column_names_rot =30, 
+        column_names_side = "top",
+        column_names_gp = gpar(fontsize = 6),
+        cell_fun = function(j, i, x, y, width, height, fill) {
+          grid.text(sprintf("%s", pval_mat[i, j]), x, y, gp = gpar(fontsize = 7))
+        })
+
+dev.copy2pdf(device = cairo_pdf,
+             file = here('summary/heatmaps', 'heatmap_p53.pdf'),
+             width = 5, height = 9, useDingbats = FALSE)
+
+
+
+
+
+### cell cycle genes ####
+
+prots = data %>% 
+  filter(str_detect(KEGG_name,'cell cycle') | str_detect(GOBP_name, 'cell cycle') |  
+           str_detect(GOMF_name, 'cell cycle')) %>% 
+  select(Gene_names) %>% 
+  t %>% as.character()
+
+
+
+# calculate means and zscore and put it wider
+heat = data_long %>% 
+  filter(!(Gene_names %in% removals)) %>% 
+  filter(Gene_names %in% prots) %>% 
+  group_by(Gene_names, Sample) %>% 
+  summarise(Mean = mean(Intensity, na.rm = TRUE)) %>% 
+  mutate(z_score = scale(Mean)) %>% 
+  select(-Mean) %>% 
+  pivot_wider(names_from = Sample, values_from = z_score)
+
+pval_mtor = statsR %>% 
+  filter(!(Gene_names %in% removals)) %>% 
+  filter(Gene_names %in% prots, contrast %in% contr_groups) %>% 
+  # create dummy variable for Control
+  mutate(FDR_stars = case_when(contrast == '5FU - 1mM_Micit' ~ '',
+                               TRUE ~ FDR_stars),
+         Target = case_when(contrast == '5FU - 1mM_Micit' ~ 'Control',
+                            TRUE ~ Target)) %>% 
+  select(Gene_names,Target,FDR_stars) %>% 
+  pivot_wider(names_from = Target, values_from = FDR_stars)
+
+# generate matrices
+heat_mat = as.matrix(heat[,2:7])
+row.names(heat_mat) = heat$Gene_names
+
+pval_mat = as.matrix(pval_mtor[,2:7])
+row.names(pval_mat) = pval_mtor$Gene_names
+
+
+Heatmap(heat_mat, 
+        name = "z-score",
+        column_km = 3,
+        # row_km = 3,
+        row_names_gp = gpar(fontsize = 4),
+        column_names_rot =30, 
+        column_names_side = "top",
+        column_names_gp = gpar(fontsize = 3),
+        cell_fun = function(j, i, x, y, width, height, fill) {
+          grid.text(sprintf("%s", pval_mat[i, j]), x, y, gp = gpar(fontsize = 7))
+        })
+
+dev.copy2pdf(device = cairo_pdf,
+             file = here('summary/heatmaps', 'heatmap_cell_cycle.pdf'),
+             width = 5, height = 20, useDingbats = FALSE)
+
+
+
+
+
+### cell cycle genes ####
+
+prots = data %>% 
+  filter(str_detect(KEGG_name,'mitochondrion') | str_detect(GOBP_name, 'mitochondrion') |  
+           str_detect(GOMF_name, 'mitochondrion')) %>% 
+  select(Gene_names) %>% 
+  t %>% as.character()
+
+
+
+# calculate means and zscore and put it wider
+heat = data_long %>% 
+  filter(!(Gene_names %in% removals)) %>% 
+  filter(Gene_names %in% prots) %>% 
+  group_by(Gene_names, Sample) %>% 
+  summarise(Mean = mean(Intensity, na.rm = TRUE)) %>% 
+  mutate(z_score = scale(Mean)) %>% 
+  select(-Mean) %>% 
+  pivot_wider(names_from = Sample, values_from = z_score)
+
+pval_mtor = statsR %>% 
+  filter(!(Gene_names %in% removals)) %>% 
+  filter(Gene_names %in% prots, contrast %in% contr_groups) %>% 
+  # create dummy variable for Control
+  mutate(FDR_stars = case_when(contrast == '5FU - 1mM_Micit' ~ '',
+                               TRUE ~ FDR_stars),
+         Target = case_when(contrast == '5FU - 1mM_Micit' ~ 'Control',
+                            TRUE ~ Target)) %>% 
+  select(Gene_names,Target,FDR_stars) %>% 
+  pivot_wider(names_from = Target, values_from = FDR_stars)
+
+# generate matrices
+heat_mat = as.matrix(heat[,2:7])
+row.names(heat_mat) = heat$Gene_names
+
+pval_mat = as.matrix(pval_mtor[,2:7])
+row.names(pval_mat) = pval_mtor$Gene_names
+
+
+Heatmap(heat_mat, 
+        name = "z-score",
+        # column_km = 3,
+        # row_km = 3,
+        row_names_gp = gpar(fontsize = 4),
+        column_names_rot =30, 
+        column_names_side = "top",
+        column_names_gp = gpar(fontsize = 3),
+        cell_fun = function(j, i, x, y, width, height, fill) {
+          grid.text(sprintf("%s", pval_mat[i, j]), x, y, gp = gpar(fontsize = 7))
+        })
+
+dev.copy2pdf(device = cairo_pdf,
+             file = here('summary/heatmaps', 'heatmap_mitochondrion.pdf'),
+             width = 5, height = 20, useDingbats = FALSE)
+
+
+
