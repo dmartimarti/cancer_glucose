@@ -902,7 +902,7 @@ Heatmap(heat_mat_all,
         row_names_gp = gpar(fontsize = 4),
         column_names_rot =30, 
         column_names_side = "top",
-        column_names_gp = gpar(fontsize = 4),
+        column_names_gp = gpar(fontsize = 10),
         show_row_names = FALSE)
 
 
@@ -912,6 +912,24 @@ dev.copy2pdf(device = cairo_pdf,
 
 
 
+
+### save dataset for comparison ####
+
+
+comparison_df = data_long %>% 
+  filter(!(Gene_names %in% removals)) %>% 
+  group_by(Gene_names, Sample) %>% 
+  summarise(Mean = mean(Intensity, na.rm = TRUE)) %>% 
+  pivot_wider(names_from = Sample, values_from = Mean)
+
+
+colnames(comparison_df) = c("Gene_names","Micit_10",
+                                   "Micit_1","FU","FU_10mM_Micit",
+                                   "FU_1mM_Micit","Control")
+
+
+write_csv(comparison_df,here('summary', 'means_samples.csv'))
+write_csv(comparison_df,here('dataset_comparison', 'means_samples.csv'))
 
 
 
