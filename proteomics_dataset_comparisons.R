@@ -169,33 +169,53 @@ removals = setdiff(my_names, other_names)
 
 
 prot_mat_full = protein_quant %>% 
+  filter(Gene_names %in% data$Gene_names) %>%
   select(MDAMB468_BREAST:THP1_HAEMATOPOIETIC_AND_LYMPHOID_TISSUE) 
 
 # ugly code to get the min value
 min_val = sort(unlist(unname(prot_mat_full)))[sort(unlist(unname(prot_mat_full))) > 0][1]
 
-min_val = min_val / 1000
+min_val = min_val / 1
 
-prot_mat_full = protein_quant %>% 
-  select(MDAMB468_BREAST:THP1_HAEMATOPOIETIC_AND_LYMPHOID_TISSUE) %>%
+prot_mat_full = prot_mat_full %>%
   replace(is.na(.), min_val) 
 
 # replace 0
 prot_mat_full[prot_mat_full == 0] = min_val
 # log2 transform
 prot_mat_full = log2(prot_mat_full / min_val)
+
+# Normalized Data
+prot_mat_full = (prot_mat_full-min(prot_mat_full))/(max(prot_mat_full)-min(prot_mat_full))
+
 # set up as tibble
 prot_mat_full = as_tibble(prot_mat_full)
 
 
 # merge columns
+
+
+
 protein_quant_full = bind_cols(protein_quant %>% 
-                                 select(Protein.Id:Gene_names),
+                                 select(Protein.Id:Gene_names) %>%
+                                 filter(Gene_names %in% data$Gene_names),
                                prot_mat_full)
 
+data_mat = data %>%select(Micit_10:Control)
+
+# Normalized Data
+data_mat = (data_mat-min(data_mat))/(max(data_mat)-min(data_mat))
 
 
-protein_quant_full = data %>% full_join(protein_quant_full) %>%
+sort(unlist(unname(data_mat)))
+
+
+data_norm = bind_cols(data$Gene_names,as_tibble(data_mat)) %>% 
+  rename(Gene_names=`...1`)
+
+ 
+
+protein_quant_full = data_norm %>% full_join(protein_quant_full) %>%
   filter(!(Gene_names %in% removals)) %>%
   select(Gene_names,Protein.Id,
     Micit_10:Control,
@@ -237,13 +257,17 @@ prot_mat = prot_mat %>%
   replace(is.na(.), 0) 
 
 
+prot_mat %>% select(Cells, `sp|Q2M2I8|AAK1_HUMAN`) %>%
+  # filter(!(Cells %in% lines)) %>%
+  ggplot(aes(x = `sp|Q2M2I8|AAK1_HUMAN`)) +
+  geom_histogram()
 
+
+### CALCULATE PCA
 
 pca_rec = recipe(~., data = prot_mat) %>%
   update_role(Cells, new_role = "id") %>%
-  step_center(all_numeric()) %>%
-  step_scale(all_numeric()) %>%
-  # step_normalize(all_numeric()) %>%
+  step_normalize(all_numeric()) %>%
   step_pca(all_numeric())
 
 pca_prep = prep(pca_rec)
@@ -285,6 +309,44 @@ juice(pca_prep) %>%
   ggplot(aes(PC1, PC2, label = labels)) +
   geom_text(check_overlap = F) +
   geom_point(aes(color = Class), size = 2)
+
+
+
+
+# scaling data -------------------------------------------------------------
+
+
+protein_quant %>%
+  select(Gene_names, HCT116_LARGE_INTESTINE)%>%
+  drop_na() %>%
+  filter(Gene_names %in% data$Gene_names) %>%
+  mutate(lg2 = log2(HCT116_LARGE_INTESTINE)) %>%
+  ggplot(aes(lg2)) +
+  geom_histogram()
+
+
+
+
+
+
+data %>%
+  ggplot(aes(Control)) +
+  geom_histogram()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
