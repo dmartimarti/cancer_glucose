@@ -15,7 +15,7 @@ library(broom)
 library(here)
 library(openxlsx)
 library(coin)
-library(RVAideMemoire)
+# library(RVAideMemoire)
 library(colorspace)
 
 
