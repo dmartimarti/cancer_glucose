@@ -6,6 +6,7 @@ library(ComplexHeatmap)
 library(openxlsx)
 # library(PFun)
 library(broom)
+# library(multidplyr)
 
 
 theme_set(theme_classic())
@@ -359,14 +360,14 @@ for (i in 2:length(list_of_tables)) {
 
 # saving the original protein differences
 list_of_tables = list(
-  FU_genes_down = unlist(str_split(FU_genes_down, pattern = ';')),
-  FU_genes_up = unlist(str_split(FU_genes_up, pattern = ';')),
-  micit_10mM_genes_down = unlist(str_split(micit_10mM_genes_down, pattern = ';')),
-  micit_10mM_genes_up = unlist(str_split(micit_10mM_genes_up, pattern = ';')),
-  micit_1mM_5FU_genes_down = unlist(str_split(micit_1mM_5FU_genes_down, pattern = ';')),
-  micit_1mM_5FU_genes_up = unlist(str_split(micit_1mM_5FU_genes_up, pattern = ';')),
-  micit_10mM_5FU_genes_down = unlist(str_split(micit_10mM_5FU_genes_down, pattern = ';')),
-  micit_10mM_5FU_genes_up = unlist(str_split(micit_10mM_5FU_genes_up, pattern = ';'))
+  FU_DOWN = unlist(str_split(FU_genes_down, pattern = ';')),
+  FU_UP = unlist(str_split(FU_genes_up, pattern = ';')),
+  micit10_DOWN = unlist(str_split(micit_10mM_genes_down, pattern = ';')),
+  micit10_UP = unlist(str_split(micit_10mM_genes_up, pattern = ';')),
+  micit1_5FU_DOWN = unlist(str_split(micit_1mM_5FU_genes_down, pattern = ';')),
+  micit1_5FU_UP = unlist(str_split(micit_1mM_5FU_genes_up, pattern = ';')),
+  micit10_5FU_DOWN = unlist(str_split(micit_10mM_5FU_genes_down, pattern = ';')),
+  micit10_5FU_UP = unlist(str_split(micit_10mM_5FU_genes_up, pattern = ';'))
 )
 
 write.xlsx(list_of_tables, here('summary','Proteins_directions_MainGroups.xlsx'))
@@ -787,6 +788,23 @@ for (gen in gene){
 
 
 
+# enrichment exploration --------------------------------------------------
+
+library(readxl)
+FU_enrich = read_excel("summary/Enrichment_RStats/FU/FU_output.xlsx", 
+                        sheet = "Process") %>% 
+  select(-`...1`)
+
+
+FU_enrich %>%  
+  mutate(strength = -log10(number_of_genes/number_of_genes_in_background)) %>% 
+  filter(fdr <= 0.01)
+
+
+
+
+
+
 
 
 
@@ -981,7 +999,7 @@ Heatmap(heat_mat,
         row_names_gp = gpar(fontsize = 4),
         column_names_rot =30, 
         column_names_side = "top",
-        column_names_gp = gpar(fontsize = 4))
+        column_names_gp = gpar(fontsize = 8))
 
 dev.copy2pdf(device = cairo_pdf,
              file = here('summary/heatmaps', 'heatmap_TCA.pdf'),
@@ -1035,7 +1053,7 @@ Heatmap(heat_mat,
         row_names_gp = gpar(fontsize = 4),
         column_names_rot =30, 
         column_names_side = "top",
-        column_names_gp = gpar(fontsize = 6),
+        column_names_gp = gpar(fontsize = 7),
         cell_fun = function(j, i, x, y, width, height, fill) {
           grid.text(sprintf("%s", pval_mat[i, j]), x, y, gp = gpar(fontsize = 10))
         })
@@ -1214,7 +1232,7 @@ Heatmap(heat_mat,
         row_names_gp = gpar(fontsize = 4),
         column_names_rot =30, 
         column_names_side = "top",
-        column_names_gp = gpar(fontsize = 3),
+        column_names_gp = gpar(fontsize = 7),
         cell_fun = function(j, i, x, y, width, height, fill) {
           grid.text(sprintf("%s", pval_mat[i, j]), x, y, gp = gpar(fontsize = 7))
         })
@@ -1222,6 +1240,257 @@ Heatmap(heat_mat,
 dev.copy2pdf(device = cairo_pdf,
              file = here('summary/heatmaps', 'heatmap_mitochondrion.pdf'),
              width = 5, height = 20, useDingbats = FALSE)
+
+
+
+
+
+
+
+
+
+### category selection genes ####
+
+kegg_select = c('Cell cycle','p53 signaling pathway', 'Citrate cycle (TCA cycle)',
+                'mTOR signaling pathway', 'RNA transport', 'Purine metabolism',
+                'Pyrimidine metabolism', 'Ribosome', 'Fatty acid metabolism',
+                'Focal adhesion', 'Glycolysis','Gap junction','ErbB signaling pathway',
+                'MAPK signaling pathway')
+
+
+prots = data %>% 
+  separate_rows(KEGG_name, sep = ';') %>% 
+  filter(KEGG_name %in% kegg_select) %>% 
+  # select(Gene_names) %>% 
+  distinct(Gene_names) %>%
+  t %>% as.character()
+
+
+# cluster = new_cluster(8)
+# calculate means and zscore and put it wider
+heat = data_long %>% 
+  separate_rows(KEGG_name, sep=';') %>% 
+  filter(!(Gene_names %in% removals)) %>% 
+  filter(Gene_names %in% prots) %>% 
+  arrange(Gene_names) %>% 
+  filter(KEGG_name %in%  kegg_select) %>% 
+  unite(ID, Gene_names, KEGG_name, remove = FALSE) %>% 
+  group_by(ID, Sample) %>% 
+  # partition(cluster) %>% 
+  summarise(Mean = mean(Intensity, na.rm = TRUE)) %>% 
+  # collect() %>%
+  mutate(z_score = scale(Mean)) %>%
+  select(-Mean) %>% 
+  pivot_wider(names_from = Sample, values_from = z_score) %>% 
+  separate(ID, into = c('Gene_names', 'Pathway'), sep = '_') %>% 
+  arrange(Pathway)
+
+# pval_mtor = statsR %>% 
+#   filter(!(Gene_names %in% removals)) %>% 
+#   filter(Gene_names %in% prots, contrast %in% contr_groups) %>% 
+#   # create dummy variable for Control
+#   mutate(FDR_stars = case_when(contrast == '5FU - 1mM_Micit' ~ '',
+#                                TRUE ~ FDR_stars),
+#          Target = case_when(contrast == '5FU - 1mM_Micit' ~ 'Control',
+#                             TRUE ~ Target)) %>% 
+#   select(Gene_names,Target,FDR_stars) %>% 
+#   pivot_wider(names_from = Target, values_from = FDR_stars)
+
+# generate matrices
+heat_mat = as.matrix(heat[,3:8])
+row.names(heat_mat) = heat$Gene_names
+
+# pval_mat = as.matrix(pval_mtor[,2:7])
+# row.names(pval_mat) = pval_mtor$Gene_names
+
+library(circlize)
+col_fun = colorRamp2(c(0, 5, 10), c("blue", "white", "red"))
+
+ha = rowAnnotation(Pathway = heat$Pathway)
+
+h1 = Heatmap(heat_mat, 
+        name = "z-score",
+        # column_km = 3,
+        # row_km = 3,
+        cluster_rows = FALSE, # turns off row clustering
+        show_row_names = FALSE,
+        row_names_gp = gpar(fontsize = 4),
+        right_annotation = ha,
+        column_names_rot =30, 
+        column_names_side = "top",
+        column_names_gp = gpar(fontsize = 7))
+
+heat$Pathway
+
+# plot every pathway as a subheatmap
+# LONG AND UGLY AND LONG AND UGLY CODE
+# BUT IT WORKS, OK? 
+
+cell_ht = Heatmap(heat_mat[1:76,], 
+        name = "Z-score",
+        show_row_names = FALSE,
+        row_names_gp = gpar(fontsize = 4),
+        right_annotation = rowAnnotation(
+          Pathway = heat$Pathway[1:76],
+          show_annotation_name = F),
+        column_names_rot =30, 
+        column_names_side = "top",
+        column_names_gp = gpar(fontsize = 7))
+
+tca_ht = Heatmap(heat_mat[77:103,], 
+                  name = "Z-score",
+                  show_row_names = FALSE,
+                  row_names_gp = gpar(fontsize = 4),
+                  right_annotation = rowAnnotation(
+                    Pathway = heat$Pathway[77:103],
+                    show_annotation_name = F),
+                  column_names_rot =30, 
+                  column_names_side = "top",
+                  column_names_gp = gpar(fontsize = 7))
+
+erbB_ht = Heatmap(heat_mat[104:139,], 
+                 name = "Z-score",
+                 show_row_names = FALSE,
+                 row_names_gp = gpar(fontsize = 4),
+                 right_annotation = rowAnnotation(
+                   Pathway = heat$Pathway[104:139],
+                   show_annotation_name = F),
+                 column_names_rot =30, 
+                 column_names_side = "top",
+                 column_names_gp = gpar(fontsize = 7))
+
+fa_ht = Heatmap(heat_mat[140:168,], 
+                  name = "Z-score",
+                  show_row_names = FALSE,
+                  row_names_gp = gpar(fontsize = 4),
+                  right_annotation = rowAnnotation(
+                    Pathway = heat$Pathway[140:168],
+                    show_annotation_name = F),
+                  column_names_rot =30, 
+                  column_names_side = "top",
+                  column_names_gp = gpar(fontsize = 7))
+
+focal_ht = Heatmap(heat_mat[169:243,], 
+                name = "Z-score",
+                show_row_names = FALSE,
+                row_names_gp = gpar(fontsize = 4),
+                right_annotation = rowAnnotation(
+                  Pathway = heat$Pathway[169:243],
+                  show_annotation_name = F),
+                column_names_rot =30, 
+                column_names_side = "top",
+                column_names_gp = gpar(fontsize = 7))
+
+gap_ht = Heatmap(heat_mat[244:280,], 
+                   name = "Z-score",
+                   show_row_names = FALSE,
+                   row_names_gp = gpar(fontsize = 4),
+                   right_annotation = rowAnnotation(
+                     Pathway = heat$Pathway[244:280],
+                     show_annotation_name = F),
+                   column_names_rot =30, 
+                   column_names_side = "top",
+                   column_names_gp = gpar(fontsize = 7))
+
+mapk_ht = Heatmap(heat_mat[281:361,], 
+                 name = "Z-score",
+                 show_row_names = FALSE,
+                 row_names_gp = gpar(fontsize = 4),
+                 right_annotation = rowAnnotation(
+                   Pathway = heat$Pathway[281:361],
+                   show_annotation_name = F),
+                 column_names_rot =30, 
+                 column_names_side = "top",
+                 column_names_gp = gpar(fontsize = 7))
+
+mtor_ht = Heatmap(heat_mat[362:379,], 
+                  name = "Z-score",
+                  show_row_names = FALSE,
+                  row_names_gp = gpar(fontsize = 4),
+                  right_annotation = rowAnnotation(
+                    Pathway = heat$Pathway[362:379],
+                    show_annotation_name = F),
+                  column_names_rot =30, 
+                  column_names_side = "top",
+                  column_names_gp = gpar(fontsize = 7))
+
+p53_ht = Heatmap(heat_mat[380:405,], 
+                  name = "Z-score",
+                  show_row_names = FALSE,
+                  row_names_gp = gpar(fontsize = 4),
+                  right_annotation = rowAnnotation(
+                    Pathway = heat$Pathway[380:405],
+                    show_annotation_name = F),
+                  column_names_rot =30, 
+                  column_names_side = "top",
+                  column_names_gp = gpar(fontsize = 7))
+
+purine_ht = Heatmap(heat_mat[406:487,], 
+                 name = "Z-score",
+                 show_row_names = FALSE,
+                 row_names_gp = gpar(fontsize = 4),
+                 right_annotation = rowAnnotation(
+                   Pathway = heat$Pathway[406:487],
+                   show_annotation_name = F),
+                 column_names_rot =30, 
+                 column_names_side = "top",
+                 column_names_gp = gpar(fontsize = 7))
+
+pyr_ht = Heatmap(heat_mat[488:555,], 
+                    name = "Z-score",
+                    show_row_names = FALSE,
+                    row_names_gp = gpar(fontsize = 4),
+                    right_annotation = rowAnnotation(
+                      Pathway = heat$Pathway[488:555],
+                      show_annotation_name = F),
+                    column_names_rot =30, 
+                    column_names_side = "top",
+                    column_names_gp = gpar(fontsize = 7))
+
+ribosome_ht  = Heatmap(heat_mat[556:635,], 
+                 name = "Z-score",
+                 show_row_names = FALSE,
+                 row_names_gp = gpar(fontsize = 4),
+                 right_annotation = rowAnnotation(
+                   Pathway = heat$Pathway[556:635],
+                   show_annotation_name = F),
+                 column_names_rot =30, 
+                 column_names_side = "top",
+                 column_names_gp = gpar(fontsize = 7))
+
+rnatransport_ht = Heatmap(heat_mat[636:757,], 
+                      name = "Z-score",
+                      show_row_names = FALSE,
+                      row_names_gp = gpar(fontsize = 4),
+                      right_annotation = rowAnnotation(
+                        Pathway = heat$Pathway[636:757],
+                        show_annotation_name = F),
+                      column_names_rot =30, 
+                      column_names_side = "top",
+                      column_names_gp = gpar(fontsize = 7))
+
+
+
+ht_list = cell_ht %v% tca_ht %v% erbB_ht %v% 
+  fa_ht %v% focal_ht %v% gap_ht %v% mapk_ht %v% 
+  mtor_ht %v% p53_ht %v% purine_ht %v% pyr_ht %v%  
+  ribosome_ht %v% rnatransport_ht
+
+lgd = Legend(labels = unique(heat$Pathway), title = "", 
+             legend_gp = gpar(fill = 1:13),
+             grid_height = unit(0, "cm"), grid_width = unit(0, "mm"),
+             labels_gp = gpar(col = "white", fontsize = 0))
+
+draw(ht_list, annotation_legend_list = lgd) 
+
+
+
+dev.copy2pdf(device = cairo_pdf,
+             file = here('summary/heatmaps', 'heatmap_KEGG.pdf'),
+             width = 8, height = 14, useDingbats = FALSE)
+
+
+
 
 
 
