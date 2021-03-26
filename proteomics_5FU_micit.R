@@ -1186,7 +1186,7 @@ dev.copy2pdf(device = cairo_pdf,
 
 
 
-### cell cycle genes ####
+### mitochondrion genes ####
 
 prots = data %>% 
   filter(str_detect(KEGG_name,'mitochondrion') | str_detect(GOBP_name, 'mitochondrion') |  
@@ -1489,6 +1489,141 @@ dev.copy2pdf(device = cairo_pdf,
              file = here('summary/heatmaps', 'heatmap_KEGG.pdf'),
              width = 8, height = 14, useDingbats = FALSE)
 
+
+
+
+
+
+###  sig category selection genes ####
+
+prots = data %>% 
+  separate_rows(KEGG_name, sep = ';') %>% 
+  filter(KEGG_name %in% kegg_select) %>% 
+  # select(Gene_names) %>% 
+  distinct(Gene_names) %>%
+  t %>% as.character()
+
+# take the proteins and see which ones are at least significant
+# in one of the groups in respect to the control
+prots_sig = statsR %>%
+  filter(!(Gene_names %in% removals)) %>%
+  filter(Gene_names %in% prots, contrast %in% contr_groups) %>% 
+  filter(FDR<=0.05) %>% 
+  distinct(Gene_names) %>% t %>% as.character
+  
+
+
+# calculate means and zscore and put it wider
+heat = data_long %>% 
+  separate_rows(KEGG_name, sep=';') %>% 
+  filter(!(Gene_names %in% removals)) %>% 
+  filter(Gene_names %in% prots_sig) %>% 
+  arrange(Gene_names) %>% 
+  filter(KEGG_name %in%  kegg_select) %>% 
+  unite(ID, Gene_names, KEGG_name, remove = FALSE) %>% 
+  group_by(ID, Sample) %>% 
+  summarise(Mean = mean(Intensity, na.rm = TRUE)) %>% 
+  mutate(z_score = scale(Mean)) %>%
+  select(-Mean) %>% 
+  pivot_wider(names_from = Sample, values_from = z_score) %>% 
+  separate(ID, into = c('Gene_names', 'Pathway'), sep = '_') %>% 
+  arrange(Pathway)
+
+
+
+# generate matrices
+heat_mat = as.matrix(heat[,3:8])
+row.names(heat_mat) = heat$Gene_names
+
+# pval_mat = as.matrix(pval_mtor[,2:7])
+# row.names(pval_mat) = pval_mtor$Gene_names
+
+
+ha = rowAnnotation(Pathway = heat$Pathway)
+
+h1 = Heatmap(heat_mat, 
+             name = "z-score",
+             # column_km = 3,
+             # row_km = 3,
+             cluster_rows = FALSE, # turns off row clustering
+             show_row_names = FALSE,
+             row_names_gp = gpar(fontsize = 4),
+             right_annotation = ha,
+             column_names_rot =30, 
+             column_names_side = "top",
+             column_names_gp = gpar(fontsize = 7))
+
+h1
+
+
+# get indexes to subset 
+require(rlist)
+cat_list = list()
+for (elm in unique(heat$Pathway)){
+  min_index = min(str_which(heat$Pathway,as.character(elm)))
+  max_index = max(str_which(heat$Pathway,as.character(elm)))
+  cat_list = list.append(cat_list, elm = c(min_index,max_index))
+}
+# fix a couple things
+names(cat_list) = unique(heat$Pathway)
+cat_list$`Citrate cycle (TCA cycle)` = c(39,64)
+
+
+# this loop will create many variables for each pathway
+# each one of them will be a heatmap
+paths = unique(heat$Pathway)
+list_of_vars = c()
+for (i in 1:length(paths)){
+  var_name = paste0(str_replace_all(paths[i],' ','_'),'_ht')
+  print(var_name)
+  list_of_vars = c(var_name,list_of_vars)
+  
+  min_index = cat_list[[i]][1]
+  max_index = cat_list[[i]][2]
+  print(min_index)
+  print(max_index)
+  
+  var_name_heat = Heatmap(heat_mat[min_index:max_index,], 
+                    name = "Z-score",
+                    show_row_names = FALSE,
+                    row_names_gp = gpar(fontsize = 4),
+                    right_annotation = rowAnnotation(
+                      Pathway = heat$Pathway[min_index:max_index],
+                      show_annotation_name = F),
+                    column_names_rot =30, 
+                    column_names_side = "top",
+                    column_names_gp = gpar(fontsize = 7))
+  
+  assign(var_name, var_name_heat)
+  
+}
+
+dummy = c()
+for (i in list_of_vars){
+  cosa = paste(i,'%v% ')
+  dummy = c(cosa,dummy)
+}
+str_c(dummy, collapse = '')
+
+ht_list = Cell_cycle_ht %v% `Citrate_cycle_(TCA_cycle)_ht` %v% 
+  ErbB_signaling_pathway_ht %v% Fatty_acid_metabolism_ht %v% 
+  Focal_adhesion_ht %v% Gap_junction_ht %v% MAPK_signaling_pathway_ht %v%
+  mTOR_signaling_pathway_ht %v% 
+  p53_signaling_pathway_ht %v% Purine_metabolism_ht %v% 
+  Pyrimidine_metabolism_ht %v% Ribosome_ht %v% RNA_transport_ht
+
+lgd = Legend(labels = unique(heat$Pathway), title = "", 
+             legend_gp = gpar(fill = 1:13),
+             grid_height = unit(0, "cm"), grid_width = unit(0, "mm"),
+             labels_gp = gpar(col = "white", fontsize = 0))
+
+draw(ht_list, annotation_legend_list = lgd) 
+
+
+
+dev.copy2pdf(device = cairo_pdf,
+             file = here('summary/heatmaps', 'heatmap_KEGG_sigProts.pdf'),
+             width = 8, height = 14, useDingbats = FALSE)
 
 
 
