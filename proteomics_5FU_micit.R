@@ -7,6 +7,10 @@ library(openxlsx)
 # library(PFun)
 library(broom)
 # library(multidplyr)
+library(tau)
+library(fmsb)
+library(readxl)
+
 
 
 theme_set(theme_classic())
@@ -397,9 +401,6 @@ data_long %>% filter(Gene_names %in%  gene) %>%
 
 
 # radarplot ---------------------------------------------------------------
-library(tau)
-library(fmsb)
-library(readxl)
 
 
 ### LOAD DATA
@@ -1627,5 +1628,268 @@ dev.copy2pdf(device = cairo_pdf,
 
 
 
+
+
+
+# radar plot zscores --------------------------------------------------------------
+
+zscores_paths = data_long %>% 
+  separate_rows(KEGG_name, sep=';') %>% 
+  filter(!(Gene_names %in% removals)) %>% 
+  filter(Gene_names %in% prots_sig) %>% 
+  arrange(Gene_names) %>% 
+  filter(KEGG_name %in%  kegg_select) %>% 
+  unite(ID, Gene_names, KEGG_name, remove = FALSE) %>% 
+  group_by(ID, Sample) %>% 
+  summarise(Mean = mean(Intensity, na.rm = TRUE)) %>% 
+  mutate(z_score = scale(Mean)) %>%
+  select(-Mean) %>% 
+  separate(ID, into = c('Gene_names', 'Pathway'), sep = '_') %>% 
+  arrange(Pathway) %>% 
+  group_by(Pathway, Sample) %>% 
+  summarise(zMean = mean(z_score,na.rm = TRUE),
+            zSD = sd(z_score, na.rm = TRUE),
+            zSEM = zSD/sqrt(n())) %>% 
+  ungroup
+
+
+
+
+zscores_paths %>% 
+  ungroup %>% 
+  mutate(Sample = factor(Sample, 
+                         levels = c('Control', '5FU',
+                                    '1mM_Micit',
+                                     '10mM_Micit',
+                                    '5FU_1mM_Micit', '5FU_10mM_Micit'))) %>% 
+  ggplot(aes(Pathway, zMean, fill = Sample)) +
+  geom_histogram(stat='identity', position = 'dodge2') +
+  geom_errorbar(aes(ymin = zMean - zSEM, ymax = zMean + zSEM), 
+                position = position_dodge(0.9), width = 0) +
+  scale_fill_manual(values = c('grey50',
+                               '#FA2713', # 5FU
+                               '#F0C600', # 1 micit
+                               '#F79E05', # 10 micit
+                               '#E05C10', # 5fu + 1 micit
+                               '#AD4413'  # 5fu + 10 micit
+  )) +
+  labs(
+    x = 'KEGG Pathway',
+    y = 'z-score average (+- SEM)',
+    fill = 'Condition'
+  ) +
+  facet_wrap(~Pathway, scales = 'free')
+
+
+dev.copy2pdf(device = cairo_pdf,
+             file = here('summary', 'zScore_means_sigProts.pdf'),
+             width = 10, height = 9, useDingbats = FALSE)
+
+
+
+
+### calculate zscore mean for everything ####
+
+# take the proteins and see which ones are at least significant
+# in one of the groups in respect to the control
+prots_sig = statsR %>%
+  filter(!(Gene_names %in% removals)) %>%
+  filter(contrast %in% contr_groups) %>% 
+  filter(FDR<=0.05) %>% 
+  distinct(Gene_names) %>% t %>% as.character
+
+
+zscores_paths_all = data_long %>% 
+  separate_rows(KEGG_name, sep=';') %>% 
+  filter(!(Gene_names %in% removals)) %>% 
+  filter(Gene_names %in% prots_sig) %>% 
+  arrange(Gene_names) %>% 
+  # filter(KEGG_name %in%  kegg_select) %>% 
+  unite(ID, Gene_names, KEGG_name, remove = FALSE) %>% 
+  group_by(ID, Sample) %>% 
+  summarise(Mean = mean(Intensity, na.rm = TRUE)) %>% 
+  mutate(z_score = scale(Mean)) %>%
+  select(-Mean) %>% 
+  separate(ID, into = c('Gene_names', 'Pathway'), sep = '_') %>% 
+  arrange(Pathway) %>% 
+  group_by(Pathway, Sample) %>% 
+  summarise(zMean = mean(z_score,na.rm = TRUE),
+            zSD = sd(z_score, na.rm = TRUE),
+            zSEM = zSD/sqrt(n())) %>% 
+  ungroup
+
+
+
+
+
+zscores_paths_all %>% 
+  ungroup %>% 
+  mutate(Sample = factor(Sample, 
+                         levels = c('Control', 
+                                    '5FU', 
+                                    '1mM_Micit', '10mM_Micit',
+                                    '5FU_1mM_Micit', '5FU_10mM_Micit'))) %>% 
+  ggplot(aes(Pathway, zMean, fill = Sample)) +
+  geom_histogram(stat='identity', position = 'dodge2') +
+  geom_errorbar(aes(ymin = zMean - zSEM, ymax = zMean + zSEM), 
+                position = position_dodge(0.9), width = 0) +
+  scale_fill_manual(values = c('grey50',
+                               '#FA2713', # 5FU
+                               '#F0C600', # 1 micit
+                               '#F79E05', # 10 micit
+                               '#E05C10', # 5fu + 1 micit
+                               '#AD4413'  # 5fu + 10 micit
+  )) +
+ 
+  labs(
+    x = 'KEGG Pathway',
+    y = 'z-score average (+- SEM)',
+    fill = 'Condition'
+  ) +
+  facet_wrap(~Pathway, scales = 'free')
+
+
+dev.copy2pdf(device = cairo_pdf,
+             file = here('summary', 'zScore_means_sigProts_ALL.pdf'),
+             width = 70, height = 60, useDingbats = FALSE)
+
+
+
+
+
+
+
+## create the spider plot #####
+
+
+
+mins = c(min(zscores_paths$zMean))
+maxs = c(max(zscores_paths$zMean))
+
+# define values that are symmetric
+mins = -1.5
+maxs = 1.5
+
+zscores_wide = zscores_paths %>% 
+  select(Pathway:zMean) %>% 
+  pivot_wider(names_from = Sample, values_from = zMean) %>%
+  mutate(Max = maxs, Min = mins, Limit = 0, .before = `10mM_Micit`)
+
+zscores_mat = as.matrix(zscores_wide[,2:10])
+
+rownames(zscores_mat) = zscores_wide$Pathway
+
+zscores_mat = t(zscores_mat)
+
+
+
+zscores_mat = as.data.frame(zscores_mat[1:9,])
+
+
+## This piece of code will plot all Cell samples
+# per separate in a single plot, might be good 
+# for comparison
+
+opar <- par() 
+# Define settings for plotting in a 3x4 grid, with appropriate margins:
+par(mar = rep(0.8,4))
+par(mfrow = c(3,2))
+# Produce a radar-chart for each student
+for (i in 4:nrow(zscores_mat)) {
+  radarchart(
+    zscores_mat[c(1:3, i), ],
+    pfcol = c("#99999980",NA),
+    pcol= c(NA,2), plty = 1, plwd = 2,
+    title = row.names(zscores_mat)[i]
+  )
+}
+# Restore the standard par() settings
+par <- par(opar) 
+
+
+dev.copy2pdf(device = cairo_pdf,
+             file = here('summary', 'radar_ALL_samples.pdf'),
+             width = 15, height = 10, useDingbats = FALSE)
+
+
+
+
+
+
+
+
+
+zscores_wide = zscores_paths %>% 
+  select(Pathway:zMean) %>% 
+  pivot_wider(names_from = Sample, values_from = zMean) 
+
+zscores_mat = as.matrix(zscores_wide[,2:7])
+
+rownames(zscores_mat) = zscores_wide$Pathway
+
+zscores_mat = t(zscores_mat)
+
+zscores_mat = zscores_mat %>% as_tibble() %>% 
+  mutate(Sample = unique(zscores_paths$Sample), .before = `Cell cycle`)
+
+
+zscores_mat %>% 
+  # filter(Pathway == 'Cell cycle') %>% 
+  mutate(Sample = factor(Sample, 
+                         levels = c('Control', 
+                                    '5FU', 
+                                    '1mM_Micit', '10mM_Micit',
+                                    '5FU_1mM_Micit', '5FU_10mM_Micit'))) %>% 
+  ggradar(
+    values.radar = c("-1.5", "0", "1.5"),
+    grid.min = -1.5, grid.mid = 0, grid.max = 1.5,
+    group.line.width = 1, 
+    group.colours = c('grey50',
+                      '#FA2713', # 5FU
+                      '#F0C600', # 1 micit
+                      '#F79E05', # 10 micit
+                      '#E05C10', # 5fu + 1 micit
+                      '#AD4413'),
+    group.point.size = 3,
+    background.circle.colour = "white",
+    gridline.mid.colour = "grey",
+    legend.position = "bottom"
+  )
+
+
+
+names(zscores_mat)
+
+zscores_mat %>% 
+  add_row(Sample = 'DUMMY', `Cell cycle` = 0, `Citrate cycle (TCA cycle)` = 0,
+          `ErbB signaling pathway` = 0, `Fatty acid metabolism` = 0,
+          `Focal adhesion` = 0, `Gap junction`=0,`MAPK signaling pathway`=0,
+          `mTOR signaling pathway`=0,`p53 signaling pathway`=0,
+          `Purine metabolism`=0,`Pyrimidine metabolism`=0,
+          Ribosome = 0, `RNA transport`=0) %>% 
+  filter(Sample %in% c('DUMMY','5FU','10mM_Micit','5FU_10mM_Micit')) %>% 
+  mutate(Sample = factor(Sample, 
+                         levels = c('DUMMY',
+                                    '5FU', 
+                                    '10mM_Micit', 
+                                    '5FU_10mM_Micit'
+                                    ))) %>% 
+  ggradar(
+    values.radar = c("-1.5", "0", "1"),
+    grid.min = -1.5, grid.mid = 0, grid.max = 1,
+    group.line.width = 1, 
+    group.colours = c('grey70',
+                      '#FA2713', # 5FU
+                      '#F79E05', # 10 micit
+                      '#AD4413'),
+    group.point.size = 3,
+    background.circle.colour = "white",
+    gridline.mid.colour = "grey",
+    legend.position = "bottom"
+  ) 
+
+dev.copy2pdf(device = cairo_pdf,
+             file = here('summary', 'radar_categories_v1.pdf'),
+             width = 12, height = 11, useDingbats = FALSE)
 
 
