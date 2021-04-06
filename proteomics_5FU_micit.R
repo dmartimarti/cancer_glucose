@@ -1633,6 +1633,8 @@ dev.copy2pdf(device = cairo_pdf,
 
 # radar plot zscores --------------------------------------------------------------
 
+### barplots of selected pathways ####
+
 zscores_paths = data_long %>% 
   separate_rows(KEGG_name, sep=';') %>% 
   filter(!(Gene_names %in% removals)) %>% 
@@ -1658,10 +1660,12 @@ zscores_paths = data_long %>%
 zscores_paths %>% 
   ungroup %>% 
   mutate(Sample = factor(Sample, 
-                         levels = c('Control', '5FU',
+                         levels = c('Control', 
+                                    '5FU',
                                     '1mM_Micit',
-                                     '10mM_Micit',
-                                    '5FU_1mM_Micit', '5FU_10mM_Micit'))) %>% 
+                                    '5FU_1mM_Micit',
+                                    '10mM_Micit',
+                                    '5FU_10mM_Micit'))) %>% 
   ggplot(aes(Pathway, zMean, fill = Sample)) +
   geom_histogram(stat='identity', position = 'dodge2') +
   geom_errorbar(aes(ymin = zMean - zSEM, ymax = zMean + zSEM), 
@@ -1669,8 +1673,8 @@ zscores_paths %>%
   scale_fill_manual(values = c('grey50',
                                '#FA2713', # 5FU
                                '#F0C600', # 1 micit
-                               '#F79E05', # 10 micit
                                '#E05C10', # 5fu + 1 micit
+                               '#F79E05', # 10 micit
                                '#AD4413'  # 5fu + 10 micit
   )) +
   labs(
@@ -1740,7 +1744,6 @@ zscores_paths_all %>%
                                '#E05C10', # 5fu + 1 micit
                                '#AD4413'  # 5fu + 10 micit
   )) +
- 
   labs(
     x = 'KEGG Pathway',
     y = 'z-score average (+- SEM)',
@@ -1760,7 +1763,6 @@ dev.copy2pdf(device = cairo_pdf,
 
 
 ## create the spider plot #####
-
 
 
 mins = c(min(zscores_paths$zMean))
@@ -1786,11 +1788,13 @@ zscores_mat = t(zscores_mat)
 zscores_mat = as.data.frame(zscores_mat[1:9,])
 
 
+#~~~~~~~~~~~~~~~~~
+
 ## This piece of code will plot all Cell samples
 # per separate in a single plot, might be good 
 # for comparison
 
-opar <- par() 
+opar = par() 
 # Define settings for plotting in a 3x4 grid, with appropriate margins:
 par(mar = rep(0.8,4))
 par(mfrow = c(3,2))
@@ -1812,12 +1816,48 @@ dev.copy2pdf(device = cairo_pdf,
              width = 15, height = 10, useDingbats = FALSE)
 
 
+#~~~~~~~~~~~~
+
+select_zscores = zscores_mat[c(1:3,4,6,7),] 
+
+
+opar = par() 
+# Define settings for plotting in a 3x4 grid, with appropriate margins:
+par(mar = rep(1,4))
+
+radarchart(
+  select_zscores,
+  caxislabels = c(-1.5, -0.75, 0, 0.75, 1.5),
+  pfcol = c("#99999980",NA,NA,NA),
+  pcol= c(NA,
+          '#F2AB0C',
+          '#E60B1A',
+          '#1700F2'), plty = 1, plwd = 2
+)
+
+legend(
+  # x = "bottom",
+  x = -1,y = -1.2,
+  legend = rownames(select_zscores[-c(1,2,3),]), horiz = TRUE,
+  bty = "n", pch = 20 ,col= c('#F2AB0C',
+                          '#E60B1A',
+                          '#1700F2'),
+  text.col = "black", cex = 1, pt.cex = 2.5
+)
+
+par <- par(opar) 
+
+dev.copy2pdf(device = cairo_pdf,
+             file = here('summary', 'radar_5FU_Micit_comparison.pdf'),
+             width = 13, height = 11.5, useDingbats = FALSE)
 
 
 
 
+#~~~~~~~~~~~~~~
+### ggradar version ####
 
-
+library(ggradar)
 
 zscores_wide = zscores_paths %>% 
   select(Pathway:zMean) %>% 
@@ -1891,5 +1931,169 @@ zscores_mat %>%
 dev.copy2pdf(device = cairo_pdf,
              file = here('summary', 'radar_categories_v1.pdf'),
              width = 12, height = 11, useDingbats = FALSE)
+
+
+
+
+
+
+
+# protein means comparison ------------------------------------------------
+
+# Here I'll do the same comparison as for the radar plots, but 
+# using the ratio of Treatment over control, might be more visual
+# It's important to notice that this will NOT be a different analysis
+# only a different way to represent things
+
+
+ratios_paths = data_long %>% 
+  separate_rows(KEGG_name, sep=';') %>% 
+  filter(!(Gene_names %in% removals)) %>% 
+  filter(Gene_names %in% prots_sig) %>% 
+  arrange(Gene_names) %>% 
+  filter(KEGG_name %in%  kegg_select) %>% 
+  unite(ID, Gene_names, KEGG_name, remove = FALSE) %>% 
+  group_by(ID, Sample) %>% 
+  summarise(Mean = mean(Intensity, na.rm = TRUE)) %>% 
+  group_by(ID) %>% 
+  mutate(ratio = Mean - Mean[Sample == 'Control']) %>% 
+  filter(Sample != 'Control') %>% 
+  select(-Mean) %>% 
+  separate(ID, into = c('Gene_names', 'Pathway'), sep = '_') %>% 
+  arrange(Pathway) %>% 
+  group_by(Pathway, Sample) %>% 
+  summarise(Mean = mean(ratio ,na.rm = TRUE),
+            SD = sd(ratio, na.rm = TRUE),
+            SEM = SD/sqrt(n())) %>% 
+  ungroup
+
+
+
+ratios_paths %>% 
+  ungroup %>% 
+  mutate(Sample = factor(Sample, 
+                         levels = c('5FU',
+                                    '1mM_Micit',
+                                    '10mM_Micit',
+                                    '5FU_1mM_Micit', '5FU_10mM_Micit'))) %>% 
+  ggplot(aes(Pathway, Mean, fill = Sample)) +
+  geom_histogram(stat='identity', position = 'dodge2') +
+  geom_errorbar(aes(ymin = Mean - SEM, ymax = Mean + SEM), 
+                position = position_dodge(0.9), width = 0) +
+  scale_fill_manual(values = c(
+                               '#FA2713', # 5FU
+                               '#F0C600', # 1 micit
+                               '#F79E05', # 10 micit
+                               '#E05C10', # 5fu + 1 micit
+                               '#AD4413'  # 5fu + 10 micit
+  )) +
+  labs(
+    x = 'KEGG Pathway',
+    y = 'Ratio agains control average (+- SEM)',
+    fill = 'Condition'
+  ) +
+  facet_wrap(~Pathway, scales = 'free')
+
+
+dev.copy2pdf(device = cairo_pdf,
+             file = here('summary', 'ratios_means_sigProts.pdf'),
+             width = 10, height = 9, useDingbats = FALSE)
+
+
+
+
+
+
+## create the spider plot #####
+
+
+mins = c(min(ratios_paths$Mean))
+maxs = c(max(ratios_paths$Mean))
+
+# define values that are symmetric
+mins = -0.5
+maxs = 0.25
+
+ratios_wide = ratios_paths %>% 
+  select(Pathway:Mean) %>% 
+  pivot_wider(names_from = Sample, values_from = Mean) %>%
+  mutate(Max = maxs, Min = mins, Limit = 0, .before = `10mM_Micit`)
+
+ratios_mat = as.matrix(ratios_wide[,2:9])
+
+rownames(ratios_mat) = ratios_wide$Pathway
+
+ratios_mat = t(ratios_mat)
+
+
+
+ratios_mat = as.data.frame(ratios_mat[1:8,])
+
+
+#~~~~~~~~~~~~~~~~~
+
+## This piece of code will plot all Cell samples
+# per separate in a single plot, might be good 
+# for comparison
+
+opar = par() 
+# Define settings for plotting in a 3x4 grid, with appropriate margins:
+par(mar = rep(0.8,4))
+par(mfrow = c(3,2))
+# Produce a radar-chart for each student
+for (i in 4:nrow(ratios_mat)) {
+  radarchart(
+    ratios_mat[c(1:3, i), ],
+    pfcol = c("#99999980",NA),
+    pcol= c(NA,2), plty = 1, plwd = 2,
+    title = row.names(ratios_mat)[i]
+  )
+}
+# Restore the standard par() settings
+par <- par(opar) 
+
+
+dev.copy2pdf(device = cairo_pdf,
+             file = here('summary', 'radar_ratios_ALL_samples.pdf'),
+             width = 15, height = 10, useDingbats = FALSE)
+
+
+#~~~~~~~~~~~~
+
+ratios_mat_select = ratios_mat[c(1:3,4,6,7),] 
+
+
+opar = par() 
+# Define settings for plotting in a 3x4 grid, with appropriate margins:
+par(mar = rep(1,4))
+
+radarchart(
+  ratios_mat_select,
+  caxislabels = c(-1.5, -0.75, 0, 0.75, 1.5),
+  pfcol = c("#99999980",NA,NA,NA),
+  pcol= c(NA,
+          '#F2AB0C',
+          '#E60B1A',
+          '#1700F2'), plty = 1, plwd = 2
+)
+
+legend(
+  # x = "bottom",
+  x = -1,y = -1.2,
+  legend = rownames(ratios_mat_select[-c(1,2,3),]), horiz = TRUE,
+  bty = "n", pch = 20 ,col= c('#F2AB0C',
+                              '#E60B1A',
+                              '#1700F2'),
+  text.col = "black", cex = 1, pt.cex = 2.5
+)
+
+par <- par(opar) 
+
+dev.copy2pdf(device = cairo_pdf,
+             file = here('summary', 'radar_ratios_5FU_Micit_comparison.pdf'),
+             width = 13, height = 11.5, useDingbats = FALSE)
+
+
+
 
 
