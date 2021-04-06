@@ -1,3 +1,25 @@
+# load libraries
+library(tidyverse)
+library(readxl)
+library(ComplexHeatmap)
+library(circlize)
+library(ggrepel)
+library(PFun)
+library(forcats)
+library(FactoMineR) # for PCA
+library(factoextra) # for PCA
+library(gtools)
+library(broom)
+library(here)
+library(openxlsx)
+library(coin)
+library(RVAideMemoire)
+library(colorspace)
+library(plotly)
+library(ggpubr)
+
+# options(width = 150)
+
 theme_set(theme_classic())
 
 
@@ -209,7 +231,7 @@ ggsave(file = here('Summary', 'Scatter_sub_lib_RESP_5uM_MERGED.pdf'),
 # 3. middle-right, == resistant without glu, normal with glu
 # 4. bottom-right == sensitive with glucose, resistant without glu
 # 5. bottom-left == sensitive in both conditions
-
+drug = 5
 glu_res.wide = glu_res.sum %>% 
   filter(Drug == drug) %>% 
   select(Supplement, Supplement_mM, Genes, BW_norm) %>%
@@ -483,3 +505,148 @@ ggsave(file = here('Summary', 'Scatter_sub_lib_with_Enrichment.pdf'),
 # then I extracted the genes from each one of the important places in the map,
 # and did a hypergeometric test with EcoCyc categories. I summarised the cats 
 # in the most useful/informative, and represented them in the plot
+
+
+
+
+
+
+
+
+
+
+
+# quadrants 2 enrichment ----------------------------------------------------
+
+# Using the merged data table, I'll separate the genes in 5 different 
+# spaces: 
+# 1. upper == resistant with glu
+# 2. right == resistant in normal conditions
+# 3. bottom == sensitive with glu
+# 4. center == slightly resistant in normal conditions
+
+drug = 5
+glu_res.wide = glu_res.sum %>% 
+  filter(Drug == drug) %>% 
+  select(Supplement, Supplement_mM, Genes, BW_norm) %>%
+  unite(Supp, Supplement, Supplement_mM) %>%
+  spread(Supp, BW_norm)
+
+# get gene groups, modify thresholds if necessary
+group_1 = glu_res.wide %>% 
+  filter(Glucose_10 >= 0.5) 
+
+group_2 = glu_res.wide %>% 
+  filter(Glucose_0 >= 1.5) 
+
+group_3 = glu_res.wide %>% 
+  filter(Glucose_10 <= -0.5)
+
+group_4 = glu_res.wide %>% 
+  filter(Glucose_0 >= 0.5, Glucose_0 <= 1.5) 
+
+
+
+
+# let's do enrichment from those
+# KEGG
+# GO function
+# EcoCyc 
+
+# read the data table with gene info
+
+ecocyc = read_csv("EcoCyc_genes_pathways.csv")
+
+# calculate enrichment for the different sets
+genes = group_1$Genes
+g1.enrich = enrich(genes, db = ecocyc) %>% mutate(direction = 'group_1')
+
+genes = group_2$Genes
+g2.enrich = enrich(genes, db = ecocyc) %>% mutate(direction = 'group_2')
+
+genes = group_3$Genes
+g3.enrich = enrich(genes, db = ecocyc) %>% mutate(direction = 'group_3')
+
+genes = group_4$Genes
+g4.enrich = enrich(genes, db = ecocyc) %>% mutate(direction = 'group_4')
+
+
+merge_enrich = g1.enrich %>% 
+  bind_rows(g2.enrich,g3.enrich,g4.enrich) %>% 
+  filter(pval <= 0.1)
+
+
+list_of_datasets = list('Enrichment respiration sublibrary' = merge_enrich)
+
+write.xlsx(list_of_datasets, 
+           here('summary','Ecocyc_enrichment_Resp_sublibrary_v2.xlsx'), 
+           colNames = T, rowNames = T) 
+
+
+# plot
+
+expanded = merge_enrich %>% 
+  filter(fdr <= 0.05) %>% 
+  select(categories, fdr, fdr.stars, direction) %>% 
+  expand(categories,direction)
+
+expanded = expanded %>% left_join(merge_enrich %>% 
+                                    filter(fdr <= 0.05) %>% 
+                                    select(categories, fdr, fdr.stars, direction)) %>% 
+  replace_na(list(fdr = 1, p.stars = ''))
+
+
+
+
+
+
+
+# plots -------------------------------------------------------------------
+
+removals = c('superpathway of sulfate assimilation and cysteine biosynthesis',
+             'sulfate activation for sulfonation',
+             'pyruvate decarboxylation to acetyl CoA I',
+             'inosine-5\'-phosphate biosynthesis I',
+             'guanosine ribonucleotides de novo biosynthesis',
+             'citrate degradation', 'adenosine nucleotides degradation II',
+             '2-oxoglutarate decarboxylation to succinyl-CoA')
+
+# 1. upper == resistant with glu
+# 2. right == resistant in normal conditions
+# 3. bottom == sensitive with glu
+# 4. center == slightly resistant in normal conditions
+
+
+# plot enrichment
+expanded %>% 
+  # filter(!(categories %in% removals)) %>% 
+  mutate(Category = cut(fdr , 
+                        breaks=c(-Inf, 0.001,  0.01, 0.05, 0.1, Inf), 
+                        labels=c("<0.001","<0.01","<0.05", '<0.1', 'NS') )) %>% 
+  mutate(direction = case_when(direction == 'group_1' ~ 'Resistant glucose',
+                               direction == 'group_2' ~ 'Resistant normal',
+                               direction == 'group_3' ~ 'Sensitive glucose',
+                               direction == 'group_4' ~ '(slightly) resistant normal')) %>% 
+  ggplot(aes(y = categories, x = direction, fill = Category)) +
+  geom_tile() +
+  labs(
+    x = 'Quadrant',
+    y = 'Terms'
+  ) +
+  # Case for all fdr values
+  # scale_fill_manual(values = c('#2229F0', '#2292F0', '#22E4F0', '#C7F0F0', 'white'),
+  #                   name = 'FDR') +
+  # case if one case is missing
+  scale_fill_manual(values = c('#2229F0', '#2292F0', '#22E4F0',  'white'),
+                    name = 'FDR') +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+ggsave(here('summary', 'EcoCyc_enrich_resp_sublib_v2.pdf'), height =  10, width = 13)
+
+
+
+
+
+
+
