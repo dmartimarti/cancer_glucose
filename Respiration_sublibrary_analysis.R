@@ -525,6 +525,13 @@ ggsave(file = here('Summary', 'Scatter_sub_lib_with_Enrichment.pdf'),
 # 3. bottom == sensitive with glu
 # 4. center == slightly resistant in normal conditions
 
+# 5. upper-left, == resistant with glu, normal without 
+# 6. upper-right, == resistant in every condition
+# 7. middle-right, == resistant without glu, normal with glu
+# 8. bottom-right == sensitive with glucose, resistant without glu
+# 9. bottom-left == sensitive in both conditions
+
+
 drug = 5
 glu_res.wide = glu_res.sum %>% 
   filter(Drug == drug) %>% 
@@ -544,6 +551,24 @@ group_3 = glu_res.wide %>%
 
 group_4 = glu_res.wide %>% 
   filter(Glucose_0 >= 0.5, Glucose_0 <= 1.5) 
+
+
+
+group_5 = glu_res.wide %>% 
+  filter(Glucose_0 <= 0.5, Glucose_10 >= 0.5) 
+
+group_6 = glu_res.wide %>% 
+  filter(Glucose_0 <= 0.5, Glucose_10 <= -0.5) 
+
+group_7 = glu_res.wide %>% 
+  filter(Glucose_0 >= 1.5, Glucose_10 <= 0.5) %>% 
+  filter( Glucose_10 >= -0.5)
+
+group_8 = glu_res.wide %>% 
+  filter(Glucose_0 >= 1.5, Glucose_10 >= 0.5) 
+
+group_9 = glu_res.wide %>% 
+  filter(Glucose_0 >= 1.5, Glucose_10 <= -0.5) 
 
 
 
@@ -570,10 +595,29 @@ g3.enrich = enrich(genes, db = ecocyc) %>% mutate(direction = 'group_3')
 genes = group_4$Genes
 g4.enrich = enrich(genes, db = ecocyc) %>% mutate(direction = 'group_4')
 
+genes = group_5$Genes
+g5.enrich = enrich(genes, db = ecocyc) %>% mutate(direction = 'group_5')
+
+genes = group_6$Genes
+g6.enrich = enrich(genes, db = ecocyc) %>% mutate(direction = 'group_6')
+
+genes = group_7$Genes
+g7.enrich = enrich(genes, db = ecocyc) %>% mutate(direction = 'group_7')
+
+genes = group_8$Genes
+g8.enrich = enrich(genes, db = ecocyc) %>% mutate(direction = 'group_8')
+
+genes = group_9$Genes
+g9.enrich = enrich(genes, db = ecocyc) %>% mutate(direction = 'group_9')
+
+
+
+
 
 merge_enrich = g1.enrich %>% 
-  bind_rows(g2.enrich,g3.enrich,g4.enrich) %>% 
-  filter(pval <= 0.1)
+  bind_rows(g2.enrich,g3.enrich,g4.enrich,g5.enrich,g6.enrich,
+            g7.enrich,g8.enrich,g9.enrich) %>% 
+  filter(pval <= 0.05)
 
 
 list_of_datasets = list('Enrichment respiration sublibrary' = merge_enrich)
@@ -611,10 +655,6 @@ removals = c('superpathway of sulfate assimilation and cysteine biosynthesis',
              'citrate degradation', 'adenosine nucleotides degradation II',
              '2-oxoglutarate decarboxylation to succinyl-CoA')
 
-# 1. upper == resistant with glu
-# 2. right == resistant in normal conditions
-# 3. bottom == sensitive with glu
-# 4. center == slightly resistant in normal conditions
 
 
 # plot enrichment
@@ -626,7 +666,12 @@ expanded %>%
   mutate(direction = case_when(direction == 'group_1' ~ 'Resistant glucose',
                                direction == 'group_2' ~ 'Resistant normal',
                                direction == 'group_3' ~ 'Sensitive glucose',
-                               direction == 'group_4' ~ '(slightly) resistant normal')) %>% 
+                               direction == 'group_4' ~ '(slightly) resistant normal',
+                               direction == 'group_5' ~ 'Upper-left',
+                               direction == 'group_6' ~ 'Bottom-Left',
+                               direction == 'group_7' ~ 'Middle-right',
+                               direction == 'group_8' ~ 'Upper-Right',
+                               direction == 'group_9' ~ 'Bottom-Right')) %>% 
   ggplot(aes(y = categories, x = direction, fill = Category)) +
   geom_tile() +
   labs(
@@ -639,10 +684,14 @@ expanded %>%
   # case if one case is missing
   scale_fill_manual(values = c('#2229F0', '#2292F0', '#22E4F0',  'white'),
                     name = 'FDR') +
-  theme_classic() +
+  theme_light() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
 ggsave(here('summary', 'EcoCyc_enrich_resp_sublib_v2.pdf'), height =  10, width = 13)
+
+
+
+
 
 
 
