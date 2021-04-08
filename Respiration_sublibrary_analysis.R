@@ -647,18 +647,30 @@ expanded = expanded %>% left_join(merge_enrich %>%
 
 # plots -------------------------------------------------------------------
 
-removals = c('superpathway of sulfate assimilation and cysteine biosynthesis',
-             'sulfate activation for sulfonation',
-             'pyruvate decarboxylation to acetyl CoA I',
-             'inosine-5\'-phosphate biosynthesis I',
-             'guanosine ribonucleotides de novo biosynthesis',
-             'citrate degradation', 'adenosine nucleotides degradation II',
-             '2-oxoglutarate decarboxylation to succinyl-CoA')
-
+# removals = c('superpathway of sulfate assimilation and cysteine biosynthesis',
+#              'sulfate activation for sulfonation',
+#              'pyruvate decarboxylation to acetyl CoA I',
+#              'inosine-5\'-phosphate biosynthesis I',
+#              'guanosine ribonucleotides de novo biosynthesis',
+#              'citrate degradation', 'adenosine nucleotides degradation II',
+#              '2-oxoglutarate decarboxylation to succinyl-CoA')
+keep = c('2-oxoglutarate decarboxylation to succinyl-CoA',
+         'UMP biosynthesis I','TCA cycle I (prokaryotic)',
+         'superpathway of pyrimidine ribonucleotides de novo biosynthesis',
+         'superpathway of pyrimidine ribonucleosides salvage',
+         "superpathway of pyridoxal 5'-phosphate biosynthesis and salvage",
+         'superpathway of histidine, purine, and pyrimidine biosynthesis',
+         'superpathway of glyoxylate bypass and TCA',
+         'superpathway of glycolysis, pyruvate dehydrogenase, TCA, and glyoxylate bypass',
+         "pyridoxal 5'-phosphate biosynthesis I",
+         'pentose phosphate pathway',
+         'glycine cleavage','folate transformations III (E. coli)',
+         'chorismate biosynthesis I')
 
 
 # plot enrichment
 expanded %>% 
+  # filter(categories %in% keep) %>% 
   # filter(!(categories %in% removals)) %>% 
   mutate(Category = cut(fdr , 
                         breaks=c(-Inf, 0.001,  0.01, 0.05, 0.1, Inf), 
@@ -691,11 +703,145 @@ ggsave(here('summary', 'EcoCyc_enrich_resp_sublib_v2.pdf'), height =  10, width 
 
 
 
+# plot enrichment
+expanded %>% 
+  filter(categories %in% keep) %>% 
+  # filter(!(categories %in% removals)) %>% 
+  mutate(Category = cut(fdr , 
+                        breaks=c(-Inf, 0.001,  0.01, 0.05, 0.1, Inf), 
+                        labels=c("<0.001","<0.01","<0.05", '<0.1', 'NS') )) %>% 
+  mutate(direction = case_when(direction == 'group_1' ~ 'Resistant glucose',
+                               direction == 'group_2' ~ 'Resistant normal',
+                               direction == 'group_3' ~ 'Sensitive glucose',
+                               direction == 'group_4' ~ '(slightly) resistant normal',
+                               direction == 'group_5' ~ 'Upper-left',
+                               direction == 'group_6' ~ 'Bottom-Left',
+                               direction == 'group_7' ~ 'Middle-right',
+                               direction == 'group_8' ~ 'Upper-Right',
+                               direction == 'group_9' ~ 'Bottom-Right')) %>% 
+  ggplot(aes(y = categories, x = direction, fill = Category)) +
+  geom_tile() +
+  labs(
+    x = 'Quadrant',
+    y = 'Terms'
+  ) +
+  # Case for all fdr values
+  # scale_fill_manual(values = c('#2229F0', '#2292F0', '#22E4F0', '#C7F0F0', 'white'),
+  #                   name = 'FDR') +
+  # case if one case is missing
+  scale_fill_manual(values = c('#2229F0', '#2292F0', '#22E4F0',  'white'),
+                    name = 'FDR') +
+  theme_light() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+ggsave(here('summary', 'EcoCyc_enrich_resp_sublib_redux.pdf'), height =  10, width = 13)
 
 
 
 
 
 
+
+
+# lets plot the pathways in a different way
+
+
+keep[1]
+test1 = ecocyc %>% 
+  filter(pathway==keep[1]) %>% 
+  select(gene) %>% t %>% as.character()
+
+seed = glu_res.wide %>% 
+  filter(Genes %in% test1) %>% 
+  summarise(Mean_0 = mean(Glucose_0),
+            SD_0 = sd(Glucose_0),
+            SEM_0 = SD_0/sqrt(n()),
+            Mean_10 = mean(Glucose_10),
+            SD_10 = sd(Glucose_10),
+            SEM_10 = SD_10/sqrt(n())) %>% 
+  mutate(Pathway = keep[1],.before = Mean_0)
+
+
+
+for (i in 2:length(keep)) {
+  gene_list = ecocyc %>% 
+    filter(pathway==keep[i]) %>% 
+    select(gene) %>% t %>% as.character()
+  
+  new_row = glu_res.wide %>% 
+    filter(Genes %in% gene_list) %>% 
+    summarise(Mean_0 = mean(Glucose_0),
+              SD_0 = sd(Glucose_0),
+              SEM_0 = SD_0/sqrt(n()),
+              Mean_10 = mean(Glucose_10),
+              SD_10 = sd(Glucose_10),
+              SEM_10 = SD_10/sqrt(n())) %>% 
+    mutate(Pathway = keep[i],.before = Mean_0)
+  
+  seed = bind_rows(seed, new_row)
+  
+}
+
+
+seed %>% 
+  ggplot(aes(x = Mean_0, y = Mean_10, color = Pathway)) +
+  geom_point(size = 2) +
+  geom_errorbar(aes(ymin = Mean_10 - SEM_10, ymax = Mean_10 + SEM_10)) +
+  geom_errorbarh(aes(xmin = Mean_0 - SEM_0, xmax = Mean_0 + SEM_0)) +
+  geom_text(aes(label = Pathway)) +
+  ylim(-1,1) +
+  xlim(-0.5,2.5) +
+  guides(color = NULL)
+
+
+
+###################################
+
+
+
+keep[1]
+test1 = ecocyc %>% 
+  filter(pathway==keep[1]) %>% 
+  select(gene) %>% t %>% as.character()
+
+genes_paths = glu_res.wide %>% 
+  filter(Genes %in% test1) %>%
+  mutate(Pathway = keep[1],.before = Glucose_0)
+
+
+
+for (i in 2:length(keep)) {
+  gene_list = ecocyc %>% 
+    filter(pathway==keep[i]) %>% 
+    select(gene) %>% t %>% as.character()
+  
+  new_row = glu_res.wide %>% 
+    filter(Genes %in% gene_list) %>%
+    mutate(Pathway = keep[i],.before = Glucose_0)
+  
+  genes_paths = bind_rows(genes_paths, new_row)
+  
+}
+
+
+# violin plots 
+genes_paths %>% 
+  ggplot(aes(y = Pathway, x = Glucose_0)) + 
+  geom_violin(aes(fill = Pathway)) +
+  geom_point(aes(color = Glucose_10), position = position_jitterdodge(),
+             size = 4, alpha = 0.7) +
+  scale_color_gradient2(midpoint = 0, low = "blue", mid = "grey60",
+                        high = "red", space = "Lab" ) +
+  guides(fill = FALSE)
+
+
+genes_paths %>% 
+  ggplot(aes(y = Pathway, x = Glucose_10)) + 
+  geom_violin(aes(fill = Pathway)) +
+  geom_point(aes(color = Glucose_0), position = position_jitterdodge(), 
+             size = 3, alpha = 0.7) +
+  # scale_color_gradient2(midpoint = 0, low = "blue", mid = "white",
+  #                       high = "red", space = "Lab" ) +
+  guides(fill = FALSE)
 
 
