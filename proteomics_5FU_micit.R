@@ -2096,4 +2096,32 @@ dev.copy2pdf(device = cairo_pdf,
 
 
 
+# Random Forests ----------------------------------------------------------
+
+library(tidymodels)
+
+
+rf_data = data_long %>% 
+  select(Gene_names, Sample, Intensity, KEGG_name, mol_weight) %>% 
+  separate_rows(KEGG_name, sep=';') %>% 
+  filter(!(Gene_names %in% removals)) %>% 
+  filter(Gene_names %in% prots_sig) %>% 
+  arrange(Gene_names) %>% 
+  filter(KEGG_name %in%  kegg_select)
+
+data_rec = recipe(Sample ~ ., data = rf_data) %>%
+  # update_role(Gene_names, new_role = "ID") %>%
+  step_dummy(all_nominal(), -all_outcomes())
+
+data_prep = prep(data_rec)
+juiced = juice(data_prep)
+
+data_ranger =  rand_forest(trees = 100, mode = "classification") %>%
+  set_engine("randomForest") %>%
+  fit(Sample ~ ., data = juiced)
+
+data_ranger$lvl
+
+
+
 
