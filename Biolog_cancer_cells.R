@@ -261,4 +261,82 @@ PlotSynergy(synergy.score, type = "all", save.file = TRUE)
 
 
 
+# nucleotide stats --------------------------------------------------------
+
+nucl = c('Azathioprine', 'Fluorouracil',
+         'Mercaptopurine', 'Thioguanine',
+         "5-Fluoro-5'- DeoxyurIdine", 'Zidovudine',
+         'Azacytidine', 'Carmofur',
+         'Floxuridine', "Cytosine-Beta-DArabinofuranoside")
+
+res_ZIP_cats = result_ZIP %>% 
+  mutate(Category = case_when(Drug %in% nucl ~ 'Nucleotides',
+                              TRUE ~ 'Other'))
+
+
+res_ZIP_cats %>% filter(Category == 'Nucleotides')
+
+# stats
+# model = lm(Synergy.score ~ Category, data = res_ZIP_cats)  
+# summary(model)
+library(rstatix)
+library(ggpubr)
+
+
+stat.test = res_ZIP_cats %>%
+  t_test(Synergy.score ~ Category, 
+         var.equal = FALSE) %>%
+  add_significance()
+stat.test = stat.test %>% add_xy_position(x = "supp")
+
+# homoscedasticity test
+CG = subset(res_ZIP_cats, Category == "Nucleotides")$Synergy.score
+TG = subset(res_ZIP_cats, Category != "Nucleotides")$Synergy.score
+var.test(CG, TG)
+
+# as they suffer from heterocedasticity, var.equal to FALSE
+nucl_stats = t.test(CG, TG, var.equal = FALSE)
+library(broom)
+pval = tidy(nucl_stats)$p.value
+
+
+res_ZIP.sum = res_ZIP_cats %>%
+  group_by(Category) %>%
+  summarise(Mean = mean(Synergy.score),
+            SD = sd(Synergy.score),
+            SEM = SD/sqrt(n()))
+
+## MAIN PLOT
+res_ZIP_cats %>%
+  ggplot(aes(x = Category, y = Synergy.score, fill = Category)) +
+  geom_violin() +
+  geom_jitter(size = 0.5,height = 0, width = 0.1) +
+  geom_point(data = res_ZIP.sum,
+             size = 4,
+             color = 'black',
+             aes(x = Category, y = Mean)) +
+  geom_errorbar(data = res_ZIP.sum,
+                aes(x = Category, y = Mean,
+                    ymin = Mean - SEM, ymax = Mean + SEM),
+                width = 0.03) +
+  geom_segment(aes(x = 0, y = 3.27, xend = 1, yend = 3.27),
+               linetype="dashed", colour = 'grey50') +
+  geom_segment(aes(x = 0, y = -0.237, xend = 2, yend = -0.237),
+               linetype="dashed", colour = 'grey50') +
+  # pval annotation
+  geom_segment(aes(x = 1, xend = 2, y = 16.5, yend = 16.5)) +
+  annotate("text", x = 1.5, y = 18, label = paste('P-value: ',round(pval, 4))) +
+  scale_fill_manual(values = c('#F5EC49',
+                                '#3D9CE6')) + 
+  labs(x = 'Drug category',
+       y = 'ZIP score') 
+
+ggsave(here('exploration', 'violin_nucleotides_biolog.pdf'), height = 7, width = 8)
+
+
+res_ZIP.sum %>%
+  ggplot(aes(x = Category, y = Mean)) +
+  geom_point(size = 5, aes(color = Category)) +
+  geom_errorbar(aes(ymin = Mean - SEM, ymax = Mean + SEM), width = 0.1)
+
 
