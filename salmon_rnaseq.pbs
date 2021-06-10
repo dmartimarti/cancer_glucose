@@ -1,0 +1,31 @@
+#PBS -l walltime=48:0:0
+#PBS -l select=1:ncpus=32:mem=32gb
+
+# Load modules for any applications
+
+module load anaconda3/personal
+source activate salmon_final
+
+WORK=$HOME/Cancer_F5/rna_seq/Unaligned/trimm_seqs/paired
+HUMAN=$WORK/human_index
+cp -r $HUMAN $TMPDIR
+
+mkdir quants
+
+for R1paired in $WORK/*R1_001_paired*
+do
+    R2paired=${R1paired//R1_001_paired.fastq.gz/R2_001_paired.fastq.gz}
+    OUTLONG=${R1paired##*/}
+    OUTPUT=${OUTLONG::-26}
+
+    cp $R1paired $TMPDIR
+    cp $R2paired $TMPDIR
+    
+    salmon quant -i $HUMAN -l A \
+    -1 $R1paired \
+    -2 $R2paired \
+    -p 32 --validateMappings -o ${OUTPUT}_quant
+
+    cp -r ${OUTPUT}_quant $WORK/quants
+
+done
