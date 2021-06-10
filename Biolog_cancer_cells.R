@@ -267,7 +267,8 @@ nucl = c('Azathioprine', 'Fluorouracil',
          'Mercaptopurine', 'Thioguanine',
          "5-Fluoro-5'- DeoxyurIdine", 'Zidovudine',
          'Azacytidine', 'Carmofur',
-         'Floxuridine', "Cytosine-Beta-DArabinofuranoside")
+         'Floxuridine', "Cytosine-Beta-DArabinofuranoside",
+         'Methotrexate')
 
 res_ZIP_cats = result_ZIP %>% 
   mutate(Category = case_when(Drug %in% nucl ~ 'Nucleotides',
@@ -312,7 +313,7 @@ res_ZIP_cats %>%
   geom_violin() +
   geom_jitter(size = 0.5,height = 0, width = 0.1) +
   geom_point(data = res_ZIP.sum,
-             size = 4,
+             size = 3.5,
              color = 'black',
              aes(x = Category, y = Mean)) +
   geom_errorbar(data = res_ZIP.sum,
@@ -321,17 +322,24 @@ res_ZIP_cats %>%
                 width = 0.03) +
   geom_segment(aes(x = 0, y = 3.27, xend = 1, yend = 3.27),
                linetype="dashed", colour = 'grey50') +
-  geom_segment(aes(x = 0, y = -0.237, xend = 2, yend = -0.237),
+  geom_segment(aes(x = 0, y = -0.237, xend = 2, yend = -0.328),
                linetype="dashed", colour = 'grey50') +
   # pval annotation
   geom_segment(aes(x = 1, xend = 2, y = 16.5, yend = 16.5)) +
-  annotate("text", x = 1.5, y = 18, label = paste('P-value: ',round(pval, 4))) +
+  annotate("text", x = 1.5, y = 18, label = paste('P-value: ',round(pval, 5))) +
+  # annotate("text", x = 1.5, y = 18, label = paste('P-value < ','0.0001')) +
   scale_fill_manual(values = c('#F5EC49',
-                                '#3D9CE6')) + 
+                                '#3D9CE6'),
+                    labels = c('DNA Damage Drugs',
+                               'Other')) + 
   labs(x = 'Drug category',
-       y = 'ZIP score') 
+       y = 'ZIP score') +
+  scale_x_discrete(name = '',
+                   labels = c("Nucleotides" = "DNA Damage Drugs","Other" = "Other")) +
+  theme(axis.text.x = element_text(face = "bold", size = 13, color = 'black'),
+        axis.text.y = element_text(face = "bold", size = 13, color = 'black'))
 
-ggsave(here('exploration', 'violin_nucleotides_biolog.pdf'), height = 7, width = 8)
+ggsave(here('exploration', 'violin_nucleotides_biolog.pdf'), height = 8, width = 9)
 
 
 res_ZIP.sum %>%
