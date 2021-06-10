@@ -66,7 +66,7 @@ drug_list = unique(as.character(data$Drug))
 
 
 
-drug = 'Acriflavinium Hydrochloride'
+drug = 'Fluorouracil'
 data %>% filter(Drug == drug) %>% 
   ggplot(aes(x = Micit, y = Drug_conc, fill = Viability)) +
   geom_tile() +
@@ -76,6 +76,9 @@ data %>% filter(Drug == drug) %>%
   ggtitle(label = drug) +
   theme(strip.placement = "outside",
         plot.title = element_text(hjust = 0.5))
+
+
+
 
 for (drug in drug_list){
   p = data %>% filter(Drug == drug) %>% 
@@ -347,4 +350,32 @@ res_ZIP.sum %>%
   geom_point(size = 5, aes(color = Category)) +
   geom_errorbar(aes(ymin = Mean - SEM, ymax = Mean + SEM), width = 0.1)
 
+
+
+
+
+# Heatmap for Tanara ------------------------------------------------------
+
+
+
+
+
+drug = 'Fluorouracil'
+data %>% filter(Drug == drug) %>% 
+  ggplot(aes(x = Micit, y = Drug_conc, fill = Viability)) +
+  geom_tile() +
+  scale_fill_gradient(name = "Viability",
+                      low = "#FFFFFF",
+                      high = "#FA7235") +
+  # ggtitle(label = drug) +
+  labs(x = 'Metabolite (mM)',
+       y = '5-FU (A.U.)') +
+  theme(strip.placement = "outside",
+        plot.title = element_text(hjust = 0.5)) +
+  theme(axis.text.x = element_text(size = 13, color = 'black'),
+        axis.text.y = element_text(size = 13, color = 'black'),
+        axis.title.x = element_text(face = "bold", size = 13, color = 'black'),
+        axis.title.y = element_text(face = "bold", size = 13, color = 'black'))
+
+ggsave(here('exploration', 'micit_heatmap_conference.pdf'), height = 8, width = 9)
 
