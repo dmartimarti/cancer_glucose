@@ -748,7 +748,7 @@ write.xlsx(list_of_tables, here('summary','Protein_sets.xlsx'))
 
 
 # plot examples of genes
-gene = c('MYC')
+gene = c('TYMS')
 data_long %>% filter(Gene_names %in%  gene) %>% 
   mutate(Sample = factor(Sample, levels = c('Control', 
                                             '5FU',
@@ -2095,33 +2095,60 @@ dev.copy2pdf(device = cairo_pdf,
 
 
 
-
-# Random Forests ----------------------------------------------------------
-
-library(tidymodels)
-
-
-rf_data = data_long %>% 
-  select(Gene_names, Sample, Intensity, KEGG_name, mol_weight) %>% 
-  separate_rows(KEGG_name, sep=';') %>% 
-  filter(!(Gene_names %in% removals)) %>% 
-  filter(Gene_names %in% prots_sig) %>% 
-  arrange(Gene_names) %>% 
-  filter(KEGG_name %in%  kegg_select)
-
-data_rec = recipe(Sample ~ ., data = rf_data) %>%
-  # update_role(Gene_names, new_role = "ID") %>%
-  step_dummy(all_nominal(), -all_outcomes())
-
-data_prep = prep(data_rec)
-juiced = juice(data_prep)
-
-data_ranger =  rand_forest(trees = 100, mode = "classification") %>%
-  set_engine("randomForest") %>%
-  fit(Sample ~ ., data = juiced)
-
-data_ranger$lvl
+# Tanara's presentation ---------------------------------------------------
 
 
 
+# plot examples of genes
+gene = c('TYMS')
+data_long %>% filter(Gene_names %in%  gene) %>% 
+  mutate(Sample = factor(Sample, levels = c('Control', 
+                                            '5FU',
+                                            '1mM_Micit',
+                                            '10mM_Micit',
+                                            '5FU_1mM_Micit', 
+                                            '5FU_10mM_Micit'))) %>% 
+  ggplot(aes(x = Sample, y = Intensity, fill = Sample)) +
+  geom_boxplot(outlier.shape = NA) +
+  geom_point(position = position_jitterdodge()) +
+  # facet_wrap(~Gene_names) +
+  labs(y = 'Protein expression (log2)',
+       x = 'Condition') +
+  scale_x_discrete(labels = c("5FU" = "5-FU",
+                              "1mM_Micit" = "1mM",
+                              "10mM_Micit" = "10mM",
+                              "5FU_1mM_Micit" = "1mM",
+                              "5FU_10mM_Micit" = "10mM")) +
+  geom_vline(xintercept = 1.5, linetype="dashed", color = 'grey60') +
+  annotate("text", x = 2, y = 29.7, label = 'atop(bold("5-FU"))', size = 7,
+           color = 'orange', parse = T) +
+  geom_vline(xintercept = 2.5, linetype="dashed", color = 'grey60') +
+  geom_vline(xintercept = 4.5, linetype="dashed", color = 'grey60') +
+  annotate("text", x = 3.5, y = 29.7, label = 'atop(bold("Metabolite"))', size = 7, 
+           color = 'blue', parse = T) +
+  geom_vline(xintercept = 4.5, linetype="dashed", color = 'grey60') +
+  annotate("text", x = 5.5, y = 29.7, label = 'atop(bold("Metabolite"))', size = 7, 
+           color = 'blue', parse = T) +
+  annotate("text", x = 5.5, y = 29.57, label = 'atop(bold(" + 5-FU"))', size = 7, 
+           color = 'orange', parse = T) +
+  scale_fill_manual(
+    values = c('grey60',
+               '#F5EB44',
+               '#87CFFF',
+               '#2733FF',
+               '#8DEB99',
+               '#00C91B'), 
+    labels = c('Control',
+               '5-FU',
+               '1mM',
+               '10mM',
+               '1mM + 5-FU',
+               '10mM + 5-FU')) +
+  theme(axis.text.x = element_text(hjust = 0.5)) +
+  theme(axis.text.x = element_text(size=15, color = 'black'),
+        axis.text.y = element_text(size=15, color = 'black'),
+        axis.title.x = element_text(size=14, face="bold"),
+        axis.title.y = element_text(size=14, face="bold"))
+
+ggsave(here('presentation','TYMS_boxplot.pdf'), height = 8, width = 10)
 
