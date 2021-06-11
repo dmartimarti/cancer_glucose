@@ -2097,7 +2097,7 @@ dev.copy2pdf(device = cairo_pdf,
 
 # Tanara's presentation ---------------------------------------------------
 
-
+### TYMS plot ####
 
 # plot examples of genes
 gene = c('TYMS')
@@ -2151,4 +2151,266 @@ data_long %>% filter(Gene_names %in%  gene) %>%
         axis.title.y = element_text(size=14, face="bold"))
 
 ggsave(here('presentation','TYMS_boxplot.pdf'), height = 8, width = 10)
+
+
+
+
+### heatmaps ####
+# this code is a repetition of the above code
+
+heat_pres = heat_mat
+# colnames(heat_pres) = c('10mM Metabolite', "1mM Metabolite", '5-FU',
+#                         '5FU + 10mM Metabolite', '5FU + 1mM Metabolite', 
+#                         'Control')
+
+# simpler names
+colnames(heat_pres) = c('10mM', "1mM", '5-FU',
+                        '5FU +\n10mM', '5FU +\n1mM', 
+                        'Control')
+
+
+heat_pres = heat_pres[,c(6,3,2,1,5,4)]
+
+ha = HeatmapAnnotation(
+  Samples = c('Control','5-FU', "Metabolite" ,'Metabolite',  
+              '5FU + Metabolite', '5FU + Metabolite'),
+  col = list(Samples = c("Control" = "grey60", 
+                         '5-FU' = 'red',
+                         "Metabolite" = "orange", 
+                         "5FU + Metabolite" = "blue")
+                       ),
+                       border = TRUE)
+
+
+
+# cell cycle
+Heatmap(heat_pres[1:76,], 
+                  name = "Z-score",
+                  show_row_names = FALSE,
+                  row_names_gp = gpar(fontsize = 4),
+                  column_names_rot =0, 
+                  cluster_columns = F,
+                  column_names_side = "top",
+                  column_names_gp = gpar(fontsize = 7),
+        column_names_centered = TRUE,
+             top_annotation = HeatmapAnnotation( 
+               Samples = c('Control','5-FU', "Metabolite" ,'Metabolite',  
+                           '5FU + Metabolite', '5FU + Metabolite'),
+               col = list(Samples = c("Control" = "grey60", 
+                                      '5-FU' = 'red',
+                                      "Metabolite" = "orange", 
+                                      "5FU + Metabolite" = "blue")
+               ),border = TRUE,
+               show_legend = FALSE
+               )
+        )
+
+
+
+dev.copy2pdf(device = cairo_pdf,
+             file = here('presentation', 'heatmap_cell_cycle.pdf'),
+             width = 5, height = 5, useDingbats = FALSE)
+
+# TCA cycle
+Heatmap(heat_pres[77:103,], 
+                 name = "Z-score",
+        column_names_centered = TRUE,
+                 show_row_names = FALSE,
+                 row_names_gp = gpar(fontsize = 4),
+                cluster_columns = F,
+                column_names_rot =0, 
+                 column_names_side = "top",
+                 column_names_gp = gpar(fontsize = 7),
+        top_annotation = HeatmapAnnotation( 
+          Samples = c('Control','5-FU', "Metabolite" ,'Metabolite',  
+                      '5FU + Metabolite', '5FU + Metabolite'),
+          col = list(Samples = c("Control" = "grey60", 
+                                 '5-FU' = 'red',
+                                 "Metabolite" = "orange", 
+                                 "5FU + Metabolite" = "blue")
+          ),border = TRUE,
+          show_legend = FALSE
+        )
+        )
+
+dev.copy2pdf(device = cairo_pdf,
+             file = here('presentation', 'heatmap_TCA.pdf'),
+             width = 5, height = 5, useDingbats = FALSE)
+
+
+# mTOR pathway
+Heatmap(heat_pres[362:379,], 
+                  name = "Z-score",
+                  show_row_names = FALSE,
+        cluster_columns = F,
+                  row_names_gp = gpar(fontsize = 4),
+                  column_names_rot =0, 
+                  column_names_side = "top",
+                  column_names_gp = gpar(fontsize = 7),
+        column_names_centered = TRUE,
+        top_annotation = HeatmapAnnotation( 
+          Samples = c('Control','5-FU', "Metabolite" ,'Metabolite',  
+                      '5FU + Metabolite', '5FU + Metabolite'),
+          col = list(Samples = c("Control" = "grey60", 
+                                 '5-FU' = 'red',
+                                 "Metabolite" = "orange", 
+                                 "5FU + Metabolite" = "blue")
+          ),border = TRUE,
+          show_legend = FALSE
+        )
+        )
+
+dev.copy2pdf(device = cairo_pdf,
+             file = here('presentation', 'heatmap_mTOR.pdf'),
+             width = 5, height = 5, useDingbats = FALSE)
+
+
+
+# p53
+Heatmap(heat_pres[380:405,], 
+                 name = "Z-score",
+                 show_row_names = FALSE,
+                 row_names_gp = gpar(fontsize = 4),
+                column_names_rot =0, 
+                 column_names_side = "top",
+                 column_names_gp = gpar(fontsize = 7),
+        cluster_columns = F,
+        column_names_centered = TRUE,
+        top_annotation = HeatmapAnnotation( 
+          Samples = c('Control','5-FU', "Metabolite" ,'Metabolite',  
+                      '5FU + Metabolite', '5FU + Metabolite'),
+          col = list(Samples = c("Control" = "grey60", 
+                                 '5-FU' = 'red',
+                                 "Metabolite" = "orange", 
+                                 "5FU + Metabolite" = "blue")
+          ),border = TRUE,
+          show_legend = FALSE
+        )
+        )
+
+dev.copy2pdf(device = cairo_pdf,
+             file = here('presentation', 'heatmap_p53.pdf'),
+             width = 5, height = 5, useDingbats = FALSE)
+
+
+
+# purine
+Heatmap(heat_pres[406:487,], 
+                    name = "Z-score",
+                    show_row_names = FALSE,
+                    row_names_gp = gpar(fontsize = 4),
+                   column_names_rot =0, 
+                    column_names_side = "top",
+                    column_names_gp = gpar(fontsize = 7),
+        cluster_columns = F,
+        column_names_centered = TRUE,
+        top_annotation = HeatmapAnnotation( 
+          Samples = c('Control','5-FU', "Metabolite" ,'Metabolite',  
+                      '5FU + Metabolite', '5FU + Metabolite'),
+          col = list(Samples = c("Control" = "grey60", 
+                                 '5-FU' = 'red',
+                                 "Metabolite" = "orange", 
+                                 "5FU + Metabolite" = "blue")
+          ),border = TRUE,
+          show_legend = FALSE
+        )
+        )
+
+
+dev.copy2pdf(device = cairo_pdf,
+             file = here('presentation', 'heatmap_purine.pdf'),
+             width = 5, height = 5, useDingbats = FALSE)
+
+
+
+
+
+# pyrimidine
+Heatmap(heat_pres[488:555,], 
+                 name = "Z-score",
+                 show_row_names = FALSE,
+                 row_names_gp = gpar(fontsize = 4),
+                 column_names_rot =0, 
+                 column_names_side = "top",
+                 column_names_gp = gpar(fontsize = 7),
+        cluster_columns = F,
+        column_names_centered = TRUE,
+        top_annotation = HeatmapAnnotation( 
+          Samples = c('Control','5-FU', "Metabolite" ,'Metabolite',  
+                      '5FU + Metabolite', '5FU + Metabolite'),
+          col = list(Samples = c("Control" = "grey60", 
+                                 '5-FU' = 'red',
+                                 "Metabolite" = "orange", 
+                                 "5FU + Metabolite" = "blue")
+          ),border = TRUE,
+          show_legend = FALSE
+        )
+        )
+
+dev.copy2pdf(device = cairo_pdf,
+             file = here('presentation', 'heatmap_pyrimidines.pdf'),
+             width = 5, height = 5, useDingbats = FALSE)
+
+
+
+# ribosome
+Heatmap(heat_pres[556:635,], 
+                       name = "Z-score",
+                       show_row_names = FALSE,
+                       row_names_gp = gpar(fontsize = 4),
+                       column_names_rot =0, 
+                       column_names_side = "top",
+                       column_names_gp = gpar(fontsize = 7),
+        cluster_columns = F,
+        column_names_centered = TRUE,
+        top_annotation = HeatmapAnnotation( 
+          Samples = c('Control','5-FU', "Metabolite" ,'Metabolite',  
+                      '5FU + Metabolite', '5FU + Metabolite'),
+          col = list(Samples = c("Control" = "grey60", 
+                                 '5-FU' = 'red',
+                                 "Metabolite" = "orange", 
+                                 "5FU + Metabolite" = "blue")
+          ),border = TRUE,
+          show_legend = FALSE
+        )
+        )
+
+dev.copy2pdf(device = cairo_pdf,
+             file = here('presentation', 'heatmap_ribosome.pdf'),
+             width = 5, height = 5, useDingbats = FALSE)
+
+
+
+
+# RNA transport
+Heatmap(heat_mat[636:757,], 
+                          name = "Z-score",
+                          show_row_names = FALSE,
+                          row_names_gp = gpar(fontsize = 4),
+                          column_names_rot =0, 
+                          column_names_side = "top",
+                          column_names_gp = gpar(fontsize = 7),
+                          cluster_columns = F,
+                          column_names_centered = TRUE,
+                          top_annotation = HeatmapAnnotation( 
+                            Samples = c('Control','5-FU', "Metabolite" ,'Metabolite',  
+                                        '5FU + Metabolite', '5FU + Metabolite'),
+                            col = list(Samples = c("Control" = "grey60", 
+                                                   '5-FU' = 'red',
+                                                   "Metabolite" = "orange", 
+                                                   "5FU + Metabolite" = "blue")
+                            ),border = TRUE,
+                            show_legend = FALSE
+                          ))
+
+
+dev.copy2pdf(device = cairo_pdf,
+             file = here('presentation', 'heatmap_rna_transport.pdf'),
+             width = 5, height = 5, useDingbats = FALSE)
+
+
+
+
+
+
 
