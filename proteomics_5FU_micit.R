@@ -112,6 +112,15 @@ data_long %>%
   write_csv(here('summary','data_long.csv'))
 
 
+
+
+data_long %>% 
+  select(Gene_names, KEGG_name, GOBP_name, GOMF_name, GOCC_name) %>% 
+  distinct(Gene_names,.keep_all = T) %>% 
+  separate_rows(KEGG_name, sep = ';') %>% 
+  write_csv(here('summary', 'protein_categories.csv'))
+
+
 # UpSet general -----------------------------------------------------------
 
 library(UpSetR)
@@ -2410,6 +2419,304 @@ dev.copy2pdf(device = cairo_pdf,
 
 
 
+
+# THE heatmap -------------------------------------------------------------
+
+
+
+# Let's extract the most significant genes from the main enriched/significant
+# pathways: TCA, ribosome, pyrimidine, purine, p53, mTOR
+
+# folate
+gene = c("MOCS2","FPGS","GGH","DHFR","DHFR","QDPR","SHMT1","SPR",
+                "TYMS","MTHFD1L","MTHFD2","ATIC","MTHFD1","GART","SHMT2")
+
+# pyrimidine
+pyrimidine_gene = c("CDA","POLR3G","POLE4","POLR3H","UCKL1","POLR3E","POLR3B","POLD3",
+         "POLR3A","POLE2","POLR2J;POLR2J3;POLR2J2","NME7","TYMP","POLR3F",
+         "CANT1","POLR2L","RRM2B","ZNRD1","DCTD","TXNRD2","POLR3C","POLR2G",
+         "POLR2K","POLR3D","NT5E","POLA2","NME3","NT5C","NT5C3A","DCK","POLR2I",
+         "POLR2D","POLA1","UCK2","NT5C2","NUDT2","POLD2","DHODH","PRIM1","POLE3",
+         "POLE","PRIM2","AK3","ITPA","DTYMK","POLR2C","POLR1E","POLR1C","POLR1B",
+         "CMPK1","POLD1","POLR2H","POLR2E","UMPS","PNPT1","POLR1A","TYMS","DUT",
+         "POLR2B","TXNRD1","POLR2A","TK1","CTPS1","PNP","RRM1","RRM2","CAD",
+         "NME1","NME2;NME2P1")
+
+gene = statsR %>% 
+  filter(Gene_names %in% pyrimidine_gene, 
+         Reference == 'Control',
+         FDR < 0.05) %>% 
+  filter(Target == '5FU_10mM_Micit') %>% 
+  pull(Gene_names)
+
+# purine
+pur_gene = c("POLR3G","POLE4","GMPR","POLR3H","DGUOK","POLR3E","POLR3B","NTPCR",
+             "POLD3","POLR3A","POLE2","POLR2J;POLR2J3;POLR2J2","GUK1","NME7",
+             "POLR3F","CANT1","AMPD2","PAPSS2","POLR2L","RRM2B","ZNRD1","POLR3C",
+             "POLR2G","POLR2K","POLR3D","NT5E","POLA2","NME3","NT5C","NUDT9",
+             "NT5C3A","DCK","GMPR2","POLR2I","POLR2D","POLA1","NT5C2","NUDT2",
+             "POLD2","PRIM1","POLE3","POLE","AK1","PRIM2","PGM1","ITPA","IMPDH1",
+             "PRPS1","POLR2C","POLR1E","GDA","ADK","PGM2","POLR1C","ADSS","POLR1B",
+             "POLD1","AK4","POLR2H","POLR2E","PNPT1","PPAT","APRT","POLR1A","ADSL",
+             "PAPSS1","HPRT1","PFAS","NUDT5","POLR2B","POLR2A","PNP","PRPS2",
+             "RRM1","RRM2","AK2","GMPS","ATIC","GART","PAICS","NME1","IMPDH2",
+             "NME2;NME2P1","PKM")
+
+gene = statsR %>% 
+  filter(Gene_names %in% pur_gene, 
+         Reference == 'Control',
+         FDR < 0.05) %>% 
+  pull(Gene_names)
+
+
+
+# ribosome genes
+
+ribo_gene = c("RPL26L1","RSL24D1","UBA52","RPS27","RPS29","RPL38","RPL39P5;RPL39",
+              "RPL22L1","RPL29","RPS27L","RPL36AL","RPS21","RPS15","RPL22",
+              "RPS15A","MRPL13","RPL14","RPL35","RPS25","RPS262;RPS26P11",
+              "RPL19","RPS20","RPL34","RPL36","RPLP1","RPS24","RPL13A","RPL37A",
+              "RPL27A","RPS17","RPL11","RPL31","RPS23","RPL9","RPS5","RPL24",
+              "RPL35A","RPS28","RPL26","RPS10","RPS13","RPL23A","RPL21","RPL32",
+              "RPL30","RPS14","RPL18A","RPS12","RPL8","RPL27","RPL23","RPL18",
+              "RPL28","RPS19","RPS6","RPS18","RPS16","RPL12","RPL10","RPL17",
+              "RPL15","RPL10A","RPS11","RPL7","RPS7","RPL13","RPL7A",
+              "RPLP0;RPLP0P6","RPS2","RPS9","RPL5","RPS27A;UBB;UBC",
+              "RPLP2","RPS8","RPS3A","RPS3","RPS4X","RPL6","RPSA","RPL3","RPL4")
+
+
+gene = statsR %>% 
+  filter(Gene_names %in% ribo_gene, 
+         Reference == 'Control',
+         FDR < 0.05) %>% 
+  pull(Gene_names)
+
+
+
+# p53
+p53_gene = c("MDM4","TP53","ATR","TP53I3","FAS","CHEK2","CASP3","EI24","CDKN1A",
+             "CHEK1","CCND1","CCNB2","RRM2B","BAX","DDB2","CDK4","GTSE1","CDK6",
+             "CASP8","BID","CCNB1","SERPINB5","CDK2","RRM2","CDK1","CYCS","SFN")
+
+
+gene = statsR %>% 
+  filter(Gene_names %in% p53_gene, 
+         # Reference == 'Control',
+         FDR < 0.05) %>% 
+  pull(Gene_names)
+
+
+
+
+## TCA
+tca_genes = c("SDHC","PC","PCK2","PDHX","IDH2","ACO1","IDH1","IDH3G","SUCLG1",
+              "SUCLA2","SUCLG2","SDHB","DLST","IDH3B","OGDH","PDHB","DLAT",
+              "PDHA1","ACO2","SDHA","IDH3A","MDH1","FH","DLD","ACLY","CS","MDH2")
+
+gene = statsR %>% 
+  filter(Gene_names %in% tca_genes, 
+         # Reference == 'Control',
+         FDR < 0.05) %>% 
+  pull(Gene_names)
+
+
+# gene = c('PPAT')
+
+data_long %>% filter(Gene_names %in%  gene) %>% 
+  filter(Sample %in% c('Control', '5FU', '10mM_Micit', '5FU_10mM_Micit')) %>% 
+  mutate(Sample = factor(Sample, levels = c('Control', 
+                                            '5FU',
+                                            # '1mM_Micit',
+                                            '10mM_Micit',
+                                            # '5FU_1mM_Micit', 
+                                            '5FU_10mM_Micit'))) %>% 
+  # filter(Sample != 'Control') %>% 
+  ggplot(aes(x = Sample, y = Intensity, fill = Sample)) +
+  geom_boxplot() +
+  geom_point(position = position_jitterdodge()) +
+  # labs(title = gene) +
+  facet_wrap(~Gene_names, scales= 'free_y') +
+  theme(axis.text.x = element_text(hjust = 1, angle=45))
+
+
+
+# final gene list
+gene = c(# folate
+         'GART', 'MTHFD1', 'MTHFD1L', 'MTHFD1', 'SPR', 'DHFR','FPGS','TYMS',
+         # pyrimidine
+         'CAD','NME1','NME2;NME2P1','PNP','NT5C','POLE3','POLR1A','POLR1B',
+         'POLR2B','POLR2D','POLR2G','POLR2H','PRIM1','RRM1','RRM2','UCK2','TK1','UMPS','TYMS',
+         # purine
+        'ATIC','GART','ADSS','GMPS','IMPDH1','PAICS','PFAS','POLA1','PPAT','PRIM1','PRPS2',
+         # ribosome
+         'RPL10','RPL11','RPL13','RPS14','RPS13','RPS10',
+         # p53
+         'TP53','CDKN1A','CYCS','DDB2','FAS','RRM2', 'SFN', 'SERPINB5','CCNB2','CDK2',
+         # TCA
+         'DLD','MDH2','IDH2','PC','SUCLG1','SUCLG2','PCK2'
+         )
+
+
+
+
+### Simple heatmap ####
+
+conference_heat = heat_mat_all[unique(gene),]
+
+# simpler names
+colnames(conference_heat) = c('10mM', "1mM", '5-FU',
+                        '5FU +\n10mM', '5FU +\n1mM', 
+                        'Control')
+
+conference_heat = conference_heat[,c(6,3,2,1,5,4)]
+
+conference_heat
+
+Heatmap(conference_heat[,c(1,2,4,6)],
+        show_heatmap_legend = F,
+        # name = "z-score",
+        row_names_gp = gpar(fontsize = 5),
+        column_names_rot =0, 
+        column_names_side = "top",
+        column_names_gp = gpar(fontsize = 4),
+        column_names_centered = TRUE,
+        top_annotation = HeatmapAnnotation(
+          Samples = c('Control','5-FU', 'Metabolite',
+                      '5FU + Metabolite'),
+          col = list(Samples = c("Control" = "grey60",
+                                 '5-FU' = 'red',
+                                 "Metabolite" = "orange",
+                                 "5FU + Metabolite" = "blue")
+          ),border = TRUE,
+          show_legend = FALSE),
+        cluster_columns = F
+        
+        )
+
+
+
+
+
+
+
+
+
+
+### category selection genes ####
+
+
+folate = c('GART', 'MTHFD1', 'MTHFD1L', 'MTHFD1', 'SPR', 'DHFR','FPGS','TYMS')
+pyr = c('CAD','NME1','NME2;NME2P1','PNP','NT5C','POLE3','POLR1A','POLR1B',
+        'POLR2B','POLR2D','POLR2G','POLR2H','PRIM1','RRM1','RRM2','UCK2','TK1','UMPS','TYMS')
+pur = c('ATIC','GART','ADSS','GMPS','IMPDH1','PAICS','PFAS','POLA1','PPAT','PRIM1','PRPS2')
+rib = c('RPL10','RPL11','RPL13','RPS14','RPS13','RPS10')
+p53 = c('TP53','CDKN1A','CYCS','DDB2','FAS','RRM2', 'SFN', 'SERPINB5','CCNB2','CDK2')
+tca = c('DLD','MDH2','IDH2','PC','SUCLG1','SUCLG2','PCK2')
+
+## helping functions
+
+heat_mat_gen = function(mat=heat_mat_all,genes) {
+  temp_mat = mat[genes,]
+  colnames(temp_mat) = c('10mM', "1mM", '5-FU',
+                         '5FU +\n10mM', '5FU +\n1mM', 
+                         'Control')
+  temp_mat = temp_mat[,c(6,3,2,1,5,4)]
+  return(temp_mat)
+}
+
+draw_HT_with_top = function(temp_mat = temp_mat, pathway) {
+  Heatmap(temp_mat[,c(1,2,4,6)], 
+          # name = "Z-score",
+          show_heatmap_legend = F,
+          row_names_gp = gpar(fontsize = 6),
+          column_names_rot =0, 
+          column_names_side = "top",
+          cluster_columns = F,
+          # annotations
+          top_annotation = HeatmapAnnotation(
+            Samples = c('Control','5-FU', 'Metabolite',
+                        '5FU + Metabolite'),
+            col = list(Samples = c("Control" = "grey60",
+                                   '5-FU' = 'red',
+                                   "Metabolite" = "orange",
+                                   "5FU + Metabolite" = "blue")
+            ),border = TRUE,
+            show_legend = FALSE),
+          right_annotation = rowAnnotation(
+            Pathway = rep(pathway,dim(temp_mat)[1]),
+            show_annotation_name = F),
+          column_names_gp = gpar(fontsize = 7))
+  
+}
+
+draw_HT = function(temp_mat = temp_mat, pathway) {
+ Heatmap(temp_mat[,c(1,2,4,6)], 
+          # name = "Z-score",
+         show_heatmap_legend = F,
+          row_names_gp = gpar(fontsize = 6),
+          column_names_rot =0, 
+          column_names_side = "top",
+          cluster_columns = F,
+          # annotations
+         right_annotation = rowAnnotation(
+            Pathway = rep(pathway,dim(temp_mat)[1]),
+            show_annotation_name = F),
+          column_names_gp = gpar(fontsize = 7))
+  
+}
+
+
+
+
+
+# draw individual heatmaps
+# folate
+temp_mat = heat_mat_gen(genes = folate)
+fol_ht = draw_HT_with_top(temp_mat , pathway = 'Folate')
+
+# pyrimidines
+temp_mat = heat_mat_gen(genes = pyr)
+pyr_ht = draw_HT(temp_mat , pathway = 'Pyrimidines')
+
+# purines
+temp_mat = heat_mat_gen(genes = pur)
+pur_ht = draw_HT(temp_mat , pathway = 'Purines')
+
+# ribosome
+temp_mat = heat_mat_gen(genes = rib)
+rib_ht = draw_HT(temp_mat , pathway = 'Ribosome')
+
+# p53
+temp_mat = heat_mat_gen(genes = p53)
+p53_ht = draw_HT(temp_mat , pathway = 'p53')
+
+# tca
+temp_mat = heat_mat_gen(genes = tca)
+tca_ht = draw_HT(temp_mat , pathway = 'TCA cycle')
+
+
+pathways = c('Folate', 'Pyrimidines','Purines','Ribosome','p53','TCA cycle')
+
+ht_list = fol_ht %v% pyr_ht %v% pur_ht %v% 
+  rib_ht %v% p53_ht %v% tca_ht 
+
+lgd = Legend(labels = pathways, title = "", 
+             legend_gp = gpar(fill = 1:6),
+             grid_height = unit(0, "cm"), grid_width = unit(0, "mm"),
+             labels_gp = gpar(col = "white", fontsize = 0))
+
+col_fun = circlize::colorRamp2(c(-2, 0, 2), c("blue", "white", "red"))
+zlgd = Legend(col_fun = col_fun, title = "Z-score")
+
+pd = packLegend(lgd, zlgd)
+
+draw(ht_list, annotation_legend_list = pd, annotation_legend_side = "right") 
+
+
+
+dev.copy2pdf(device = cairo_pdf,
+             file = here('presentation', 'heatmap_KEGG.pdf'),
+             width = 6, height = 8, useDingbats = FALSE)
 
 
 
