@@ -46,111 +46,23 @@ for (name in unique(worm.sum$Strain)){
 # select only one experiment and strain
 # contrasts and other main variables of this part
 
-# pyrE --------------------------------------------------------------------
-
-
-strain = 'pyrE'
-experiment = "T5"
-
-
-str_C = paste(strain, '_C', sep = '')
-str_T = paste(strain, '_T', sep = '')
-str_CT = paste(strain, '_5FU', sep = '')
-alln = paste(strain, '_5FU_Alln', sep = '')
-adjs = paste(strain, '_5FU_adj', sep = '')
-
-
-# for example, to mimic Pov's code
-worm.sum %>% filter(Experiment == experiment, Strain == strain)
-
-worm.old = worm.sum %>%
-  filter(Experiment == experiment & Strain == strain) %>% 
-  ungroup %>%
-  mutate(Description = 'C. elegans development at 5uM 5-FU',
-         Contrast = 'Ce_Dev5',   # C. elegans developement with 5FU
-         Contrast_type = 'Treatment',
-         FDR = NA) %>%
-  select(Description, Contrast, Contrast_type, Plate, Well, logFC = Median, SE = SD, FDR)
-
-# check that we filtered stuff properly
-worm.old %>%
-  group_by(Plate) %>%
-  summarise(N = n())
-
-
-# Join bacterial and worm results (change contrasts)
-jointresults = allresults$results %>%
-  filter((Contrast %in% c(str_C, str_T, str_CT, alln))) %>%
-  mutate(Contrast = fct_recode(Contrast, adjs = alln)) %>% 
-  select(Description, Contrast, Contrast_type, Plate, Well, logFC, SE, FDR) %>%
-  bind_rows(worm.old) %>%
-  left_join(info) %>%
-  select(Description:Well,Index:KEGG_ID,logFC:FDR)
-
-
-jointcast = jointresults %>%
-  select(Contrast, Plate, Well, Index, Metabolite, MetaboliteU, EcoCycID, KEGG_ID, logFC, SE, FDR) %>%
-  gather(Stat, Value, logFC, SE, FDR) %>%
-  unite(CS, Contrast, Stat) %>%
-  spread(CS, Value) %>%
-  rename(Ce_Dev5_Median = Ce_Dev5_logFC, Ce_Dev5_SD = Ce_Dev5_SE) %>%
-  select(-Ce_Dev5_FDR)
-
-
-# write.csv(jointresults,paste(odir,'/Ecoli_results_All_As_old_screen.csv', sep = ''),row.names = FALSE)
-# write.csv(jointcast,paste(odir,'/Ecoli_results_sidebyside_As_old_screen.csv', sep = ''),row.names = FALSE)
-
-
-# Multiplex 
-jointresults.multi = multiplex(jointresults,c("Plate","Well","Index","Metabolite","MetaboliteU","EcoCycID","KEGG_ID"))
-jointresults.multi2 = multiplex(jointresults,c("Plate","Well","Index","Metabolite","MetaboliteU","EcoCycID","KEGG_ID"),2)
-
-
-
-
-########################
-NGMa = adjustments[adjustments$Contrast == alln, ]$a
-NGMb = adjustments[adjustments$Contrast == alln, ]$b
-r2 = adjustments[adjustments$Contrast == alln, ]$r2
-
-sr = sqrt((1-r2)/(379-2))
-
-gradcolours = c('#71B83B','yellow','orange','red')
-
-
-
-
-total = jointresults.multi %>%
-  filter(x_Contrast == str_C & y_Contrast == str_T & z_Contrast == 'Ce_Dev5')
-
-total = total %>% 
-  mutate(score = (abs(y_logFC - (x_logFC-NGMa))*z_logFC),
-         score2 = abs(y_logFC - (x_logFC-NGMa))) %>% 
-  arrange(score) %>% 
-  mutate(Index = factor(Index, levels = Index)) %>% 
-  drop_na(z_logFC)
-
-pyrE.scores = total %>% 
-  select(Plate, Well, MetaboliteU, x_Contrast, z_logFC, score, score2)
-
-
-pyrE.plot = total %>% 
-  ggplot(aes(x = reorder(MetaboliteU, score), y = score)) +
-  geom_point(aes(colour = z_logFC, size = z_logFC)) +
-  geom_hline(aes(yintercept = 1), alpha = 0.9, color = 'grey') +
-  scale_colour_gradientn(colours = gradcolours,
-                         breaks = c(1,2,3,4), limits = c(1,4), 
-                         guide = "legend", name = 'C. elegans\nphenotype') +
-  geom_text_repel(aes(x = MetaboliteU, y = score, label = ifelse(z_logFC >= 4, MetaboliteU, '')), 
-                  box.padding = unit(0.6, "lines"), segment.alpha = 0.4) + 
-  labs(x = 'Metabolite',
-       y = 'Composed score') +
-  coord_cartesian(xlim = c(0,400)) +
-  scale_size(guide=FALSE) +
-  theme_classic() +
-  theme(axis.title.x=element_blank(),
-        axis.text.x=element_blank(),
-        axis.ticks.x=element_blank()) 
+# specify labels to plot 
+labels_4way = c("Uracil_N","Cytidine_N","Uridine_N","Cytidine-3'-monophosphate",
+                "Cytidine- 2',3'-cyclic monophosphate","Uridine-3'-monophosphate",
+                "Uridine-2',3'-cyclic-monophosphate","Cytidine-2'-monophosphate",
+                "Cytidine-5'-monophosphate","Uridine-2'-monophosphate",
+                "Uridine-5'-monophosphate","Thymidine","Uridine","D-Galactose",
+                "Glycerol","D-Sorbitol","D-Trehalose","Dulcitol",
+                "Maltose","D-Mannose")
+# specify nucleotide labels
+labels_nuc = c("Uracil_N","Cytidine_N","Uridine_N","Cytidine-3'-monophosphate",
+               "Cytidine- 2',3'-cyclic monophosphate","Uridine-3'-monophosphate",
+               "Uridine-2',3'-cyclic-monophosphate","Cytidine-2'-monophosphate",
+               "Cytidine-5'-monophosphate","Uridine-2'-monophosphate",
+               "Uridine-5'-monophosphate","Thymidine","Uridine")
+# specify sugar labels
+labels_sug = c("D-Galactose","Glycerol","D-Sorbitol",
+               "D-Trehalose","Dulcitol","Maltose","D-Mannose")
 
 
 
@@ -241,28 +153,205 @@ total = total %>%
   mutate(Index = factor(Index, levels = Index)) %>% 
   drop_na(z_logFC)
 
+total = total %>% 
+  mutate(new_labels = case_when(MetaboliteU %in% labels_4way ~ MetaboliteU,
+                                TRUE ~ ''),
+         label_size = case_when(z_logFC == 4 ~ 3,
+                                TRUE ~ 2),
+         label_color = case_when(MetaboliteU %in% labels_nuc ~ 'Nucleotide',
+                                 MetaboliteU %in%  labels_sug ~ 'Sugars',
+                                 TRUE ~ '')
+  ) 
+
+
 BW.scores = total %>% 
   select(Plate, Well, MetaboliteU, x_Contrast, z_logFC, score, score2)
 
 
-
+### BW plot ####
 BW.plot = total %>% 
   ggplot(aes(x = reorder(MetaboliteU, score), y = score)) +
-  geom_point(aes(colour = z_logFC, size = z_logFC)) +
+  geom_point(aes(fill = z_logFC, size = z_logFC),pch=21) +
   geom_hline(aes(yintercept = 1), alpha = 0.9, color = 'grey') +
-  scale_colour_gradientn(colours = gradcolours,
-                         breaks = c(1,2,3,4), limits = c(1,4), 
-                         guide = "legend", name = 'C. elegans\nphenotype') +
-  geom_text_repel(aes(x = MetaboliteU, y = score, label = ifelse(z_logFC >= 4, MetaboliteU, '')), 
-                  box.padding = unit(0.6, "lines"), segment.alpha = 0.4) + 
+  scale_fill_gradientn(colours = gradcolours,
+                       breaks = c(1,2,3,4), limits = c(1,4), 
+                       guide = "legend", name = 'C. elegans\nphenotype') +
+  scale_color_manual(values = c('black',
+                                '#C70B00', # nucleotides 
+                                '#310CB3' # sugars
+  )) +
+  geom_text_repel(aes(x = MetaboliteU, y = score, 
+                      label= new_labels,
+                      size = label_size,
+                      color = factor(label_color)),
+                  box.padding = unit(0.6, 'lines'),
+                  segment.alpha = 0.4,
+                  max.overlaps = 50) +
+  # geom_text_repel(aes(x = MetaboliteU, y = score, label = ifelse(z_logFC >= 4, MetaboliteU, '')), 
+  #                 box.padding = unit(0.6, "lines"), segment.alpha = 0.4) + 
   labs(x = 'Metabolite',
-       y = 'Composed score') +
+       y = 'Composed score',
+       title = 'BW25113 - Wild type') +
   coord_cartesian(xlim = c(0,400)) +
+  # ylim(0, 15) +
   scale_size(guide=FALSE) +
   theme_classic() +
   theme(axis.title.x=element_blank(),
+        axis.title.y=element_blank(),
         axis.text.x=element_blank(),
-        axis.ticks.x=element_blank()) 
+        axis.ticks.x=element_blank(),
+        plot.title = element_text(size=18),
+        legend.text = element_text(size=18)
+        ) +
+  guides(color = FALSE,fill = guide_legend(override.aes = list(size=8)))
+
+
+
+
+
+
+
+# pyrE --------------------------------------------------------------------
+
+
+strain = 'pyrE'
+experiment = "T5"
+
+
+str_C = paste(strain, '_C', sep = '')
+str_T = paste(strain, '_T', sep = '')
+str_CT = paste(strain, '_5FU', sep = '')
+alln = paste(strain, '_5FU_Alln', sep = '')
+adjs = paste(strain, '_5FU_adj', sep = '')
+
+
+# for example, to mimic Pov's code
+worm.sum %>% filter(Experiment == experiment, Strain == strain)
+
+worm.old = worm.sum %>%
+  filter(Experiment == experiment & Strain == strain) %>% 
+  ungroup %>%
+  mutate(Description = 'C. elegans development at 5uM 5-FU',
+         Contrast = 'Ce_Dev5',   # C. elegans developement with 5FU
+         Contrast_type = 'Treatment',
+         FDR = NA) %>%
+  select(Description, Contrast, Contrast_type, Plate, Well, logFC = Median, SE = SD, FDR)
+
+# check that we filtered stuff properly
+worm.old %>%
+  group_by(Plate) %>%
+  summarise(N = n())
+
+
+# Join bacterial and worm results (change contrasts)
+jointresults = allresults$results %>%
+  filter((Contrast %in% c(str_C, str_T, str_CT, alln))) %>%
+  mutate(Contrast = fct_recode(Contrast, adjs = alln)) %>% 
+  select(Description, Contrast, Contrast_type, Plate, Well, logFC, SE, FDR) %>%
+  bind_rows(worm.old) %>%
+  left_join(info) %>%
+  select(Description:Well,Index:KEGG_ID,logFC:FDR)
+
+
+jointcast = jointresults %>%
+  select(Contrast, Plate, Well, Index, Metabolite, MetaboliteU, EcoCycID, KEGG_ID, logFC, SE, FDR) %>%
+  gather(Stat, Value, logFC, SE, FDR) %>%
+  unite(CS, Contrast, Stat) %>%
+  spread(CS, Value) %>%
+  rename(Ce_Dev5_Median = Ce_Dev5_logFC, Ce_Dev5_SD = Ce_Dev5_SE) %>%
+  select(-Ce_Dev5_FDR)
+
+
+# write.csv(jointresults,paste(odir,'/Ecoli_results_All_As_old_screen.csv', sep = ''),row.names = FALSE)
+# write.csv(jointcast,paste(odir,'/Ecoli_results_sidebyside_As_old_screen.csv', sep = ''),row.names = FALSE)
+
+
+# Multiplex 
+jointresults.multi = multiplex(jointresults,c("Plate","Well","Index","Metabolite","MetaboliteU","EcoCycID","KEGG_ID"))
+jointresults.multi2 = multiplex(jointresults,c("Plate","Well","Index","Metabolite","MetaboliteU","EcoCycID","KEGG_ID"),2)
+
+
+
+
+########################
+NGMa = adjustments[adjustments$Contrast == alln, ]$a
+NGMb = adjustments[adjustments$Contrast == alln, ]$b
+r2 = adjustments[adjustments$Contrast == alln, ]$r2
+
+sr = sqrt((1-r2)/(379-2))
+
+gradcolours = c('#71B83B','yellow','orange','red')
+
+
+
+
+
+total = jointresults.multi %>%
+  filter(x_Contrast == str_C & y_Contrast == str_T & z_Contrast == 'Ce_Dev5')
+
+total = total %>% 
+  mutate(score = (abs(y_logFC - (x_logFC-NGMa))*z_logFC),
+         score2 = abs(y_logFC - (x_logFC-NGMa))) %>% 
+  arrange(score) %>% 
+  mutate(Index = factor(Index, levels = Index)) %>% 
+  drop_na(z_logFC)
+
+total = total %>% 
+  mutate(new_labels = case_when(MetaboliteU %in% labels_4way ~ MetaboliteU,
+                                TRUE ~ ''),
+         label_size = case_when(z_logFC == 4 ~ 3,
+                                TRUE ~ 2),
+         label_color = case_when(MetaboliteU %in% labels_nuc ~ 'Nucleotide',
+                                 MetaboliteU %in%  labels_sug ~ 'Sugars',
+                                 TRUE ~ '')
+         ) 
+
+
+pyrE.scores = total %>% 
+  select(Plate, Well, MetaboliteU, x_Contrast, z_logFC, score, score2)
+
+### pyrE plot ####
+pyrE.plot = total %>% 
+  ggplot(aes(x = reorder(MetaboliteU, score), y = score)) +
+  geom_point(aes(fill = z_logFC, size = z_logFC),pch=21) +
+  geom_hline(aes(yintercept = 1), alpha = 0.9, color = 'grey') +
+  scale_fill_gradientn(colours = gradcolours,
+                         breaks = c(1,2,3,4), limits = c(1,4), 
+                         guide = "legend", name = 'C. elegans\nphenotype') +
+  scale_color_manual(values = c('black',
+                                '#C70B00', # nucleotides 
+                                '#310CB3' # sugars
+                                )) + 
+  geom_text_repel(aes(x = MetaboliteU, y = score, 
+                      label= new_labels, 
+                      size = label_size,
+                      color = factor(label_color)),
+                  box.padding = unit(0.6, 'lines'),
+                  segment.alpha = 0.4,
+                  max.overlaps = 50) +
+  # geom_text_repel(aes(x = MetaboliteU, y = score, 
+  #                     label = ifelse(z_logFC >= 4, MetaboliteU, '')), 
+  #                 box.padding = unit(0.6, "lines"), 
+  #                 segment.alpha = 0.4,
+  #                 max.overlaps = 50) +
+  labs(x = 'Metabolite',
+       y = 'Composed score',
+       title = bquote(~Delta*pyrE ~ "mutant")) +
+  coord_cartesian(xlim = c(0,400)) +
+  # ylim(0, 15) +
+  scale_size(guide=FALSE) +
+  theme_classic() +
+  theme(axis.title.x=element_blank(),
+        axis.title.y = element_text(size=16, face="bold", color ='black'),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank(),
+        plot.title = element_text(size=18),
+        legend.text = element_text(size=18)) +
+  guides(color = FALSE,
+         fill = guide_legend(override.aes = list(size=8)))
+
+
+
 
 
 
@@ -356,46 +445,82 @@ total = total %>%
   mutate(Index = factor(Index, levels = Index)) %>% 
   drop_na(z_logFC)
 
+total = total %>% 
+  mutate(new_labels = case_when(MetaboliteU %in% labels_4way ~ MetaboliteU,
+                                TRUE ~ ''),
+         label_size = case_when(z_logFC >= 3.5 ~ 3,
+                                TRUE ~ 2),
+         label_color = case_when(MetaboliteU %in% labels_nuc ~ 'Nucleotide',
+                                 MetaboliteU %in%  labels_sug ~ 'Sugars',
+                                 TRUE ~ '')
+  ) 
+
 TM.scores = total %>% 
   select(Plate, Well, MetaboliteU, x_Contrast, z_logFC, score, score2)
 
 
-
+### TM plot ####
 TM.plot = total %>% 
   ggplot(aes(x = reorder(MetaboliteU, score), y = score)) +
-  geom_point(aes(colour = z_logFC, size = z_logFC)) +
+  geom_point(aes(fill = z_logFC, size = z_logFC),pch=21) +
   # annotate("rect", xmin = 0, xmax = 400, ymin = 1 - sr, ymax = 1 + sr, alpha = .2) +
   geom_hline(aes(yintercept = 1), alpha = 0.9, color = 'grey') +
-  scale_colour_gradientn(colours = gradcolours,
-                         breaks = c(1,2,3,4), limits = c(1,4), 
-                         guide = "legend", name = 'C. elegans\nphenotype') +
-  geom_text_repel(aes(x = MetaboliteU, y = score, label = ifelse(z_logFC >= 4, MetaboliteU, '')), 
-                  box.padding = unit(0.6, "lines"), segment.alpha = 0.4) + 
+  scale_fill_gradientn(colours = gradcolours,
+                       breaks = c(1,2,3,4), limits = c(1,4), 
+                       guide = "legend", name = 'C. elegans\nphenotype') +
+  scale_color_manual(values = c('black',
+                                '#C70B00', # nucleotides 
+                                '#310CB3' # sugars
+  )) +
+  geom_text_repel(aes(x = MetaboliteU, y = score, 
+                      label= new_labels,
+                      size = label_size,
+                      color = factor(label_color)),
+                  box.padding = unit(0.6, 'lines'),
+                  segment.alpha = 0.4,
+                  max.overlaps = 800) +
+  # geom_text_repel(aes(x = MetaboliteU, y = score, label = ifelse(z_logFC >= 4, MetaboliteU, '')), 
+  #                 box.padding = unit(0.6, "lines"), segment.alpha = 0.4) + 
   labs(x = 'Metabolite',
-       y = 'Composed score') +
+       y = 'Composed score',
+       title = bquote(~Delta*upp*Delta*udp*Delta*udk ~ "mutant")) +
   coord_cartesian(xlim = c(0,400)) +
+  # ylim(0, 15) +
   scale_size(guide=FALSE) +
   theme_classic() +
-  theme(axis.title.x=element_blank(),
+  theme(axis.title.y=element_blank(),
         axis.text.x=element_blank(),
-        axis.ticks.x=element_blank()) 
+        axis.ticks.x=element_blank(),
+        axis.title.x = element_text(size=16, face="bold", color ='black'),
+        plot.title = element_text(size=18),
+        legend.text = element_text(size=18)
+        ) +
+  guides(color = FALSE,
+         fill = guide_legend(override.aes = list(size=8)))
+
+
+# 
+# 
+# 
+# library(ggpubr)
+# ggarrange(BW.plot, pyrE.plot, TM.plot, nrow = 3)
+# p4 = ggarrange(BW.plot, pyrE.plot, TM.plot, nrow = 3)
+# 
+# 
+# ggsave(p4, file = here('Summary', '4wayScreening_score.pdf'),
+#        height = 10, width = 13)
+# 
 
 
 
+library(patchwork)
+p4 = BW.plot / pyrE.plot / TM.plot +
+  plot_layout(guides = 'collect')
 
-library(ggpubr)
-ggarrange(BW.plot, pyrE.plot, TM.plot, nrow = 3)
-p4 = ggarrange(BW.plot, pyrE.plot, TM.plot, nrow = 3)
-
+p4
 
 ggsave(p4, file = here('Summary', '4wayScreening_score.pdf'),
        height = 10, width = 13)
-
-
-
-
-
-
 
 
 # ternary plot ------------------------------------------------------------
