@@ -515,7 +515,7 @@ ggsave(file = here('Summary', 'Scatter_sub_lib_with_Enrichment.pdf'),
 
 
 genes_to_include = factor(c('upp', 'guaB', 'guaA', 'gcvP', 'gcvH', 'gcvT', 
-                            'purK', 'purN', 'pyrE','pyrD', 'pyrB', 'pyrF'))
+                            'pyrE','pyrD', 'pyrB', 'pyrF', 'pdxA', 'pdxB'))
 
 glu_res.wide %>% 
   mutate(
@@ -531,22 +531,23 @@ glu_res.wide %>%
            alpha = .2, fill = 'red') +
   annotate("rect", xmin = -0.2, xmax = 0.65, ymin = -1.2, ymax = -0.45, 
            alpha = .3, fill = 'yellow') +
-  annotate("label", x = c(0.2, 1.6,1.65), 
+  annotate("label", x = c(0.2, 1.7,1.65), 
            size = 4.5,
-           y = c(-0.65,-0.2,0.8), 
-           label = c("UMP biosynthesis \nPyrimidine (deoxy)ribonucleotide\n de novo synthesis \nChorismate synthesis",
+           y = c(-0.65,-0.3,0.8), 
+           label = c("UMP biosynthesis \n\nPyrimidine (deoxy)ribonucleotide\n de novo synthesis",
                      # 'Glycolisis, Pyruvate and \nTCA superpathway \nPyridoxal 5\'-phosphate biosynthesis',
-                     "Glycine cleavage",
+                     "Glycine cleavage \n\nSuperpathway of pyridoxal \n5'-phosphate biosynthesis",
                      "Glycine cleavage \nPurine de novo biosynthesis II"),
            alpha = 0.5) +
   geom_hline(yintercept = 0, colour = 'grey30') +
   geom_vline(xintercept = 0, colour = 'grey30') +
   geom_point(position = pos, size = 2) + 
   geom_text_repel(aes(label = Genes), position = pos, max.overlaps = 100, size = 5) +
-  labs(title = expression(paste("5FU + Glucose effect on ", italic('C. elegans'),
-                                " N2 phenotype", sep = '')),
-       x = "Normalised median scores of *C. elegans* N2 phenotype",
-       y = "Normalised median scores of *C. elegans* N2 phenotype with **Glucose**") +
+  labs(
+    # title = expression(paste("5FU + Glucose effect on ", italic('C. elegans'),
+    #                             " N2 phenotype", sep = '')),
+       x = "*C. elegans* N2 phenotype on **NGM**",
+       y = "*C. elegans* N2 phenotype **NGM** + **Glucose**") +
   theme(plot.title = element_text(size = 15, hjust = 0.5, face = "bold"),
         panel.grid.major = element_line(colour = "grey90"),
         panel.background = element_rect(fill = "white", colour = "grey50"),
