@@ -13,7 +13,6 @@
 
 # maybe use ulimit -s 16384 before start R console
 
-# analysis directory:  "/Users/dmarti14/Documents/MRC_Postdoc/Projects/Communities/RNA_seq"
 ### libraries ####
 library(tximport)
 library(tidyverse)
@@ -29,15 +28,26 @@ library(FactoMineR) # for PCA
 library(factoextra) # for PCA
 library(openxlsx)
 library(viridis)
+library(glue)
 
+
+theme_set(theme_classic())
 
 # the first step we need to do is to read the sample file, and parse it with 
 # the data produced by salmon to get tables ready to be analysed by DESeq2
+
+
+
+# Get sample info ---------------------------------------------------------
+
+
 
 samples = read.delim("sampleInfo.txt") 
 
 dir = getwd()
 rownames(samples) = samples$Name
+
+quants_dir = 'quants_103'
 
 # load kegg tables from wormenrichr
 # kegg = read.delim("KEGG_2019.txt", header = FALSE) 
@@ -47,88 +57,119 @@ rownames(samples) = samples$Name
 # rownames(kegg) = kegg[,1] ; kegg = kegg[,-1]
 
 # prepare a list with file names
-files = file.path(dir,"quants", samples$Name, "quant.sf")
+files = file.path(dir,quants_dir, samples$Name, "quant.sf")
 names(files) = samples$Name
 all(file.exists(files)) # check that files exist
 
 
 
 
-gtf_file = 'Homo_sapiens.GRCh38.104.gtf.gz'
-
-txdb = GenomicFeatures::makeTxDbFromGFF(gtf_file, organism='Homo sapiens')
 
 
-k = keys(txdb, keytype="TXNAME")
-tx_map = ensembldb::select(txdb, keys = k, columns="GENEID", keytype = "TXNAME")
-
-head(tx_map)
-
-tx2gene = tx_map
-
-write.csv(tx2gene,file="tx2gene.csv",row.names = FALSE,quote=FALSE)
-
-quants = read_tsv(files[1])
-
-quants <- separate(quants, Name, c("TXNAME","Number"),remove = FALSE)
-head(quants)
-
-quants <- left_join(quants, tx_map, by="TXNAME")
-head(quants)
-
-tx2gene <- dplyr:::select(quants, Name, GENEID)
-head(tx2gene)
-tx2gene <- filter(tx2gene, !is.na(GENEID))
-
-
-
-# BiocManager::install("EnsDb.Hsapiens.v86")
+# Get gene labels from databases ------------------------------------------
 
 
 
 
-# # let's make our database from ensembldb 
-# ah = AnnotationHub::AnnotationHub(proxy='127.0.0.1:10801')
-# ahDb = AnnotationHub::query(ah, pattern = c("Homo sapiens", "EnsDb"))
-# ahEdb = ahDb[[1]]
-# # generate the database 
-# tx2gene.complete = transcripts(ahEdb, return.type = "DataFrame")
+#### manual id handling  #####
+
 # 
-# # fetch descriptions of genes
-# info = genes(ahEdb) %>% 
-#   as_tibble() %>%
-#   dplyr::select(width, gene_id, gene_name, gene_biotype, description, entrezid) %>%
-#   unnest(cols = c(entrezid))
+# gtf_file = 'Homo_sapiens.GRCh38.104.gtf.gz'
+# gtf_file = 'Homo_sapiens.GRCh38.103.gtf.gz'
+# txdb = GenomicFeatures::makeTxDbFromGFF(gtf_file, organism='Homo sapiens')
 # 
-# # join transcription info with gene ids and entrezids
-# info.join = tx2gene.complete %>% 
-#   tbl_df() %>%
-#   dplyr::select(tx_id, tx_biotype, gene_id, tx_name) %>%
-#   left_join(info)
 # 
-# write.csv(info, here('summary','gene_ids_mapping.csv'))
+# k = keys(txdb, keytype="TXNAME")
+# tx_map = ensembldb::select(txdb, keys = k, columns="GENEID", keytype = "TXNAME")
 # 
-# # subset to have tx_id in first column, and gene_id in second
+# head(tx_map)
+# 
+# tx2gene = tx_map
+
+# write.csv(tx2gene,file="tx2gene.csv",row.names = FALSE,quote=FALSE)
+#
+# quants = read_tsv(files[1])
+# 
+# quants <- separate(quants, Name, c("TXNAME","Number"),remove = FALSE)
+# head(quants)
+# 
+# quants <- left_join(quants, tx_map, by="TXNAME")
+# head(quants)
+# 
+# tx2gene <- dplyr:::select(quants, Name, GENEID)
+# head(tx2gene)
+# tx2gene <- filter(tx2gene, !is.na(GENEID))
+
+
+
+
+#### using ensembl genomes ####
+
+# let's make our database from ensembldb
+ah = AnnotationHub::AnnotationHub(proxy='127.0.0.1:10801')
+ahDb = AnnotationHub::query(ah, pattern = c("Homo sapiens", "EnsDb", 103))
+ahEdb = ahDb[[1]]
+# generate the database
+tx2gene.complete = transcripts(ahEdb, return.type = "DataFrame")
+
+# fetch descriptions of genes
+info = genes(ahEdb) %>%
+  as_tibble() %>%
+  dplyr::select(width, gene_id, gene_name, gene_biotype, description, entrezid) %>%
+  unnest(cols = c(entrezid))
+
+# join transcription info with gene ids and entrezids
+info.join = tx2gene.complete %>%
+  as_tibble() %>%
+  dplyr::select(tx_id, tx_biotype, gene_id, tx_name) %>%
+  left_join(info)
+
+write.csv(info, here('summary','gene_ids_mapping.csv'))
+
+# subset to have tx_id in first column, and gene_id in second
 # tx2gene = data.frame(tx2gene.complete[,c(1,7)])
 
 
+# subset to have tx_id in first column, and gene_id in second
+tx2gene = data.frame(tx2gene.complete[,c(9,7)])
+
+colnames(tx2gene) = c('tx_id','gene_id')
+
+head(tx2gene)
+
+
+
+
+library( "biomaRt" )
+
+ensembl = useMart( "ensembl", dataset = "hsapiens_gene_ensembl" )
+
+
+
+### TX import + DESeq ####
 
 # import quantification data 
-txi = tximport::tximport(files, type = "salmon", tx2gene = tx2gene,
-                         ignoreTxVersion = TRUE)
-
-
+txi = tximport::tximport(files, type = "salmon", tx2gene = tx2gene, ignoreTxVersion = T)
 
 
 ### starting analysis with DESeq2
 # create DESeq data type to be analysed
-ddsTxi = DESeqDataSetFromTximport(txi, colData = samples, design = ~ Sample)
+
+
+samples.batch = samples %>% 
+  mutate(Batch = as.factor(Batch),
+         Condition = as.factor(Condition),
+         Sample = as.factor(Sample))
+
+ddsTxi = DESeqDataSetFromTximport(txi, colData = samples.batch, 
+                                  design = ~Batch + Sample)
 
 # # prefilter, but that might not be necessary
-# keep = rowSums(counts(ddsTxi)) >= 10
-# ddsTxi = ddsTxi[keep,]
+keep = rowSums(counts(ddsTxi)) >= 100
+ddsTxi = ddsTxi[keep,]
 
-ddsTxi$Sample = relevel(ddsTxi$Sample, ref = "HCT116M")
+ddsTxi$Sample = relevel(ddsTxi$Sample, ref = "HCT116_C")
+
 
 # run the Differential Expression Analysis
 # design(ddsTxi) <- formula(~ Bacteria + Worm)
@@ -138,14 +179,23 @@ dds = DESeq(ddsTxi)
 
 
 
-### tidy results
+
+### tidy results ####
 # dds.tidy = tidy(ddsTxi, colData = samples$Sample)
 gene_counts = counts(dds, normalized = TRUE)
+
+# genemap = getBM(attributes = c("ensembl_gene_id",  "external_gene_name"), 
+#                 filters = "ensembl_gene_id",
+#                 values = rownames(gene_counts), 
+#                 mart = ensembl )
+
+
+
 gene_list = rownames(gene_counts)
 gene_counts = gene_counts %>% cbind(gene_list,.) %>% as_tibble()
 
 gene_counts = gene_counts %>% 
-  gather(Name, counts, TVP_1_quant:TVP_32__quant) %>% 
+  gather(Name, counts, TVP_1:TVP_32) %>% 
   dplyr::select(gene_id = gene_list, Name, counts) %>%
   mutate(Name = as.factor(Name)) %>%
   left_join(as_tibble(samples), by = 'Name') %>%
@@ -155,14 +205,16 @@ gene_counts = gene_counts %>%
   left_join(info) 
 
 
-gene = 'TYMS'
+gene = 'HSPA1B'
 gene_counts%>% 
   dplyr::filter(gene_name == gene) %>% 
-  filter(Cell.line == 'HCT116') %>%
+  dplyr::filter(Cell_line == 'HCT116') %>%
   ggplot(aes(x = Sample, y = counts, fill = Sample)) +
   geom_boxplot(outlier.shape = NA) +
-  geom_point(size = 5, position = position_jitterdodge(), aes(color = Replicate))
+  geom_point(size = 2.5, position = position_jitterdodge(), aes(color = Replicate))+
+  facet_wrap(~gene_id*Cell_line, scales = 'free')
 
+ggsave(here('summary', glue('boxplot_{gene}.pdf')), height = 7, width = 9)
 
 # transofrm data
 
@@ -229,12 +281,12 @@ dev.copy2pdf(device = cairo_pdf,
 
 
 
+# PCA ---------------------------------------------------------------------
 
 
 
 
-
-pcaData = plotPCA(rld, intgroup = c("Cell.line", "Condition"), returnData = TRUE)
+pcaData = plotPCA(rld, intgroup = c("Cell_line", "Condition"), returnData = TRUE)
 pcaData
 
 
@@ -248,17 +300,17 @@ getellipse = function(x, y, sc = 1) {
 
 
 # get info for the ellipses
-ell = pcaData %>% group_by(Condition, Cell.line) %>% do(getellipse(.$PC1, .$PC2, 1)) %>% data.frame
+ell = pcaData %>% group_by(Condition, Cell_line) %>% do(getellipse(.$PC1, .$PC2, 1)) %>% data.frame
 
 # % of variable explained by PC1 and PC2
 percentVar = round(100 * attr(pcaData, "percentVar"))
 
 # plot!
-ggplot(pcaData, aes(x = PC1, y = PC2, color = Cell.line, group = interaction(Condition, Cell.line))) + 
+ggplot(pcaData, aes(x = PC1, y = PC2, color = Cell_line, group = interaction(Condition, Cell_line))) + 
   geom_point(size = 3, show.legend = NA, alpha = 0.5) + 
-  geom_path(data = ell, aes(x = x, y = y, group = interaction(Condition, Cell.line), linetype = Condition), size = 1) +
-  geom_polygon(data = ell, aes(x = x, y = y, group = interaction(Condition, Cell.line), 
-                               linetype = Condition, fill = Cell.line), size = 1, alpha = 0.3) +
+  geom_path(data = ell, aes(x = x, y = y, group = interaction(Condition, Cell_line), linetype = Condition), size = 1) +
+  geom_polygon(data = ell, aes(x = x, y = y, group = interaction(Condition, Cell_line), 
+                               linetype = Condition, fill = Cell_line), size = 1, alpha = 0.3) +
   xlab(paste0("PC1: ", percentVar[1], "% variance")) +
   ylab(paste0("PC2: ", percentVar[2], "% variance")) +
   theme_classic() +
@@ -274,22 +326,27 @@ dev.copy2pdf(device = cairo_pdf,
              height = 8, width = 9, useDingbats = FALSE)
 
 
+# 
+# 
+# 
+# # KEGG databases
+# # get databases for genes and pathways from KEGG
+# kegg.links.entrez = limma::getGeneKEGGLinks('hsa', convert = TRUE) 
+# kegg.links.ids = limma::getGeneKEGGLinks('hsa')
+# path.ids = limma::getKEGGPathwayNames('hsa', remove.qualifier = TRUE)
+# kegg.links = cbind(kegg.links.entrez, kegg.links.ids[,1])
+# colnames(kegg.links) = c('entrezid', 'PathwayID', 'KEGG_genes')
+# 
+# kegg.links = kegg.links %>% 
+#   as_tibble %>% 
+#   mutate(entrezid = as.integer(entrezid)) %>% 
+#   left_join(path.ids) %>%
+#   mutate(PathwayID = str_replace(PathwayID, 'path:hsa', ''))
 
 
 
-# KEGG databases
-# get databases for genes and pathways from KEGG
-kegg.links.entrez = limma::getGeneKEGGLinks('hsa', convert = TRUE) 
-kegg.links.ids = limma::getGeneKEGGLinks('hsa')
-path.ids = limma::getKEGGPathwayNames('hsa', remove.qualifier = TRUE)
-kegg.links = cbind(kegg.links.entrez, kegg.links.ids[,1])
-colnames(kegg.links) = c('entrezid', 'PathwayID', 'KEGG_genes')
 
-kegg.links = kegg.links %>% 
-  as_tibble %>% 
-  mutate(entrezid = as.integer(entrezid)) %>% 
-  left_join(path.ids) %>%
-  mutate(PathwayID = str_replace(PathwayID, 'path:hsa', ''))
+# General stats -----------------------------------------------------------
 
 
 # get results and tidy it
@@ -297,19 +354,19 @@ res = results(dds)
 
 
 # results with different shape of contrasts, tidy
-res.hct = results(dds,   contrast = c("Sample", "HCT116M" , "HCT116C"))  
-res.hct = lfcShrink(dds, contrast = c("Sample", "HCT116M" , "HCT116M"), res = res.hct, type = 'ashr')
+res.hct = results(dds,   contrast = c("Sample", "HCT116_M" , "HCT116_C"))  
+res.hct = lfcShrink(dds, contrast = c("Sample", "HCT116_M" , "HCT116_M"), res = res.hct, type = 'ashr')
 
-res.dld = results(dds,  contrast = c("Sample",  "DLD-1M", "DLD-1C")) 
-res.dld = lfcShrink(dds, contrast = c("Sample",  "DLD-1M", "DLD-1C"), res = res.dld, type = 'ashr')
+res.dld = results(dds,  contrast = c("Sample",  "DLD1_M", "DLD1_C")) 
+res.dld = lfcShrink(dds, contrast = c("Sample",  "DLD1_M", "DLD1_C"), res = res.dld, type = 'ashr')
 
-res.OGRF = results(dds,  contrast = c("Sample",  "skpo_OG1RF", "N2_OG1RF"))   
-res.OGRF = lfcShrink(dds, contrast = c("Sample", "skpo_OG1RF", "N2_OG1RF"), res = res.dld, type = 'ashr')
+res.lovo = results(dds,  contrast = c("Sample",  "LoVo_M", "LoVo_C"))   
+res.lovo = lfcShrink(dds, contrast = c("Sample", "LoVo_M", "LoVo_C"), res = res.lovo, type = 'ashr')
 
-res.OP50 = results(dds, contrast = c("Sample",   "skpo_OP50", "N2_OP50")) 
-res.OP50 = lfcShrink(dds, contrast = c("Sample", "skpo_OP50", "N2_OP50"), res = res.OP50, type = 'ashr')
+res.sw = results(dds, contrast = c("Sample",   "SW948_M", "SW948_C")) 
+res.sw = lfcShrink(dds, contrast = c("Sample", "SW948_M", "SW948_C"), res = res.sw, type = 'ashr')
 
-# tidying the results
+#### tidying results ####
 res.hct.tidy = as_tibble(res.hct, rownames = 'gene_id') %>% mutate(
   p_adj_stars = gtools::stars.pval(padj),
   Direction = ifelse(log2FoldChange > 0, 'Up', 'Down'),
@@ -319,70 +376,95 @@ res.hct.tidy = as_tibble(res.hct, rownames = 'gene_id') %>% mutate(
   # left_join(kegg.links) %>%
   dplyr::select(Contrast_description, Contrast, gene_id, gene_name, everything())
 
-res.skpo.tidy = as_tibble(res.skpo, rownames = 'gene_id') %>% mutate(
+res.dld.tidy = as_tibble(res.dld, rownames = 'gene_id') %>% mutate(
   p_adj_stars = gtools::stars.pval(padj),
   Direction = ifelse(log2FoldChange > 0, 'Up', 'Down'),
-  Contrast = 'skpo',
-  Contrast_description = 'Comparison of skpo_OG1RF vs skpo_OP50') %>%
+  Contrast = 'DLD-1',
+  Contrast_description = 'Comparison of DLD-1 Micit vs DLD-1 Control') %>%
   left_join(info) %>%
   # left_join(kegg.links) %>%
   dplyr::select(Contrast_description, Contrast, gene_id, gene_name, everything())
 
-res.OGRF.tidy = as_tibble(res.OGRF, rownames = 'gene_id') %>% mutate(
+res.lovo.tidy = as_tibble(res.lovo, rownames = 'gene_id') %>% mutate(
   p_adj_stars = gtools::stars.pval(padj),
   Direction = ifelse(log2FoldChange > 0, 'Up', 'Down'),
-  Contrast = 'OG1RF',
-  Contrast_description = 'Comparison of skpo_OG1RF vs N2_OG1RF') %>%
+  Contrast = 'LoVo',
+  Contrast_description = 'Comparison of LoVo Micit vs LoVo Control') %>%
   left_join(info) %>%
   # left_join(kegg.links) %>%
   dplyr::select(Contrast_description, Contrast, gene_id, gene_name, everything())
 
-res.OP50.tidy = as_tibble(res.OP50, rownames = 'gene_id') %>% mutate(
+res.sw.tidy = as_tibble(res.sw, rownames = 'gene_id') %>% mutate(
   p_adj_stars = gtools::stars.pval(padj),
   Direction = ifelse(log2FoldChange > 0, 'Up', 'Down'),
-  Contrast = 'OP50',
-  Contrast_description = 'Comparison of skpo_OP50 vs N2_OP50') %>%
+  Contrast = 'SW948',
+  Contrast_description = 'Comparison of SW948 Micit vs SW948 Control') %>%
   left_join(info) %>%
   # left_join(kegg.links) %>%
   dplyr::select(Contrast_description, Contrast, gene_id, gene_name, everything())
 
-results.complete = res.N2.tidy %>% rbind(res.skpo.tidy, res.OGRF.tidy, res.OP50.tidy)
+results.complete = res.hct.tidy %>% rbind(res.dld.tidy, res.lovo.tidy, res.sw.tidy)
 
 # write results in excel files
-list_of_datasets = list('N2 OG1RF_vs_OP50' = res.N2.tidy, 
-                        'skpo OG1RF_vs_OP50' = res.skpo.tidy, 
-                        'OP50 skpo_vs_N2' = res.OP50.tidy,
-                        'OG1RF skpo_vs_N2' = res.OGRF.tidy)
+list_of_datasets = list('HCT116' = res.hct.tidy, 
+                        'DLD-1' = res.dld.tidy, 
+                        'LoVo' = res.lovo.tidy,
+                        'SW948' = res.sw.tidy)
 
 write.xlsx(list_of_datasets, here('summary', 'complete_stats.xlsx'), colNames = T, rowNames = F) 
 
 
 
+# plot genes
+
+
+gene = 'RDH13'
+gene_counts%>% 
+  dplyr::filter(gene_name == gene) %>% 
+  filter(Cell_line == 'HCT116') %>%
+  ggplot(aes(x = Sample, y = counts, fill = Sample)) +
+  geom_boxplot(outlier.shape = NA) +
+  geom_point(size = 2.5, position = position_jitterdodge(), aes(color = Replicate))+
+  facet_wrap(~gene_id, scales = 'free_y')
+
+
+
+# MA plots ----------------------------------------------------------------
+
+
+
 ### MA plots for every comparison
-plotMA(res.N2,  ylim=c(-3,3),  alpha = 0.05)
+plotMA(res.hct,  ylim=c(-3,3),  alpha = 0.05)
 # idx <- identify(res.N2$baseMean, res.N2$log2FoldChange)
 # rownames(res.N2)[idx]
 dev.copy2pdf(device = cairo_pdf,
-             file = here('summary', 'MAplot_N2.pdf'),
+             file = here('summary', 'MAplot_HCT.pdf'),
              height = 8, width = 11, useDingbats = FALSE)
 
-plotMA(res.skpo,  ylim=c(-3,3),  alpha = 0.05)
+plotMA(res.dld,  ylim=c(-3,3),  alpha = 0.05)
 dev.copy2pdf(device = cairo_pdf,
-             file = here('summary', 'MAplot_skpo.pdf'),
+             file = here('summary', 'MAplot_DLD.pdf'),
              height = 8, width = 11, useDingbats = FALSE)
 
 
-plotMA(res.OGRF,  ylim=c(-3,3),  alpha = 0.05)
+plotMA(res.lovo,  ylim=c(-3,3),  alpha = 0.05)
 dev.copy2pdf(device = cairo_pdf,
-             file = here('summary', 'MAplot_OG1RF.pdf'),
+             file = here('summary', 'MAplot_LoVo.pdf'),
              height = 8, width = 11, useDingbats = FALSE)
 
 
-plotMA(res.OP50,  ylim=c(-3,3),  alpha = 0.05)
+plotMA(res.sw,  ylim=c(-3,3),  alpha = 0.05)
 dev.copy2pdf(device = cairo_pdf,
-             file = here('summary', 'MAplot_OP50.pdf'),
+             file = here('summary', 'MAplot_SW948.pdf'),
              height = 8, width = 11, useDingbats = FALSE)
 
+
+
+
+
+
+
+# PCA (manual) ------------------------------------------------------------
 
 
 
@@ -397,11 +479,13 @@ dev.copy2pdf(device = cairo_pdf,
 pca_data = t(assay(rld))
 
 # HCT 116 samples
-pca_data = pca_data[c(1,2,9,16,17,24,25),]
+pca_data = pca_data[c(1,2,9,10,17,18,25,26),]
 # DLD_1
-pca_data = pca_data[c(3,4,10,11,18,19,26,27),]
-
-
+pca_data = pca_data[c(3,4,11,12,19,20,27,28),]
+# Lovo
+pca_data = pca_data[c(3,4,11,12,19,20,27,28)+2,]
+# SW948
+pca_data = pca_data[c(3,4,11,12,19,20,27,28)+4,]
 
 # # lets compute the PCA
 res.pca = PCA(pca_data, scale.unit = FALSE, ncp = 5, graph = F)
@@ -410,31 +494,38 @@ res.pca = PCA(pca_data, scale.unit = FALSE, ncp = 5, graph = F)
 meta_var = samples
 
 # HCT samples
-meta_var = samples[c(1,2,9,16,17,24,25),]
+meta_var = samples[c(1,2,9,10,17,18,25,26),]
 
 # DLD_1
-meta_var = samples[c(3,4,10,11,18,19,26,27),]
+meta_var = samples[c(3,4,11,12,19,20,27,28),]
+
+# LoVo
+meta_var = samples[c(3,4,11,12,19,20,27,28)+2,]
+
+# SW948
+meta_var = samples[c(3,4,11,12,19,20,27,28)+4,]
 
 # # extract info about the individuals
 ind = get_pca_ind(res.pca)
 ind_df = data.frame(ind$coord[,1], ind$coord[,2], ind$coord[,3], meta_var$Condition,
-  meta_var$Cell.line)
+  meta_var$Cell_line)
 
-colnames(ind_df) = c('Dim1', 'Dim2', 'Dim3', 'Condition', 'Cell.line')
+colnames(ind_df) = c('Dim1', 'Dim2', 'Dim3', 'Condition', 'Cell_line')
 
 
 # # make a data frame from ellipses
-ell = ind_df %>% group_by(Condition, Cell.line) %>% do(getellipse(.$Dim1, .$Dim2, 1)) %>% data.frame
+ell = ind_df %>% group_by(Condition, Cell_line) %>% do(getellipse(.$Dim1, .$Dim2, 1)) %>% data.frame
 
 # % of variable explained by PC1 and PC2
 percentVar = round(100 * attr(pcaData, "percentVar"))
 
 # plot!
-ggplot(ind_df, aes(x = Dim1, y = Dim2, color = Cell.line, group = interaction(Condition, Cell.line))) +
+line = 'SW948'
+ggplot(ind_df, aes(x = Dim1, y = Dim2, color = Condition, group = interaction(Condition, Cell_line))) +
   geom_point(size = 3, show.legend = NA, alpha = 0.5) + 
-  geom_path(data = ell, aes(x = x, y = y, group = interaction(Condition, Cell.line), linetype = Condition), size = 1) +
-  geom_polygon(data = ell, aes(x = x, y = y, group = interaction(Condition, Cell.line), 
-                               linetype = Condition, fill = Cell.line), size = 1, alpha = 0.3) +
+  geom_path(data = ell, aes(x = x, y = y, group = interaction(Condition, Cell_line), linetype = Condition), size = 1) +
+  geom_polygon(data = ell, aes(x = x, y = y, group = interaction(Condition, Cell_line), 
+                               linetype = Condition, fill = Condition), size = 1, alpha = 0.3) +
   # xlab(paste0("PC1: ", percentVar[1], "% variance")) +
   # ylab(paste0("PC2: ", percentVar[2], "% variance")) +
   theme_classic() +
@@ -444,8 +535,54 @@ ggplot(ind_df, aes(x = Dim1, y = Dim2, color = Cell.line, group = interaction(Co
         axis.text.x = element_text(size = 13, colour = 'black'),
         axis.text.y = element_text(size = 13, colour = 'black'))
 
+ggsave(here('summary',glue('PCA_{line}.pdf')), height = 7, width = 8)
 
 
 
+# GSEA --------------------------------------------------------------------
+
+
+
+res.hct.tidy %>% 
+  filter(str_detect(gene_name,'CPT'))
+
+gene = 'MYC'
+gene_counts%>% 
+  dplyr::filter(gene_name == gene) %>% 
+  filter(Cell_line == 'HCT116') %>%
+  ggplot(aes(x = Sample, y = counts, fill = Sample)) +
+  geom_boxplot(outlier.shape = NA) +
+  geom_point(size = 2.5, position = position_jitterdodge(), aes(color = Replicate))+
+  facet_wrap(~gene_id, scales = 'free_y')
+
+
+
+
+# genes that are at least 1.5 more times expression in Micit
+min_thr = 0.5
+up_hct = res.hct.tidy %>% 
+  filter(log2FoldChange < 3 & log2FoldChange > min_thr) %>% 
+  filter(padj <= 0.05) %>%
+  pull(gene_id)
+
+
+down_hct = res.hct.tidy %>% 
+  filter(log2FoldChange > -3 & log2FoldChange < -min_thr) %>% 
+  filter(padj <= 0.05) %>%
+  pull(gene_id)
+
+
+up_hct = c('genes', up_hct)
+down_hct = c('genes', down_hct)
+
+list_of_datasets = list(
+  'hct_UP' = up_hct,
+  'hct_DOWN' = down_hct
+)
+
+
+library(openxlsx)
+
+write.xlsx(list_of_datasets, here('summary', 'hct_genes_050_updown.xlsx'))
 
 
