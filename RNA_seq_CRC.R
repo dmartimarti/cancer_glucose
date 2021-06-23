@@ -139,17 +139,17 @@ head(tx2gene)
 
 
 
-
-library( "biomaRt" )
-
-ensembl = useMart( "ensembl", dataset = "hsapiens_gene_ensembl" )
-
+# 
+# library( "biomaRt" )
+# 
+# ensembl = useMart( "ensembl", dataset = "hsapiens_gene_ensembl" )
+# 
 
 
 ### TX import + DESeq ####
 
 # import quantification data 
-txi = tximport::tximport(files, type = "salmon", tx2gene = tx2gene, ignoreTxVersion = T)
+txi = tximport::tximport(files, type = "salmon", tx2gene = tx2gene)
 
 
 ### starting analysis with DESeq2
@@ -164,16 +164,57 @@ samples.batch = samples %>%
 ddsTxi = DESeqDataSetFromTximport(txi, colData = samples.batch, 
                                   design = ~Batch + Sample)
 
-# # prefilter, but that might not be necessary
+
+
+#### filter by rowSums ####
+# prefilter, but that might not be necessary
 keep = rowSums(counts(ddsTxi)) >= 100
+
 ddsTxi = ddsTxi[keep,]
 
-ddsTxi$Sample = relevel(ddsTxi$Sample, ref = "HCT116_C")
+
+#### 0s filter ####
+# filter by presence of 0s in the samples
+# STRATEGY: get sample columns per separate, calculate how many
+# columns have 0s, select the genes that have 6 (or more) columns with
+# 0s and change the rest of the values to 0
+
+
+temp = counts(ddsTxi)
+
+cells = unique(samples$Cell_line)
+
+threshold = 6
+
+# loop to cycle for every sample subset and fix weird values
+for (cell in cells) {
+samp_names = samples %>% 
+  filter(Cell_line == cell) %>% 
+  pull(Name)
+flawed = rownames(temp[,samp_names][rowSums(temp[,samp_names] == 0) >= threshold,])
+temp[flawed,samp_names] = 0
+}
+
+ 
+temp %>% view
+
+ddsTxi.filt = DESeqDataSetFromMatrix(temp ,
+                       colData = samples.batch,
+                       design = ~Batch + Sample)
+
+
+# 
+# temp[flawed,samp_names]
+
+
+
+
+
+ddsTxi.filt$Sample = relevel(ddsTxi$Sample, ref = "HCT116_C")
 
 
 # run the Differential Expression Analysis
-# design(ddsTxi) <- formula(~ Bacteria + Worm)
-dds = DESeq(ddsTxi)
+dds = DESeq(ddsTxi.filt)
 
 
 
@@ -183,14 +224,6 @@ dds = DESeq(ddsTxi)
 ### tidy results ####
 # dds.tidy = tidy(ddsTxi, colData = samples$Sample)
 gene_counts = counts(dds, normalized = TRUE)
-
-# genemap = getBM(attributes = c("ensembl_gene_id",  "external_gene_name"), 
-#                 filters = "ensembl_gene_id",
-#                 values = rownames(gene_counts), 
-#                 mart = ensembl )
-
-
-
 gene_list = rownames(gene_counts)
 gene_counts = gene_counts %>% cbind(gene_list,.) %>% as_tibble()
 
@@ -250,12 +283,12 @@ sampleDists = as.matrix(sampleDists)
 
 
 # USE THIS TO CHANGE THE ROW/COLUMN NAMES
-names = colnames(sampleDists) %>%
-  str_split('_', simplify = T) %>%
-  data.frame %>% tbl_df() %>%
-  unite(sample, X1, X2, sep = " - ") %>%
-  dplyr::select(sample) %>%
-  t %>% as.vector
+# names = colnames(sampleDists) %>%
+#   str_split('_', simplify = T) %>%
+#   data.frame %>% tbl_df() %>%
+#   unite(sample, X1, X2, sep = " - ") %>%
+#   dplyr::select(sample) %>%
+#   t %>% as.vector
 
 names = gene_counts %>% 
   unite(ID, Sample, Replicate) %>% 
@@ -329,19 +362,19 @@ dev.copy2pdf(device = cairo_pdf,
 # 
 # 
 # 
-# # KEGG databases
-# # get databases for genes and pathways from KEGG
-# kegg.links.entrez = limma::getGeneKEGGLinks('hsa', convert = TRUE) 
-# kegg.links.ids = limma::getGeneKEGGLinks('hsa')
-# path.ids = limma::getKEGGPathwayNames('hsa', remove.qualifier = TRUE)
-# kegg.links = cbind(kegg.links.entrez, kegg.links.ids[,1])
-# colnames(kegg.links) = c('entrezid', 'PathwayID', 'KEGG_genes')
-# 
-# kegg.links = kegg.links %>% 
-#   as_tibble %>% 
-#   mutate(entrezid = as.integer(entrezid)) %>% 
-#   left_join(path.ids) %>%
-#   mutate(PathwayID = str_replace(PathwayID, 'path:hsa', ''))
+# KEGG databases
+# get databases for genes and pathways from KEGG
+kegg.links.entrez = limma::getGeneKEGGLinks('hsa', convert = TRUE)
+kegg.links.ids = limma::getGeneKEGGLinks('hsa')
+path.ids = limma::getKEGGPathwayNames('hsa', remove.qualifier = TRUE)
+kegg.links = cbind(kegg.links.entrez, kegg.links.ids[,1])
+colnames(kegg.links) = c('entrezid', 'PathwayID', 'KEGG_genes')
+
+kegg.links = kegg.links %>%
+  as_tibble %>%
+  mutate(entrezid = as.integer(entrezid)) %>%
+  left_join(path.ids) %>%
+  mutate(PathwayID = str_replace(PathwayID, 'path:hsa', ''))
 
 
 
@@ -355,7 +388,7 @@ res = results(dds)
 
 # results with different shape of contrasts, tidy
 res.hct = results(dds,   contrast = c("Sample", "HCT116_M" , "HCT116_C"))  
-res.hct = lfcShrink(dds, contrast = c("Sample", "HCT116_M" , "HCT116_M"), res = res.hct, type = 'ashr')
+res.hct = lfcShrink(dds, contrast = c("Sample", "HCT116_M" , "HCT116_C"), res = res.hct, type = 'ashr')
 
 res.dld = results(dds,  contrast = c("Sample",  "DLD1_M", "DLD1_C")) 
 res.dld = lfcShrink(dds, contrast = c("Sample",  "DLD1_M", "DLD1_C"), res = res.dld, type = 'ashr')
@@ -405,20 +438,23 @@ res.sw.tidy = as_tibble(res.sw, rownames = 'gene_id') %>% mutate(
 
 results.complete = res.hct.tidy %>% rbind(res.dld.tidy, res.lovo.tidy, res.sw.tidy)
 
+results.complete.kegg = results.complete %>% left_join(kegg.links)
+
 # write results in excel files
 list_of_datasets = list('HCT116' = res.hct.tidy, 
                         'DLD-1' = res.dld.tidy, 
                         'LoVo' = res.lovo.tidy,
                         'SW948' = res.sw.tidy)
 
-write.xlsx(list_of_datasets, here('summary', 'complete_stats.xlsx'), colNames = T, rowNames = F) 
+write.xlsx(list_of_datasets, here('summary', 'complete_stats.xlsx'), 
+           colNames = T, rowNames = F) 
 
 
 
 # plot genes
 
 
-gene = 'RDH13'
+gene = 'MYO15B'
 gene_counts%>% 
   dplyr::filter(gene_name == gene) %>% 
   filter(Cell_line == 'HCT116') %>%
@@ -429,14 +465,16 @@ gene_counts%>%
 
 
 
+plotCounts(res.hct, gene=1000, intgroup="Sample")
+
+
+
 # MA plots ----------------------------------------------------------------
 
 
 
 ### MA plots for every comparison
 plotMA(res.hct,  ylim=c(-3,3),  alpha = 0.05)
-# idx <- identify(res.N2$baseMean, res.N2$log2FoldChange)
-# rownames(res.N2)[idx]
 dev.copy2pdf(device = cairo_pdf,
              file = here('summary', 'MAplot_HCT.pdf'),
              height = 8, width = 11, useDingbats = FALSE)
@@ -520,7 +558,7 @@ ell = ind_df %>% group_by(Condition, Cell_line) %>% do(getellipse(.$Dim1, .$Dim2
 percentVar = round(100 * attr(pcaData, "percentVar"))
 
 # plot!
-line = 'SW948'
+line = 'HCT116'
 ggplot(ind_df, aes(x = Dim1, y = Dim2, color = Condition, group = interaction(Condition, Cell_line))) +
   geom_point(size = 3, show.legend = NA, alpha = 0.5) + 
   geom_path(data = ell, aes(x = x, y = y, group = interaction(Condition, Cell_line), linetype = Condition), size = 1) +
@@ -546,7 +584,7 @@ ggsave(here('summary',glue('PCA_{line}.pdf')), height = 7, width = 8)
 res.hct.tidy %>% 
   filter(str_detect(gene_name,'CPT'))
 
-gene = 'MYC'
+gene = 'DDIT4'
 gene_counts%>% 
   dplyr::filter(gene_name == gene) %>% 
   filter(Cell_line == 'HCT116') %>%
@@ -558,31 +596,57 @@ gene_counts%>%
 
 
 
-# genes that are at least 1.5 more times expression in Micit
-min_thr = 0.5
-up_hct = res.hct.tidy %>% 
-  filter(log2FoldChange < 3 & log2FoldChange > min_thr) %>% 
-  filter(padj <= 0.05) %>%
-  pull(gene_id)
+# DE genes (up/down) to analyse via StringDB
+
+# helper function that extracts DE genes with upper and lower thresholds
+DEgenes = function(dataset = results.complete, 
+                   cell = 'HCT116', 
+                   min_thrs = 0.5,
+                   max_thrs = 10) {
+  
+  up = dataset %>%  
+    filter(Contrast == cell) %>% 
+    filter(log2FoldChange < max_thrs & log2FoldChange > min_thrs) %>% 
+    filter(padj <= 0.05) %>%
+    pull(gene_id) %>% unique
+  
+  
+  down = dataset %>% 
+    filter(Contrast == cell) %>% 
+    filter(log2FoldChange > -max_thrs & log2FoldChange < -min_thrs) %>% 
+    filter(padj <= 0.05) %>%
+    pull(gene_id) %>% unique
+  
+  
+  up = c('genes', up)
+  down = c('genes', down)
+  
+  up_name = glue('{cell}_UP')
+  down_name = glue('{cell}_DOWN')
+  
+  list_of_datasets = list(
+    up_name = up,
+    down_name = down
+  )
+  
+  names(list_of_datasets) = c(up_name, down_name)
+
+  write.xlsx(list_of_datasets, here('summary', glue('{cell}_genes_updown.xlsx')))
+}
+
+# HCT
+DEgenes(results.complete, cell = 'HCT116', min_thrs = 0.5, max_thrs = 10)
+# DLD-1
+DEgenes(results.complete, cell = 'DLD-1', min_thrs = 0, max_thrs = 10)
+# LoVo
+DEgenes(results.complete, cell = 'LoVo', min_thrs = 0, max_thrs = 10)
+# SW948
+DEgenes(results.complete, cell = 'SW948', min_thrs = 0, max_thrs = 10)
 
 
-down_hct = res.hct.tidy %>% 
-  filter(log2FoldChange > -3 & log2FoldChange < -min_thr) %>% 
-  filter(padj <= 0.05) %>%
-  pull(gene_id)
 
 
-up_hct = c('genes', up_hct)
-down_hct = c('genes', down_hct)
-
-list_of_datasets = list(
-  'hct_UP' = up_hct,
-  'hct_DOWN' = down_hct
-)
 
 
-library(openxlsx)
-
-write.xlsx(list_of_datasets, here('summary', 'hct_genes_050_updown.xlsx'))
 
 
