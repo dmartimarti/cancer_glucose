@@ -139,11 +139,6 @@ head(tx2gene)
 
 
 
-# 
-# library( "biomaRt" )
-# 
-# ensembl = useMart( "ensembl", dataset = "hsapiens_gene_ensembl" )
-# 
 
 
 ### TX import + DESeq ####
@@ -197,6 +192,14 @@ temp[flawed,samp_names] = 0
 
  
 temp %>% view
+
+
+
+
+# Run DESeq2 --------------------------------------------------------------
+
+
+
 
 ddsTxi.filt = DESeqDataSetFromMatrix(temp ,
                        colData = samples.batch,
@@ -451,10 +454,32 @@ write.xlsx(list_of_datasets, here('summary', 'complete_stats.xlsx'),
 
 
 
+results.complete %>% 
+  drop_na(pvalue) %>% 
+  ggplot(aes(x = pvalue)) +
+  geom_histogram(alpha=.8, position = 'identity',
+                 fill = '#4A5CE6',
+                 bins = 50, color='black') +
+  labs(title='Histogram of unadjusted p-values') +
+  xlab('Unadjusted p-values') +
+  facet_wrap(~Contrast)
+
+
+results.complete %>% 
+  drop_na(padj) %>% 
+  ggplot(aes(x = padj)) +
+  geom_histogram(alpha=.8, color='black',
+                 fill = '#EE3B3B',
+                 position = 'identity', bins = 50) +
+  labs(title='Histogram of unadjusted p-values') +
+  xlab('Adjusted p-values (FDR)') +
+  facet_wrap(~Contrast)
+
+
 # plot genes
 
 
-gene = 'MYO15B'
+gene = 'CLEC7A'
 gene_counts%>% 
   dplyr::filter(gene_name == gene) %>% 
   filter(Cell_line == 'HCT116') %>%
@@ -642,6 +667,153 @@ DEgenes(results.complete, cell = 'DLD-1', min_thrs = 0, max_thrs = 10)
 DEgenes(results.complete, cell = 'LoVo', min_thrs = 0, max_thrs = 10)
 # SW948
 DEgenes(results.complete, cell = 'SW948', min_thrs = 0, max_thrs = 10)
+
+
+
+
+# HTML report -------------------------------------------------------------
+
+library(ReportingTools)
+library(hwriter)
+
+
+colData(dds)$Sample
+
+colData(dds[,c(1,2,9,10,17,18,25,26)])
+
+
+
+## RUN THIS ONLY ONCE
+library(biomaRt)
+ens.mart = useMart( "ensembl", dataset = "hsapiens_gene_ensembl")
+
+# list the available datasets (species)
+listDatasets(ens.mart) %>% 
+  filter(str_detect(description, "Human"))
+
+ensembl = useDataset("hsapiens_gene_ensembl", mart=ens.mart)
+
+listAttributes(ensembl) %>% 
+  filter(str_detect(name, "go"))
+
+## annotate using biomaRt
+## note this is slightly different from what Mike pointed you to, as we
+## are calling the IDs 'Ensembl', and are using mgi_symbol instead of hgnc_symbol
+add.anns <- function(df, mart, ...) {
+  nm <- rownames(df)
+  anns <- getBM( attributes = c("ensembl_gene_id", "external_gene_name","description"),
+                 filters = "ensembl_gene_id", values = nm, mart = mart)
+  anns <- anns[match(nm, anns[, 1]), ]
+  colnames(anns) <- c("Ensembl", "Gene Symbol", "Gene Description")
+  df <- cbind(anns, df[, 2:ncol(df)])
+  rownames(df) <- nm
+  df
+}
+
+#Add links to Ensembl.org, because that's how we roll.
+ensemblLinks <- function(df, ...){
+  naind <- is.na(df$Ensembl)
+  df$Ensembl <- hwrite(as.character(df$Ensembl), 
+                       link = paste0("https://www.ensembl.org/Homo_sapiens/Gene/Summary?g=",
+                       as.character(df$Ensembl)), table = FALSE)
+  df$Ensembl[naind] <- ""
+  return(df)
+}
+
+
+
+#### HCT report ####
+
+# extract the data for hct cell line
+hct.dds = dds[,c(1,2,9,10,17,18,25,26)]
+
+
+des2Report = HTMLReport(shortName = 'HCT',
+                         title = 'RNA-seq analysis of differential expression for HCT116 cells',
+                         reportDirectory = "./report")
+
+publish(res.hct,
+        des2Report,
+        DataSet = hct.dds,
+        # pvalueCutoff = 0.05,
+        pvalueCutoff = 1,
+        make.plots = T,
+        # annotation.db = "org.Hs.eg.db",
+        .modifyDF = list(add.anns, modifyReportDF,ensemblLinks),
+        mart = ensembl,
+        factor = colData(hct.dds)$Sample
+        )
+
+finish(des2Report)
+
+
+
+#### DLD report ####
+
+# extract the data for hct cell line
+dld.dds = dds[,c(3,4,11,12,19,20,27,28)]
+
+
+des2Report = HTMLReport(shortName = 'DLD',
+                        title = 'RNA-seq analysis of differential expression for DLD-1 cells',
+                        reportDirectory = "./report")
+
+publish(res.dld,
+        des2Report,
+        DataSet = dld.dds,
+        # pvalueCutoff = 0.05,
+        pvalueCutoff = 1,
+        make.plots = T,
+        # annotation.db = "org.Hs.eg.db",
+        .modifyDF = list(add.anns, modifyReportDF,ensemblLinks),
+        mart = ensembl,
+        factor = colData(hct.dds)$Sample
+)
+
+finish(des2Report)
+
+#### LoVo report ####
+
+# extract the data for hct cell line
+lovo.dds = dds[,c(3,4,11,12,19,20,27,28)+2]
+
+
+des2Report = HTMLReport(shortName = 'LoVo',
+                        title = 'RNA-seq analysis of differential expression for LoVo cells',
+                        reportDirectory = "./report")
+
+publish(res.lovo,
+        des2Report,
+        DataSet = lovo.dds,
+        # pvalueCutoff = 0.05,
+        pvalueCutoff = 1,
+        make.plots = T,
+        # annotation.db = "org.Hs.eg.db",
+        .modifyDF = list(add.anns, modifyReportDF,ensemblLinks),
+        mart = ensembl,
+        factor = colData(hct.dds)$Sample
+)
+
+finish(des2Report)
+
+
+
+
+# Glimma report -----------------------------------------------------------
+
+library(Glimma)
+
+# this plots and MDS plot``
+glimmaMDS(hct.dds, groups=c('control','Micit'))
+
+glMDPlot(res.hct,
+         groups=c('HCT116_M','HCT116_C'),
+         anno= info %>% 
+           filter(gene_id %in% gene_list) %>% 
+           distinct(gene_id,.keep_all = T) ,
+         width=1000, height=1000,
+         status.cols=c("powderblue", "seashell", "salmon"))
+
 
 
 
