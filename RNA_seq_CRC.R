@@ -240,8 +240,9 @@ gene_counts = gene_counts %>%
          Replicate = as.factor(Replicate)) %>% 
   left_join(info) 
 
+# TYMS, CDKN1A, TP53
 
-gene = 'HSPA1B'
+gene = 'TP53'
 gene_counts%>% 
   dplyr::filter(gene_name == gene) %>% 
   dplyr::filter(Cell_line == 'HCT116') %>%
@@ -479,14 +480,14 @@ results.complete %>%
 # plot genes
 
 
-gene = 'CLEC7A'
+gene = 'DDIT4'
 gene_counts%>% 
   dplyr::filter(gene_name == gene) %>% 
-  filter(Cell_line == 'HCT116') %>%
+  # filter(Cell_line == 'HCT116') %>%
   ggplot(aes(x = Sample, y = counts, fill = Sample)) +
   geom_boxplot(outlier.shape = NA) +
   geom_point(size = 2.5, position = position_jitterdodge(), aes(color = Replicate))+
-  facet_wrap(~gene_id, scales = 'free_y')
+  facet_wrap(~gene_id*Cell_line, scales = 'free')
 
 
 
@@ -609,7 +610,7 @@ ggsave(here('summary',glue('PCA_{line}.pdf')), height = 7, width = 8)
 res.hct.tidy %>% 
   filter(str_detect(gene_name,'CPT'))
 
-gene = 'DDIT4'
+gene = ''
 gene_counts%>% 
   dplyr::filter(gene_name == gene) %>% 
   filter(Cell_line == 'HCT116') %>%
@@ -655,19 +656,28 @@ DEgenes = function(dataset = results.complete,
   )
   
   names(list_of_datasets) = c(up_name, down_name)
-
-  write.xlsx(list_of_datasets, here('summary', glue('{cell}_genes_updown.xlsx')))
+  return(list_of_datasets)
+  # write.xlsx(list_of_datasets, here('summary', glue('{cell}_genes_updown.xlsx')))
 }
 
 # HCT
-DEgenes(results.complete, cell = 'HCT116', min_thrs = 0.5, max_thrs = 10)
+hct_de = DEgenes(results.complete, cell = 'HCT116', min_thrs = 0.3, max_thrs = 10)
 # DLD-1
-DEgenes(results.complete, cell = 'DLD-1', min_thrs = 0, max_thrs = 10)
+dld_de = DEgenes(results.complete, cell = 'DLD-1', min_thrs = 0, max_thrs = 10)
 # LoVo
-DEgenes(results.complete, cell = 'LoVo', min_thrs = 0, max_thrs = 10)
+lovo_de = DEgenes(results.complete, cell = 'LoVo', min_thrs = 0, max_thrs = 10)
 # SW948
-DEgenes(results.complete, cell = 'SW948', min_thrs = 0, max_thrs = 10)
+sw_de = DEgenes(results.complete, cell = 'SW948', min_thrs = 0, max_thrs = 10)
 
+list_of_datasets = list('HCT116_UP' = hct_de[[1]],
+                        'HCT116_DOWN'= hct_de[[2]],
+                        'DLD_UP' = dld_de[[1]],
+                        'DLD_DOWN'= dld_de[[2]],
+                        'LoVo_UP' = lovo_de[[1]],
+                        'LoVo_DOWN'= lovo_de[[2]]
+                        )
+
+write.xlsx(list_of_datasets, here('summary', 'total_genes_updown.xlsx'),overwrite = TRUE)
 
 
 
@@ -798,21 +808,115 @@ finish(des2Report)
 
 
 
+# pathway exploration -----------------------------------------------------------
 
-# Glimma report -----------------------------------------------------------
+# first, filter out SW948 as it is uninformative for us
 
-library(Glimma)
+results.filt = results.complete %>% 
+  filter(Contrast != 'SW948') %>% 
+  filter(gene_name != 'TAP2') %>% 
+  mutate(Contrast = str_replace(Contrast, 'DLD-1', 'DLD')) %>% 
+  select(Contrast, gene_id, gene_name, log2FoldChange, padj, p_adj_stars, Direction) %>% 
+  group_by(Contrast) %>% 
+  distinct(gene_id, .keep_all = T) %>% 
+  ungroup
 
-# this plots and MDS plot``
-glimmaMDS(hct.dds, groups=c('control','Micit'))
+# filter genes that are, at least in 1 condition, significative
 
-glMDPlot(res.hct,
-         groups=c('HCT116_M','HCT116_C'),
-         anno= info %>% 
-           filter(gene_id %in% gene_list) %>% 
-           distinct(gene_id,.keep_all = T) ,
-         width=1000, height=1000,
-         status.cols=c("powderblue", "seashell", "salmon"))
+sig.genes = results.filt %>% 
+  filter(padj <= 0.05) %>% 
+  distinct(gene_id) %>% pull(gene_id)
+
+# generate matrix
+results.filt  %>% 
+  filter(gene_id %in% sig.genes) %>% 
+  select(gene_id, Contrast, log2FoldChange, padj) %>% 
+  pivot_wider(names_from = Contrast, values_from = c(log2FoldChange, padj)) 
+
+
+# see the kegg pathways we have
+kegg.links %>% 
+  distinct(Description, .keep_all = T) %>% view
+
+
+
+
+pathways = c('Autophagy - other', 'Autophagy - animal',
+             'Citrate cycle (TCA cycle)', 'Purine metabolism',
+             'Pyrimidine metabolism', 'Folate biosynthesis',
+             'mTOR signaling pathway','p53 signaling pathway',
+             'Ribosome','RNA transport','FoxO signaling pathway',
+             'Cell cycle','Oxidative phosphorylation',
+             'Hippo signaling pathway','MicroRNAs in cancer',
+             'ErbB signaling pathway','MAPK signaling pathway',
+             'Spliceosome','Protein processing in endoplasmic reticulum')
+
+for (path in pathways) {
+  
+  autoph.genes = kegg.links %>% 
+    filter(Description == path) %>% 
+    left_join(info) %>% 
+    distinct(gene_id) %>% 
+    pull(gene_id)
+  
+  path_res = results.filt  %>% 
+    filter(gene_id %in% sig.genes) %>%
+    filter(gene_id %in% autoph.genes)
+  
+  
+  path_res %>% 
+    ungroup %>% 
+    left_join(df) %>% 
+    mutate(Contrast = factor(Contrast, levels = c('HCT116', 'DLD', 'LoVo'))) %>%
+    ggplot(aes(y = reorder(gene_name, log2FoldChange), x = Contrast, fill = log2FoldChange)) +
+    scale_fill_gradient2(low = "blue",
+                         mid = "white",
+                         high = "red",
+                         midpoint = 0) +
+    geom_tile() +
+    geom_text(aes(label = p_adj_stars),nudge_y = -0.2) +
+    labs(x = 'Cell line',
+         y = 'Gene name',
+         fill = 'Fold Change\n(log2)') +
+    theme(axis.text.y = NULL)
+  
+  ggsave(here('summary/heatmaps', glue('{path}_heatmap.pdf')), height = 9, width = 12)
+
+
+}
+
+
+
+# PCA of sig genes --------------------------------------------------------
+
+library(tidymodels)
+
+results.wide = results.filt  %>% 
+  filter(gene_id %in% sig.genes) %>% 
+  select(gene_id, Contrast, log2FoldChange) %>% 
+  pivot_wider(names_from = Contrast, values_from = c(log2FoldChange)) %>% 
+  select(HCT116:LoVo)
+
+t.results =  t(results.wide)
+
+rownames(t.results)
+
+colnames(t.results) = sig.genes
+
+res.pca = PCA(t.results, ncp = 5, scale.unit = T, graph = F)
+
+# # extract info about the individuals
+ind = get_pca_ind(res.pca)
+ind_df = data.frame(ind$coord[,1], ind$coord[,2])
+
+colnames(ind_df) = c('Dim1', 'Dim2')
+
+ind_df['Cell'] = rownames(ind_df)
+
+ind_df %>% 
+  ggplot(aes(x = Dim1, y = Dim2, color = Cell)) +
+  geom_point(size = 9)
+
 
 
 
