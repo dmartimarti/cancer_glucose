@@ -2162,6 +2162,118 @@ data_long %>% filter(Gene_names %in%  gene) %>%
 ggsave(here('presentation','TYMS_boxplot.pdf'), height = 8, width = 10)
 
 
+### TP53 plot ####
+
+# plot examples of genes
+gene = c('TP53')
+data_long %>% filter(Gene_names %in%  gene) %>% 
+  mutate(Sample = factor(Sample, levels = c('Control', 
+                                            '5FU',
+                                            '1mM_Micit',
+                                            '10mM_Micit',
+                                            '5FU_1mM_Micit', 
+                                            '5FU_10mM_Micit'))) %>% 
+  ggplot(aes(x = Sample, y = Intensity, fill = Sample)) +
+  geom_boxplot(outlier.shape = NA) +
+  geom_point(position = position_jitterdodge()) +
+  # facet_wrap(~Gene_names) +
+  labs(y = 'Protein expression (log2)',
+       x = 'Condition') +
+  scale_x_discrete(labels = c("5FU" = "5-FU",
+                              "1mM_Micit" = "1mM",
+                              "10mM_Micit" = "10mM",
+                              "5FU_1mM_Micit" = "1mM",
+                              "5FU_10mM_Micit" = "10mM")) +
+  geom_vline(xintercept = 1.5, linetype="dashed", color = 'grey60') +
+  annotate("text", x = 2, y = 23, label = 'atop(bold("5-FU"))', size = 7,
+           color = 'orange', parse = T) +
+  geom_vline(xintercept = 2.5, linetype="dashed", color = 'grey60') +
+  geom_vline(xintercept = 4.5, linetype="dashed", color = 'grey60') +
+  annotate("text", x = 3.5, y = 23, label = 'atop(bold("Metabolite"))', size = 7,
+           color = 'blue', parse = T) +
+  geom_vline(xintercept = 4.5, linetype="dashed", color = 'grey60') +
+  annotate("text", x = 5.5, y = 23, label = 'atop(bold("Metabolite"))', size = 7,
+           color = 'blue', parse = T) +
+  annotate("text", x = 5.5, y = 22.93, label = 'atop(bold(" + 5-FU"))', size = 7,
+           color = 'orange', parse = T) +
+  scale_fill_manual(
+    values = c('grey60',
+               '#F5EB44',
+               '#87CFFF',
+               '#2733FF',
+               '#8DEB99',
+               '#00C91B'), 
+    labels = c('Control',
+               '5-FU',
+               '1mM',
+               '10mM',
+               '1mM + 5-FU',
+               '10mM + 5-FU')) +
+  theme(axis.text.x = element_text(hjust = 0.5)) +
+  theme(axis.text.x = element_text(size=15, color = 'black'),
+        axis.text.y = element_text(size=15, color = 'black'),
+        axis.title.x = element_text(size=14, face="bold"),
+        axis.title.y = element_text(size=14, face="bold"))
+
+ggsave(here('presentation','TP53_boxplot.pdf'), height = 8, width = 10)
+
+
+
+### TP21 plot ####
+
+# plot examples of genes
+gene = c('CDKN1A')
+data_long %>% filter(Gene_names %in%  gene) %>% 
+  mutate(Sample = factor(Sample, levels = c('Control', 
+                                            '5FU',
+                                            '1mM_Micit',
+                                            '10mM_Micit',
+                                            '5FU_1mM_Micit', 
+                                            '5FU_10mM_Micit'))) %>% 
+  ggplot(aes(x = Sample, y = Intensity, fill = Sample)) +
+  geom_boxplot(outlier.shape = NA) +
+  geom_point(position = position_jitterdodge()) +
+  # facet_wrap(~Gene_names) +
+  labs(y = 'Protein expression (log2)',
+       x = 'Condition') +
+  scale_x_discrete(labels = c("5FU" = "5-FU",
+                              "1mM_Micit" = "1mM",
+                              "10mM_Micit" = "10mM",
+                              "5FU_1mM_Micit" = "1mM",
+                              "5FU_10mM_Micit" = "10mM")) +
+  geom_vline(xintercept = 1.5, linetype="dashed", color = 'grey60') +
+  annotate("text", x = 2, y = 26.8, label = 'atop(bold("5-FU"))', size = 7,
+           color = 'orange', parse = T) +
+  geom_vline(xintercept = 2.5, linetype="dashed", color = 'grey60') +
+  geom_vline(xintercept = 4.5, linetype="dashed", color = 'grey60') +
+  annotate("text", x = 3.5, y = 26.8, label = 'atop(bold("Metabolite"))', size = 7,
+           color = 'blue', parse = T) +
+  geom_vline(xintercept = 4.5, linetype="dashed", color = 'grey60') +
+  annotate("text", x = 5.5, y = 26.8, label = 'atop(bold("Metabolite"))', size = 7,
+           color = 'blue', parse = T) +
+  annotate("text", x = 5.5, y = 26.6, label = 'atop(bold(" + 5-FU"))', size = 7,
+           color = 'orange', parse = T) +
+  scale_fill_manual(
+    values = c('grey60',
+               '#F5EB44',
+               '#87CFFF',
+               '#2733FF',
+               '#8DEB99',
+               '#00C91B'), 
+    labels = c('Control',
+               '5-FU',
+               '1mM',
+               '10mM',
+               '1mM + 5-FU',
+               '10mM + 5-FU')) +
+  theme(axis.text.x = element_text(hjust = 0.5)) +
+  theme(axis.text.x = element_text(size=15, color = 'black'),
+        axis.text.y = element_text(size=15, color = 'black'),
+        axis.title.x = element_text(size=14, face="bold"),
+        axis.title.y = element_text(size=14, face="bold"))
+
+ggsave(here('presentation','TP21_boxplot.pdf'), height = 8, width = 10)
+
 
 
 ### heatmaps ####
