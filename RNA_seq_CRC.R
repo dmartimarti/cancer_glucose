@@ -31,11 +31,51 @@ library(viridis)
 library(glue)
 
 
-theme_set(theme_classic())
+theme_set(theme_classic() +
+              theme(axis.text=element_text(size=15),
+                    axis.title=element_text(size=18,face="bold")))
 
 # the first step we need to do is to read the sample file, and parse it with 
 # the data produced by salmon to get tables ready to be analysed by DESeq2
 
+
+
+# Sequencing quality ------------------------------------------------------
+
+library(fastqcr)
+
+# Demo QC directory containing zipped FASTQC reports
+
+fastqc_dir = paste(getwd(),'/FastQC',sep='')
+
+qc = qc_aggregate(fastqc_dir)
+qc
+
+summary(qc)
+
+qc_stats(qc) %>% 
+  mutate(tot.seq = as.numeric(tot.seq)) %>% 
+  ggplot(aes(x = tot.seq)) +
+  geom_histogram(fill = '#3640D6', color = 'black', bins = 25) +
+  # xlim(13694173,24023731) +
+  scale_x_continuous(labels = scales::comma_format(big.mark = ".",
+                                           decimal.mark = ","),
+                     limits = c(14694173,24023731)) +
+  labs(x = 'Total seqs',
+       y = 'Count')
+
+ggsave(here('summary', 'sequence_length_histogram.pdf'))
+
+
+qc_stats(qc) %>% 
+  mutate(tot.seq = as.numeric(tot.seq)) %>% 
+  summarise(Mean = mean(tot.seq),
+            SD = sd(tot.seq))
+
+
+# # # # # # # # # # #
+# RNA seq analysis --------------------------------------------------------
+# # # # # # # # # # #
 
 
 # Get sample info ---------------------------------------------------------
@@ -64,7 +104,24 @@ all(file.exists(files)) # check that files exist
 
 
 
+read.samples = function(samp_file = "sampleInfo.txt", quants = 'quants_103') {
+  
+  samples = read.delim(samp_file) 
+  
+  dir = getwd()
+  rownames(samples) = samples$Name
+  
+  quants_dir = quants
 
+  # prepare a list with file names
+  files = file.path(dir,quants_dir, samples$Name, "quant.sf")
+  names(files) = samples$Name
+
+  return(files)
+}
+
+
+read.samples(samp_file = 'sampleInfo_HCT116.txt')
 
 # Get gene labels from databases ------------------------------------------
 
@@ -242,16 +299,19 @@ gene_counts = gene_counts %>%
 
 # TYMS, CDKN1A, TP53
 
-gene = 'TP53'
+gene = 'TYMS'
 gene_counts%>% 
   dplyr::filter(gene_name == gene) %>% 
-  dplyr::filter(Cell_line == 'HCT116') %>%
-  ggplot(aes(x = Sample, y = counts, fill = Sample)) +
+  # dplyr::filter(Cell_line == 'HCT116') %>%
+  ggplot(aes(x = Sample, y = counts, fill = Condition)) +
   geom_boxplot(outlier.shape = NA) +
-  geom_point(size = 2.5, position = position_jitterdodge(), aes(color = Replicate))+
-  facet_wrap(~gene_id*Cell_line, scales = 'free')
+  geom_point(size = 2.5, position = position_jitterdodge())+
+  facet_wrap(~gene_id*Cell_line, scales = 'free') +
+  scale_fill_manual(values = c("#1C86EE", "#EEC900")) +
+  labs(x = 'Sample',
+       y = 'Counts (normalised)')
 
-ggsave(here('summary', glue('boxplot_{gene}.pdf')), height = 7, width = 9)
+ggsave(here('summary', glue('boxplot_{gene}.pdf')), height = 8, width = 10)
 
 # transofrm data
 
@@ -454,44 +514,49 @@ write.xlsx(list_of_datasets, here('summary', 'complete_stats.xlsx'),
            colNames = T, rowNames = F) 
 
 
+#### p-val dist ####
+
 
 results.complete %>% 
   drop_na(pvalue) %>% 
   ggplot(aes(x = pvalue)) +
   geom_histogram(alpha=.8, position = 'identity',
                  fill = '#4A5CE6',
-                 bins = 50, color='black') +
+                 bins = 80, color='black') +
   labs(title='Histogram of unadjusted p-values') +
   xlab('Unadjusted p-values') +
   facet_wrap(~Contrast)
 
+ggsave(here('summary', 'unadjusted_pval_dist.pdf'), height = 8, width = 10)
 
 results.complete %>% 
   drop_na(padj) %>% 
   ggplot(aes(x = padj)) +
   geom_histogram(alpha=.8, color='black',
                  fill = '#EE3B3B',
-                 position = 'identity', bins = 50) +
-  labs(title='Histogram of unadjusted p-values') +
+                 position = 'identity', bins = 80) +
+  labs(title='Histogram of adjusted p-values (FDR)') +
   xlab('Adjusted p-values (FDR)') +
   facet_wrap(~Contrast)
 
+ggsave(here('summary', 'FDR_pval_dist.pdf'), height = 8, width = 10)
 
 # plot genes
 
 
-gene = 'DDIT4'
+
+gene = 'TYMS'
 gene_counts%>% 
   dplyr::filter(gene_name == gene) %>% 
-  # filter(Cell_line == 'HCT116') %>%
-  ggplot(aes(x = Sample, y = counts, fill = Sample)) +
+  # dplyr::filter(Cell_line == 'HCT116') %>%
+  ggplot(aes(x = Sample, y = counts, fill = Condition)) +
   geom_boxplot(outlier.shape = NA) +
-  geom_point(size = 2.5, position = position_jitterdodge(), aes(color = Replicate))+
-  facet_wrap(~gene_id*Cell_line, scales = 'free')
-
-
-
-plotCounts(res.hct, gene=1000, intgroup="Sample")
+  geom_point(size = 2.5, position = position_jitterdodge())+
+  facet_wrap(~gene_id*Cell_line, scales = 'free') +
+  scale_fill_manual(values = c("#1C86EE", "#EEC900")) +
+  labs(x = 'Sample',
+       y = 'Counts (normalised)')
+ggsave(here('summary', glue('boxplot_{gene}.pdf')), height = 8, width = 10)
 
 
 
@@ -916,6 +981,224 @@ ind_df['Cell'] = rownames(ind_df)
 ind_df %>% 
   ggplot(aes(x = Dim1, y = Dim2, color = Cell)) +
   geom_point(size = 9)
+
+
+
+
+
+# Gene enrichment -------------------------------------------------
+
+# Enrichment Browser
+
+library(EnrichmentBrowser)
+
+
+## Run this once!
+
+# obtaining gene sets
+kegg.gs = getGenesets(org = "hsa", db = "kegg")
+go.gs = getGenesets(org = "hsa", db = "go", onto = "BP", mode = "GO.db")
+
+
+
+
+
+#### HCT ####
+# need to do again DESeq2 for hct per separate
+files.hct = read.samples(samp_file = 'sampleInfo_HCT116.txt')
+# import quantification data 
+txi.hct = tximport::tximport(files.hct, type = "salmon", tx2gene = tx2gene)
+
+samples.red = samples.batch %>% filter(Cell_line == 'HCT116')
+ddsTxi.hct = DESeqDataSetFromTximport(txi.hct, 
+                                      colData = samples.red, 
+                                      design = ~Batch + Sample)
+
+ddsTxi.hct$Sample = relevel(ddsTxi.hct$Sample, ref = "HCT116_C")
+
+
+# run the Differential Expression Analysis
+dds.hct = DESeq(ddsTxi.hct)
+
+res.hct.pure = results(dds.hct)
+
+
+# import for gene enrichment
+hct.SE = import(dds.hct, res.hct.pure, from = c('DESeq2'), anno = 'hsa')
+
+# map IDs
+hct.SE = idMap(hct.SE, org = "hsa", from = "ENSEMBL", to = "ENTREZID")
+
+
+head(rownames(hct.SE))
+
+# set based enrichment analysis
+sbeaMethods()
+
+# normalize counts
+hct.SE = normalize(hct.SE, norm.method = "vst")
+
+# run GSEA enrichment
+# kegg 
+hct.gsea = sbea(method = "gsea", se = hct.SE, gs = kegg.gs, alpha = 0.1)
+hct.ora = sbea(method = "ora", se = hct.SE, gs = kegg.gs, alpha = 0.1)
+hct.padog = sbea(method = "padog", se = hct.SE, gs = kegg.gs, alpha = 0.1)
+
+# 
+# gsRanking(hct.gsea)
+# gsRanking(hct.ora)
+
+eaBrowse(hct.gsea, html.only = FALSE, out.dir = 'EnrichmentBrowser/KEGG/hct.gsea', 
+         report.name = 'hct.gsea')
+
+eaBrowse(hct.ora, html.only = FALSE, out.dir = 'EnrichmentBrowser/KEGG/hct.ora', 
+         report.name = 'hct.ora')
+
+eaBrowse(hct.padog, html.only = FALSE, out.dir = 'EnrichmentBrowser/KEGG/hct.padog', 
+         report.name = 'hct.padog')
+
+
+# network regulation analysis
+
+hsa.grn = compileGRN(org="hsa", db="kegg")
+
+
+nbeaMethods()
+
+nbea.res = nbea(method="ggea", se=hct.gsea, gs=kegg.gs, grn=hsa.grn)
+
+gsRanking(nbea.res)
+
+
+
+
+
+
+
+
+
+
+#### DLD ####
+# need to do again DESeq2 for hct per separate
+files.dld = read.samples(samp_file = 'sampleInfo_DLD.txt')
+# import quantification data 
+txi.dld = tximport::tximport(files.dld, type = "salmon", tx2gene = tx2gene)
+
+
+samples.red = samples.batch %>% filter(Cell_line == 'DLD1')
+
+ddsTxi.dld = DESeqDataSetFromTximport(txi.dld, 
+                                      colData = samples.red, 
+                                      design = ~Batch + Sample)
+
+
+ddsTxi.dld$Sample = relevel(ddsTxi.dld$Sample, ref = "DLD1_C")
+
+
+# run the Differential Expression Analysis
+dds.dld = DESeq(ddsTxi.dld)
+
+res.dld.pure = results(dds.dld)
+
+
+
+
+dld.SE = import(dds.dld, res.dld.pure, from = c('DESeq2'), anno = 'hsa')
+
+
+dld.SE = idMap(dld.SE, org = "hsa", from = "ENSEMBL", to = "ENTREZID")
+
+
+head(rownames(dld.SE))
+
+# normalize counts
+dld.SE = normalize(dld.SE, norm.method = "vst")
+
+# run GSEA enrichment
+# kegg 
+dld.gsea = sbea(method = "gsea", se = dld.SE, gs = kegg.gs, alpha = 0.1)
+dld.ora = sbea(method = "ora", se = dld.SE, gs = kegg.gs, alpha = 0.1)
+dld.padog = sbea(method = "padog", se = dld.SE, gs = kegg.gs, alpha = 0.1)
+
+# 
+# gsRanking(hct.gsea)
+# gsRanking(hct.ora)
+
+eaBrowse(dld.gsea, html.only = FALSE, out.dir = 'EnrichmentBrowser/KEGG/dld.gsea', 
+         report.name = 'dld.gsea')
+
+eaBrowse(dld.ora, html.only = FALSE, out.dir = 'EnrichmentBrowser/KEGG/dld.ora', 
+         report.name = 'dld.ora')
+
+eaBrowse(dld.padog, html.only = FALSE, out.dir = 'EnrichmentBrowser/KEGG/dld.padog', 
+         report.name = 'dld.padog')
+
+
+
+
+#### LoVo ####
+# need to do again DESeq2 for hct per separate
+files.lovo = read.samples(samp_file = 'sampleInfo_LoVo.txt')
+# import quantification data 
+txi.lovo = tximport::tximport(files.lovo, type = "salmon", tx2gene = tx2gene)
+
+
+samples.red = samples.batch %>% filter(Cell_line == 'LoVo')
+
+ddsTxi.lovo = DESeqDataSetFromTximport(txi.lovo, 
+                                      colData = samples.red, 
+                                      design = ~Batch + Sample)
+
+
+ddsTxi.lovo$Sample = relevel(ddsTxi.lovo$Sample, ref = "LoVo_C")
+
+
+# run the Differential Expression Analysis
+dds.lovo = DESeq(ddsTxi.lovo)
+
+res.lovo.pure = results(dds.lovo)
+
+
+
+
+lovo.SE = import(dds.lovo, res.lovo.pure, from = c('DESeq2'), anno = 'hsa')
+
+
+lovo.SE = idMap(lovo.SE, org = "hsa", from = "ENSEMBL", to = "ENTREZID")
+
+
+head(rownames(lovo.SE))
+
+# normalize counts
+lovo.SE = normalize(lovo.SE, norm.method = "vst")
+
+# run GSEA enrichment
+# kegg 
+lovo.gsea = sbea(method = "gsea", se = lovo.SE, gs = kegg.gs, alpha = 0.1)
+lovo.ora = sbea(method = "ora", se = lovo.SE, gs = kegg.gs, alpha = 0.1)
+lovo.padog = sbea(method = "padog", se = lovo.SE, gs = kegg.gs, alpha = 0.1)
+
+# 
+# gsRanking(hct.gsea)
+# gsRanking(hct.ora)
+
+eaBrowse(lovo.gsea, html.only = FALSE, out.dir = 'EnrichmentBrowser/KEGG/lovo.gsea', 
+         report.name = 'lovo.gsea')
+
+eaBrowse(lovo.ora, html.only = FALSE, out.dir = 'EnrichmentBrowser/KEGG/lovo.ora', 
+         report.name = 'lovo.ora')
+
+eaBrowse(lovo.padog, html.only = FALSE, out.dir = 'EnrichmentBrowser/KEGG/lovo.padog', 
+         report.name = 'lovo.padog')
+
+
+
+
+
+
+
+
+
 
 
 
