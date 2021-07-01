@@ -541,23 +541,6 @@ results.complete %>%
 
 ggsave(here('summary', 'FDR_pval_dist.pdf'), height = 8, width = 10)
 
-# plot genes
-
-
-
-gene = 'TYMS'
-gene_counts%>% 
-  dplyr::filter(gene_name == gene) %>% 
-  # dplyr::filter(Cell_line == 'HCT116') %>%
-  ggplot(aes(x = Sample, y = counts, fill = Condition)) +
-  geom_boxplot(outlier.shape = NA) +
-  geom_point(size = 2.5, position = position_jitterdodge())+
-  facet_wrap(~gene_id*Cell_line, scales = 'free') +
-  scale_fill_manual(values = c("#1C86EE", "#EEC900")) +
-  labs(x = 'Sample',
-       y = 'Counts (normalised)')
-ggsave(here('summary', glue('boxplot_{gene}.pdf')), height = 8, width = 10)
-
 
 
 # MA plots ----------------------------------------------------------------
@@ -952,6 +935,100 @@ for (path in pathways) {
 
 
 
+
+# plot genes
+
+#CDKN1A
+
+
+results.merge = gene_counts %>% 
+  left_join(results.complete %>% 
+              mutate(Contrast = case_when(Contrast == 'DLD-1' ~ 'DLD1',
+                                          TRUE ~ Contrast)) %>% 
+              select(gene_id, Cell_line = Contrast, log2FoldChange, 
+                     lfcSE, pvalue, padj, p_adj_stars)) 
+
+
+gene_list = c()
+for (path in pathways) {
+  
+  gene_names = kegg.links %>% 
+    filter(Description == path) %>% 
+    left_join(info) %>% 
+    distinct(gene_name) %>% 
+    drop_na(gene_name) %>% 
+    pull(gene_name)
+  
+  gene_list = c(gene_list, gene_names)
+  
+}
+
+gene_list = unique(gene_list)
+
+
+# filter genes that are not present
+gene_list = results.complete %>% 
+  filter(gene_name %in% gene_list) %>% 
+  distinct(gene_name) %>% 
+  pull(gene_name)
+
+
+gene_list = gene_list[order(gene_list)]
+
+
+# generates a boxplot per gene, with P-value and log2FC annotated 
+for (gene in gene_list){
+
+  print(glue('Plotting gene {gene}'))
+  
+  results.merge %>% 
+    dplyr::filter(gene_name == gene) %>% 
+    # filter(Cell_line == 'HCT116') %>%
+    group_by(Cell_line) %>% 
+    mutate(position_y = max(counts) + (max(counts) - min(counts))*0.04) %>% 
+    ungroup %>% 
+    ggplot(aes(x = Sample, y = counts, fill = Condition)) +
+    geom_boxplot(outlier.shape = NA) +
+    geom_point(size = 2.5, position = position_jitterdodge())+
+    facet_wrap(~gene_id*Cell_line, scales = 'free', ncol = 4) +
+    # geom_text(x = 1, y = 5000, size = 10,aes(label = p_adj_stars)) +
+        geom_text(x = 1.5, size = 4,aes(y = position_y+(position_y*0.025), 
+                                    label = paste('log2FC = ',round(log2FoldChange,3)))) +
+    geom_text(x = 1.5, size = 10, color = '#E03636',
+              aes(y = position_y, label = p_adj_stars)) +
+    scale_fill_manual(values = c("#1C86EE", "#EEC900")) +
+    labs(x = 'Sample',
+         y = 'Counts (normalised)') +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  
+  ggsave(here('summary/gene_boxplots', glue('boxplot_{gene}.pdf')), height = 8, width = 13)
+
+}
+
+
+gene = 'AC011491.1'
+
+results.merge %>% 
+  dplyr::filter(gene_name == gene) %>% 
+  # filter(Cell_line == 'HCT116') %>%
+  group_by(Cell_line) %>% 
+  mutate(position_y = max(counts) + (max(counts) - min(counts))*0.04) %>% 
+  ungroup %>% 
+  ggplot(aes(x = Sample, y = counts, fill = Condition)) +
+  geom_boxplot(outlier.shape = NA) +
+  geom_point(size = 2.5, position = position_jitterdodge())+
+  facet_wrap(~gene_id*Cell_line, scales = 'free', ncol = 4) +
+  # geom_text(x = 1, y = 5000, size = 10,aes(label = p_adj_stars)) +
+  geom_text(x = 1.5, size = 4,aes(y = position_y+(position_y*0.025), 
+                                  label = paste('log2FC = ',round(log2FoldChange,3)))) +
+  geom_text(x = 1.5, size = 10, color = '#E03636',
+            aes(y = position_y, label = p_adj_stars)) +
+  scale_fill_manual(values = c("#1C86EE", "#EEC900")) +
+  labs(x = 'Sample',
+       y = 'Counts (normalised)') +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+
 # PCA of sig genes --------------------------------------------------------
 
 library(tidymodels)
@@ -1012,7 +1089,11 @@ txi.hct = tximport::tximport(files.hct, type = "salmon", tx2gene = tx2gene)
 samples.red = samples.batch %>% filter(Cell_line == 'HCT116')
 ddsTxi.hct = DESeqDataSetFromTximport(txi.hct, 
                                       colData = samples.red, 
-                                      design = ~Batch + Sample)
+                                      design = ~Sample)
+
+# filtering by min number of sequences
+keep = rowSums(counts(ddsTxi.hct)) >= 40
+ddsTxi.hct = ddsTxi.hct[keep,]
 
 ddsTxi.hct$Sample = relevel(ddsTxi.hct$Sample, ref = "HCT116_C")
 
@@ -1021,7 +1102,6 @@ ddsTxi.hct$Sample = relevel(ddsTxi.hct$Sample, ref = "HCT116_C")
 dds.hct = DESeq(ddsTxi.hct)
 
 res.hct.pure = results(dds.hct)
-
 
 # import for gene enrichment
 hct.SE = import(dds.hct, res.hct.pure, from = c('DESeq2'), anno = 'hsa')
@@ -1040,9 +1120,10 @@ hct.SE = normalize(hct.SE, norm.method = "vst")
 
 # run GSEA enrichment
 # kegg 
-hct.gsea = sbea(method = "gsea", se = hct.SE, gs = kegg.gs, alpha = 0.1)
-hct.ora = sbea(method = "ora", se = hct.SE, gs = kegg.gs, alpha = 0.1)
-hct.padog = sbea(method = "padog", se = hct.SE, gs = kegg.gs, alpha = 0.1)
+alpha = 0.3
+hct.gsea = sbea(method = "gsea", se = hct.SE, gs = kegg.gs, alpha = alpha)
+hct.ora = sbea(method = "ora", se = hct.SE, gs = kegg.gs, alpha = alpha)
+hct.padog = sbea(method = "padog", se = hct.SE, gs = kegg.gs, alpha = alpha)
 
 # 
 # gsRanking(hct.gsea)
@@ -1076,9 +1157,8 @@ gsRanking(nbea.res)
 
 
 
-
-
 #### DLD ####
+
 # need to do again DESeq2 for hct per separate
 files.dld = read.samples(samp_file = 'sampleInfo_DLD.txt')
 # import quantification data 
@@ -1090,6 +1170,9 @@ samples.red = samples.batch %>% filter(Cell_line == 'DLD1')
 ddsTxi.dld = DESeqDataSetFromTximport(txi.dld, 
                                       colData = samples.red, 
                                       design = ~Batch + Sample)
+# filtering by min number of sequences
+keep = rowSums(counts(ddsTxi.dld)) >= 40
+ddsTxi.dld = ddsTxi.dld[keep,]
 
 
 ddsTxi.dld$Sample = relevel(ddsTxi.dld$Sample, ref = "DLD1_C")
@@ -1101,10 +1184,7 @@ dds.dld = DESeq(ddsTxi.dld)
 res.dld.pure = results(dds.dld)
 
 
-
-
 dld.SE = import(dds.dld, res.dld.pure, from = c('DESeq2'), anno = 'hsa')
-
 
 dld.SE = idMap(dld.SE, org = "hsa", from = "ENSEMBL", to = "ENTREZID")
 
@@ -1116,11 +1196,12 @@ dld.SE = normalize(dld.SE, norm.method = "vst")
 
 # run GSEA enrichment
 # kegg 
-dld.gsea = sbea(method = "gsea", se = dld.SE, gs = kegg.gs, alpha = 0.1)
-dld.ora = sbea(method = "ora", se = dld.SE, gs = kegg.gs, alpha = 0.1)
-dld.padog = sbea(method = "padog", se = dld.SE, gs = kegg.gs, alpha = 0.1)
+alpha = 0.3
+dld.gsea = sbea(method = "gsea", se = dld.SE, gs = kegg.gs, alpha = alpha)
+dld.ora = sbea(method = "ora", se = dld.SE, gs = kegg.gs, alpha = alpha)
+dld.padog = sbea(method = "padog", se = dld.SE, gs = kegg.gs, alpha = alpha)
 
-# 
+ 
 # gsRanking(hct.gsea)
 # gsRanking(hct.ora)
 
@@ -1137,6 +1218,7 @@ eaBrowse(dld.padog, html.only = FALSE, out.dir = 'EnrichmentBrowser/KEGG/dld.pad
 
 
 #### LoVo ####
+
 # need to do again DESeq2 for hct per separate
 files.lovo = read.samples(samp_file = 'sampleInfo_LoVo.txt')
 # import quantification data 
@@ -1148,7 +1230,9 @@ samples.red = samples.batch %>% filter(Cell_line == 'LoVo')
 ddsTxi.lovo = DESeqDataSetFromTximport(txi.lovo, 
                                       colData = samples.red, 
                                       design = ~Batch + Sample)
-
+# filtering by min number of sequences
+keep = rowSums(counts(ddsTxi.lovo)) >= 40
+ddsTxi.lovo = ddsTxi.lovo[keep,]
 
 ddsTxi.lovo$Sample = relevel(ddsTxi.lovo$Sample, ref = "LoVo_C")
 
@@ -1174,9 +1258,10 @@ lovo.SE = normalize(lovo.SE, norm.method = "vst")
 
 # run GSEA enrichment
 # kegg 
-lovo.gsea = sbea(method = "gsea", se = lovo.SE, gs = kegg.gs, alpha = 0.1)
-lovo.ora = sbea(method = "ora", se = lovo.SE, gs = kegg.gs, alpha = 0.1)
-lovo.padog = sbea(method = "padog", se = lovo.SE, gs = kegg.gs, alpha = 0.1)
+alpha = 0.3
+lovo.gsea = sbea(method = "gsea", se = lovo.SE, gs = kegg.gs, alpha = alpha)
+lovo.ora = sbea(method = "ora", se = lovo.SE, gs = kegg.gs, alpha = alpha)
+lovo.padog = sbea(method = "padog", se = lovo.SE, gs = kegg.gs, alpha = alpha)
 
 # 
 # gsRanking(hct.gsea)
@@ -1193,6 +1278,63 @@ eaBrowse(lovo.padog, html.only = FALSE, out.dir = 'EnrichmentBrowser/KEGG/lovo.p
 
 
 
+
+
+#### SW948 ####
+
+# need to do again DESeq2 for hct per separate
+files.sw = read.samples(samp_file = 'sampleInfo_SW.txt')
+# import quantification data 
+txi.sw = tximport::tximport(files.sw, type = "salmon", tx2gene = tx2gene)
+
+
+samples.red = samples.batch %>% filter(Cell_line == 'SW948')
+
+ddsTxi.sw = DESeqDataSetFromTximport(txi.sw, 
+                                     colData = samples.red, 
+                                     design = ~Batch + Sample)
+# filtering by min number of sequences
+keep = rowSums(counts(ddsTxi.sw)) >= 40
+ddsTxi.sw = ddsTxi.sw[keep,]
+
+ddsTxi.sw$Sample = relevel(ddsTxi.sw$Sample, ref = "SW948_C")
+
+
+# run the Differential Expression Analysis
+dds.sw = DESeq(ddsTxi.sw)
+
+res.sw.pure = results(dds.sw)
+
+
+sw.SE = import(dds.sw, res.sw.pure, from = c('DESeq2'), anno = 'hsa')
+
+sw.SE = idMap(sw.SE, org = "hsa", from = "ENSEMBL", to = "ENTREZID")
+
+
+head(rownames(sw.SE))
+
+# normalize counts
+sw.SE = normalize(sw.SE, norm.method = "vst")
+
+# run GSEA enrichment
+# kegg 
+alpha = 0.3
+sw.gsea = sbea(method = "gsea", se = sw.SE, gs = kegg.gs, alpha = alpha)
+sw.ora = sbea(method = "ora", se = sw.SE, gs = kegg.gs, alpha = alpha)
+sw.padog = sbea(method = "padog", se = sw.SE, gs = kegg.gs, alpha = alpha)
+
+# 
+# gsRanking(hct.gsea)
+# gsRanking(hct.ora)
+
+eaBrowse(sw.gsea, html.only = FALSE, out.dir = 'EnrichmentBrowser/KEGG/sw.gsea', 
+         report.name = 'sw.gsea')
+
+eaBrowse(sw.ora, html.only = FALSE, out.dir = 'EnrichmentBrowser/KEGG/sw.ora', 
+         report.name = 'sw.ora')
+
+eaBrowse(sw.padog, html.only = FALSE, out.dir = 'EnrichmentBrowser/KEGG/sw.padog', 
+         report.name = 'sw.padog')
 
 
 
