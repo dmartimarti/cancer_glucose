@@ -936,11 +936,10 @@ for (path in pathways) {
 
 
 
-# plot genes
-
-#CDKN1A
+### plot gene boxplots ####
 
 
+# merge counts with stats info
 results.merge = gene_counts %>% 
   left_join(results.complete %>% 
               mutate(Contrast = case_when(Contrast == 'DLD-1' ~ 'DLD1',
@@ -948,7 +947,7 @@ results.merge = gene_counts %>%
               select(gene_id, Cell_line = Contrast, log2FoldChange, 
                      lfcSE, pvalue, padj, p_adj_stars)) 
 
-
+## generate gene list from pathways selected above
 gene_list = c()
 for (path in pathways) {
   
@@ -972,7 +971,7 @@ gene_list = results.complete %>%
   distinct(gene_name) %>% 
   pull(gene_name)
 
-
+# arrange genes alphabetically
 gene_list = gene_list[order(gene_list)]
 
 
@@ -1006,27 +1005,45 @@ for (gene in gene_list){
 }
 
 
-gene = 'AC011491.1'
 
-results.merge %>% 
-  dplyr::filter(gene_name == gene) %>% 
-  # filter(Cell_line == 'HCT116') %>%
-  group_by(Cell_line) %>% 
-  mutate(position_y = max(counts) + (max(counts) - min(counts))*0.04) %>% 
-  ungroup %>% 
-  ggplot(aes(x = Sample, y = counts, fill = Condition)) +
-  geom_boxplot(outlier.shape = NA) +
-  geom_point(size = 2.5, position = position_jitterdodge())+
-  facet_wrap(~gene_id*Cell_line, scales = 'free', ncol = 4) +
-  # geom_text(x = 1, y = 5000, size = 10,aes(label = p_adj_stars)) +
-  geom_text(x = 1.5, size = 4,aes(y = position_y+(position_y*0.025), 
-                                  label = paste('log2FC = ',round(log2FoldChange,3)))) +
-  geom_text(x = 1.5, size = 10, color = '#E03636',
-            aes(y = position_y, label = p_adj_stars)) +
-  scale_fill_manual(values = c("#1C86EE", "#EEC900")) +
-  labs(x = 'Sample',
-       y = 'Counts (normalised)') +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+#### plot ALL genes ####
+
+# filter genes that are not present
+gene_list = results.complete %>% 
+  distinct(gene_name) %>% 
+  pull(gene_name)
+
+# arrange genes alphabetically
+gene_list = gene_list[order(gene_list)]
+
+# generates a boxplot per gene, with P-value and log2FC annotated 
+for (gene in gene_list){
+  
+  print(glue('Plotting gene {gene}'))
+  
+  results.merge %>% 
+    dplyr::filter(gene_name == gene) %>% 
+    # filter(Cell_line == 'HCT116') %>%
+    group_by(Cell_line) %>% 
+    mutate(position_y = max(counts) + (max(counts) - min(counts))*0.04) %>% 
+    ungroup %>% 
+    ggplot(aes(x = Sample, y = counts, fill = Condition)) +
+    geom_boxplot(outlier.shape = NA) +
+    geom_point(size = 2.5, position = position_jitterdodge())+
+    facet_wrap(~gene_id*Cell_line, scales = 'free', ncol = 4) +
+    # geom_text(x = 1, y = 5000, size = 10,aes(label = p_adj_stars)) +
+    geom_text(x = 1.5, size = 4,aes(y = position_y+(position_y*0.025), 
+                                    label = paste('log2FC = ',round(log2FoldChange,3)))) +
+    geom_text(x = 1.5, size = 10, color = '#E03636',
+              aes(y = position_y, label = p_adj_stars)) +
+    scale_fill_manual(values = c("#1C86EE", "#EEC900")) +
+    labs(x = 'Sample',
+         y = 'Counts (normalised)') +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  
+  ggsave(here('summary/ALL_gene_boxplots', glue('boxplot_{gene}.pdf')), height = 8, width = 13)
+  
+}
 
 
 # PCA of sig genes --------------------------------------------------------
@@ -1074,7 +1091,7 @@ library(EnrichmentBrowser)
 
 # obtaining gene sets
 kegg.gs = getGenesets(org = "hsa", db = "kegg")
-go.gs = getGenesets(org = "hsa", db = "go", onto = "BP", mode = "GO.db")
+go.gs = getGenesets(org = "hsa", db = "go", onto = "BP")
 
 
 
@@ -1125,6 +1142,9 @@ hct.gsea = sbea(method = "gsea", se = hct.SE, gs = kegg.gs, alpha = alpha)
 hct.ora = sbea(method = "ora", se = hct.SE, gs = kegg.gs, alpha = alpha)
 hct.padog = sbea(method = "padog", se = hct.SE, gs = kegg.gs, alpha = alpha)
 
+hct.go.gsea = sbea(method = "gsea", se = hct.SE, gs = go.gs, alpha = 0.05)
+gsRanking(hct.go.gsea)
+
 # 
 # gsRanking(hct.gsea)
 # gsRanking(hct.ora)
@@ -1138,6 +1158,9 @@ eaBrowse(hct.ora, html.only = FALSE, out.dir = 'EnrichmentBrowser/KEGG/hct.ora',
 eaBrowse(hct.padog, html.only = FALSE, out.dir = 'EnrichmentBrowser/KEGG/hct.padog', 
          report.name = 'hct.padog')
 
+
+eaBrowse(hct.go.gsea, html.only = FALSE, out.dir = 'EnrichmentBrowser/GO_BP/hct.go.gsea', 
+         report.name = 'hct.go.gsea')
 
 # network regulation analysis
 
@@ -1201,6 +1224,7 @@ dld.gsea = sbea(method = "gsea", se = dld.SE, gs = kegg.gs, alpha = alpha)
 dld.ora = sbea(method = "ora", se = dld.SE, gs = kegg.gs, alpha = alpha)
 dld.padog = sbea(method = "padog", se = dld.SE, gs = kegg.gs, alpha = alpha)
 
+dld.go.gsea = sbea(method = "gsea", se = dld.SE, gs = go.gs, alpha = 0.05)
  
 # gsRanking(hct.gsea)
 # gsRanking(hct.ora)
@@ -1215,6 +1239,8 @@ eaBrowse(dld.padog, html.only = FALSE, out.dir = 'EnrichmentBrowser/KEGG/dld.pad
          report.name = 'dld.padog')
 
 
+eaBrowse(dld.go.gsea, html.only = FALSE, out.dir = 'EnrichmentBrowser/GO_BP/dld.go.gsea', 
+         report.name = 'dld.go.gsea')
 
 
 #### LoVo ####
@@ -1263,6 +1289,10 @@ lovo.gsea = sbea(method = "gsea", se = lovo.SE, gs = kegg.gs, alpha = alpha)
 lovo.ora = sbea(method = "ora", se = lovo.SE, gs = kegg.gs, alpha = alpha)
 lovo.padog = sbea(method = "padog", se = lovo.SE, gs = kegg.gs, alpha = alpha)
 
+
+lovo.go.gsea = sbea(method = "gsea", se = lovo.SE, gs = go.gs, alpha = 0.05)
+
+
 # 
 # gsRanking(hct.gsea)
 # gsRanking(hct.ora)
@@ -1276,7 +1306,8 @@ eaBrowse(lovo.ora, html.only = FALSE, out.dir = 'EnrichmentBrowser/KEGG/lovo.ora
 eaBrowse(lovo.padog, html.only = FALSE, out.dir = 'EnrichmentBrowser/KEGG/lovo.padog', 
          report.name = 'lovo.padog')
 
-
+eaBrowse(lovo.go.gsea, html.only = FALSE, out.dir = 'EnrichmentBrowser/GO_BP/lovo.go.gsea', 
+         report.name = 'lovo.go.gsea')
 
 
 
@@ -1323,6 +1354,9 @@ sw.gsea = sbea(method = "gsea", se = sw.SE, gs = kegg.gs, alpha = alpha)
 sw.ora = sbea(method = "ora", se = sw.SE, gs = kegg.gs, alpha = alpha)
 sw.padog = sbea(method = "padog", se = sw.SE, gs = kegg.gs, alpha = alpha)
 
+sw.go.gsea = sbea(method = "gsea", se = sw.SE, gs = go.gs, alpha = 0.05)
+
+
 # 
 # gsRanking(hct.gsea)
 # gsRanking(hct.ora)
@@ -1336,6 +1370,8 @@ eaBrowse(sw.ora, html.only = FALSE, out.dir = 'EnrichmentBrowser/KEGG/sw.ora',
 eaBrowse(sw.padog, html.only = FALSE, out.dir = 'EnrichmentBrowser/KEGG/sw.padog', 
          report.name = 'sw.padog')
 
+eaBrowse(sw.go.gsea, html.only = FALSE, out.dir = 'EnrichmentBrowser/GO_BP/sw.go.gsea', 
+         report.name = 'sw.go.gsea')
 
 
 
