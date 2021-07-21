@@ -243,6 +243,9 @@ tidy(TukeyHSD(model))
 
 ## SECOND RUN
 
+data2 %>% group_by(cell, IC, Micit_mM, replicate, biorep) %>% 
+  summarise(N = n())
+
 data2_auc = data2 %>% 
   mutate(auc = auc(elapsed,confluence2)) %>% 
   distinct(auc,.keep_all = T) %>% 
