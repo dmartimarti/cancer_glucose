@@ -15,13 +15,26 @@ rep1 = read_excel("rep1/Biolog 241120.xlsx", sheet = "Data") %>%
   mutate(Micit = as.factor(Micit),
          Plate = as.factor(Plate))
 
+
+rep2 = read_excel("rep2/Biolog 170721.xlsx", sheet = "Data") %>% 
+  mutate(Micit = as.factor(Micit),
+         Plate = as.factor(Plate))
+
 drugs = read_excel("biolog_metabolites_cancer.xlsx") %>% 
   mutate(Plate = as.factor(Plate))
 
-data = left_join(rep1, drugs) %>% 
+rep1 = left_join(rep1, drugs) %>% 
   mutate(Well = as.factor(Well),
          Drug = as.factor(Drug))
 
+rep2 = left_join(rep2, drugs) %>% 
+  mutate(Well = as.factor(Well),
+         Drug = as.factor(Drug))
+
+
+
+
+# REP 1 -------------------------------------------------------------------
 
 
 # exploration -------------------------------------------------------------
@@ -35,6 +48,8 @@ data = left_join(rep1, drugs) %>%
 #     geom_boxplot()+
 #   geom_point(position = position_jitterdodge())
 
+
+data = rep2
 
 # summarise controls
 controls = data %>% 
@@ -50,6 +65,7 @@ controls
 controls %>% 
   ggplot(aes(x = Micit, y = Mean_control, fill = Micit)) +
   geom_histogram(stat = 'identity') +
+  geom_point() +
   geom_errorbar(aes(ymin = Mean_control - SD_control, ymax = Mean_control + SD_control), width = 0.2) +
   facet_wrap(~Plate)
 
@@ -92,7 +108,7 @@ for (drug in drug_list){
     ggtitle(label = drug) +
     theme(strip.placement = "outside",
           plot.title = element_text(hjust = 0.5))
-  ggsave(plot = p, here('exploration/heatmaps',filename = paste0(drug,'_heatmap.pdf') ),device = 'pdf',
+  ggsave(plot = p, here('exploration/heatmaps_rep2',paste0(drug,'_heatmap.pdf') ),device = 'pdf',
          width = 12, height = 11, units = 'cm')
 }
 
@@ -102,13 +118,14 @@ data %>%
   geom_tile() +
   scale_fill_gradient(name = "Viability",
                       low = "#FFFFFF",
-                      high = "#012345") +
+                      high = "#012345",
+                      limits = c(13,130)) +
   facet_wrap(~Drug, ncol = 9) +
   theme(strip.placement = "outside",
         plot.title = element_text(hjust = 0.5))
 
 
-ggsave(here('exploration',filename = 'Complete_heatmap_rawValues.pdf') ,device = 'pdf',
+ggsave(here('exploration','Complete_heatmap_rawValues_rep2.pdf') ,device = 'pdf',
        width = 40, height = 26, units = 'cm')
 
 # Synnergy finder ---------------------------------------------------------
@@ -165,7 +182,7 @@ sfinder = sfinder  %>% arrange(Drug2, Conc1, Conc2)
 
 list_of_datasets = list('PM-M1' = sfinder)
 
-write.xlsx(list_of_datasets, here('exploration', 'SynergyFinder_grid.xlsx'), colNames = T, rowNames = F) 
+write.xlsx(list_of_datasets, here('exploration', 'SynergyFinder_grid_rep2.xlsx'), colNames = T, rowNames = F) 
 
 
 
