@@ -24,6 +24,16 @@ data = data %>%
   mutate(confluence2 = confluence - min(confluence))
 
 
+# this is a second run of incucyte sent by Tanara on 16/04/2021
+data2 = read_excel('Run2_cells.xlsx') %>% 
+  drop_na(confluence) %>% 
+  mutate(IC = factor(IC),
+         Micit_mM = as.factor(Micit_mM),
+         cell = as.factor(cell)) %>% 
+  group_by(cell, IC, Micit_mM, replicate, biorep) %>% 
+  mutate(confluence2 = confluence - min(confluence))
+
+
 
 # Growth data -------------------------------------------------------------
 
@@ -40,6 +50,12 @@ data.sum = data %>%
             SD = sd(confluence2))
 
 
+data2.sum = data2 %>% 
+  group_by(cell, IC, biorep, Micit_mM) %>% 
+  group_by(cell, IC, elapsed, biorep, Micit_mM) %>% 
+  summarise(Mean = mean(confluence2),
+            SD = sd(confluence2))
+
 data.sum %>% 
   filter(cell == 'HCT116') %>% 
   ggplot(aes(x = elapsed, y = Mean, color = Micit_mM, fill = Micit_mM)) +
@@ -49,7 +65,14 @@ data.sum %>%
   theme(legend.position = "top", strip.text = element_text(size = 13)) +
   facet_wrap(~IC*biorep*cell)
 
-
+data2.sum %>% 
+  filter(cell == 'SK-CO-1') %>% 
+  ggplot(aes(x = elapsed, y = Mean, color = Micit_mM, fill = Micit_mM)) +
+  geom_ribbon(aes(ymin = Mean - SD, ymax = Mean + SD), color = NA, alpha = 0.1)+
+  geom_line() +
+  scale_x_continuous(breaks = seq(0, 335, by = 60)) +
+  theme(legend.position = "top", strip.text = element_text(size = 13)) +
+  facet_wrap(~IC*biorep*cell)
 
 
 ## there is a bad rep, which one
@@ -114,6 +137,14 @@ data.sum %>%
 ## it's bad
 
 
+## create directories for plotting
+
+
+dir_name = 'summary/growth_curves_bioreps'
+
+ifelse(!dir.exists(dir_name),dir.create(dir_name),print('Folder exists!'))
+
+
 
 ### plot individual growth curves ####
 
@@ -139,14 +170,39 @@ for (line in cells){
   
 }
 
+# RUN 2
 
+dir_name = 'summary/growth_curves_bioreps_run2'
+
+ifelse(!dir.exists(dir_name),dir.create(dir_name),print('Folder exists!'))
+
+cells = unique(data2$cell)
+for (line in cells){
+  
+  data2.sum %>% 
+    filter(cell == line) %>% 
+    ggplot(aes(x = elapsed, y = Mean, color = Micit_mM, fill = Micit_mM)) +
+    geom_ribbon(aes(ymin = Mean - SD, ymax = Mean + SD), color = NA, alpha = 0.2)+
+    geom_line() +
+    labs(y = 'Mean confluence (+- SD)',
+         x = 'Time (h)') +
+    scale_x_continuous(breaks = seq(0, 335, by = 60)) +
+    theme(legend.position = "top", strip.text = element_text(size = 13)) +
+    scale_fill_viridis_d() + 
+    scale_color_viridis_d() +
+    facet_wrap(~IC*biorep)
+  
+  ggsave(here(dir_name, paste0(line,'growth_curves_bioreps.pdf')), 
+         height = 9, 
+         width = 12)
+  
+}
 
 
 
 # AUC calculation ---------------------------------------------------------
 
 library(MESS)
-
 
 data_auc = data %>% 
   mutate(auc = auc(elapsed,confluence2)) %>% 
@@ -185,6 +241,42 @@ tidy(TukeyHSD(model))
 
 
 
+## SECOND RUN
+
+data2_auc = data2 %>% 
+  mutate(auc = auc(elapsed,confluence2)) %>% 
+  distinct(auc,.keep_all = T) %>% 
+  ungroup %>%
+  select(cell:biorep,Micit_mM,auc)
+
+
+# let's grab an example
+
+cell_ex = 'LoVo'
+
+data2.sum %>% 
+  filter(cell == cell_ex) %>% 
+  ggplot(aes(x = elapsed, y = Mean, color = Micit_mM, fill = Micit_mM)) +
+  geom_ribbon(aes(ymin = Mean - SD, ymax = Mean + SD), color = NA, alpha = 0.2)+
+  geom_line() +
+  scale_fill_viridis_d() + 
+  scale_color_viridis_d() +
+  scale_x_continuous(breaks = seq(0, 335, by = 60)) +
+  theme(legend.position = "top", strip.text = element_text(size = 13)) +
+  facet_wrap(~IC*biorep*cell)
+
+
+test = data_auc %>% filter(cell == cell_ex, biorep == 1)
+
+test %>% ggplot(aes(x = Micit_mM, y = auc, fill = Micit_mM)) +
+  geom_boxplot() +
+  geom_point(position = position_jitterdodge()) +
+  scale_fill_viridis_d()
+
+
+model = aov(auc ~ Micit_mM, data = test)
+
+tidy(TukeyHSD(model))
   
 
 # multi univariate stats --------------------------------------------------
@@ -192,7 +284,14 @@ tidy(TukeyHSD(model))
 
 library(openxlsx)
 # library(multcomp)
-        
+# library(furrr)
+# library(tictoc)
+
+# 
+# plan('multisession')
+# plan('sequential')
+# 
+# availableCores()
 
 statsR = data_auc %>% 
   group_by(cell,biorep,IC) %>% 
@@ -206,6 +305,40 @@ statsR = data_auc %>%
 
 # the file is saved later in the script
 # write.xlsx(statsR, here('summary','multi_univariate_stats.xlsx'))
+
+
+
+statsR_run2 = data2_auc %>% 
+  group_by(cell,biorep,IC) %>% 
+  nest() %>% 
+  mutate( model = map(data, ~aov(auc~Micit_mM, data = .x)) ,
+          tukey = map(.x = model, ~TukeyHSD(.x)),
+          tukey = map(tukey, tidy))  %>% 
+  select(-model,-data) %>% 
+  unnest(cols = c(tukey)) %>% 
+  mutate(p.stars = gtools::stars.pval(adj.p.value))
+
+
+statsR_global_run2 = data2_auc %>% 
+  group_by(cell,IC) %>% 
+  nest() %>% 
+  mutate( model = map(data, ~aov(auc~Micit_mM, data = .x)) ,
+          tukey = map(.x = model, ~TukeyHSD(.x)),
+          tukey = map(tukey, tidy))  %>% 
+  select(-model,-data) %>% 
+  unnest(cols = c(tukey)) %>% 
+  mutate(p.stars = gtools::stars.pval(adj.p.value))
+
+
+list_of_tables = list(
+  'bioreps' = statsR_run2,
+  'merged_bioreps' = statsR_global_run2
+)
+
+
+# the file is saved later in the script
+write.xlsx(list_of_tables, here('summary','multi_univariate_stats_RUN2.xlsx'))
+
 
 
 
