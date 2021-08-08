@@ -2833,3 +2833,42 @@ dev.copy2pdf(device = cairo_pdf,
 
 
 
+
+
+# e2f targets -------------------------------------------------------------
+
+
+
+
+
+e2f = c('CCND1','CCND3','JUN','MYC','MYCN','CCNE1','CCNE2','CDC25A','CDK2','E2F1','E2F2','E2F3',
+        'NPAT','MYB','MYBL2','TFDP1','AURKB','CCNA1','CCNA2','CDC25A','CDC20','CKS1B','CKS2','NDC80',
+        'MKI67','KIF4A','KIF22','PLK1','PRC1','SMC2','SMC4','AURKB','CDC14B','CDC45','CDC6',
+        'CDC7','CDT1','DCK','DHFR','DUT','LIG1','MCM2','MCM3','MCM4','MCM5','MCM6','MCM7','ORC1',
+        'PCNA','POLA1','POLA2','POLD1','PRIM2','RFC1','RFC2','RFC3','RFC4','RPA1','RPA2','RPA3','RRM1',
+        'RRM2','TK1','TOP2A','TYMS','CDKN1C','CDKN2C','CDKN2D','E2F7','RB1','RBL1','BRCA1','BRCA2',
+        'BUB1','BUB1B','BUB3','CENPE','CHEK1','MAD2L1','TP53','TTK','BARD1','CSTF1','FEN1','MGMT',
+        'MLH1','MSH2','MSH6','PMS2','PRKDC','RAD51','RAD54L','UNG','UNG2','APAF1','BAD','BAK1',
+        'BCL2','BID','BOK','CASP3','CASP7','CASP8','MAP3K14','MAP3K5','TP73','NKX3-2','EED','EN2',
+        'EZH2','FOS','HEY1','HOXA4','HOXA5','HOXA7','HOXA9','HOXA10','HOXA11','HOXB9','HOXD8',
+        'PITX1','SIX1','SUZ12','BMP2','FST','TGFA','PPARGC1A','JUNB','TEAD4')
+
+
+e2f_res = statsR %>% 
+  filter(contrast == '10mMmicit - Ctrl') %>% 
+  filter(Gene_names %in% e2f) %>% 
+  mutate(Direction = case_when(estimate < 0 ~ 'Down',
+                               estimate > 0 ~ 'Up')) %>% 
+  select(estimate, FDR, FDR_stars, Direction, Gene_names) 
+
+e2f_res 
+
+
+# arrange table by vector
+e2f_res[match(e2f, e2f_res$Gene_names),] %>% 
+  write_csv(here('summary','e2f_targets_hct116_prots.csv'))
+
+
+
+
+

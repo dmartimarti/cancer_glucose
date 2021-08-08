@@ -14,9 +14,9 @@
 # maybe use ulimit -s 16384 before start R console
 
 ### libraries ####
-library(tximport)
+# library(tximport)
 library(tidyverse)
-library(DESeq2)
+# library(DESeq2)
 # notice that DESeq2 library masks 'rename' function from dplyr 
 # library(ensembldb) # use only if you are going to deal with db
 here::set_here()
@@ -1376,6 +1376,31 @@ eaBrowse(sw.go.gsea, html.only = FALSE, out.dir = 'EnrichmentBrowser/GO_BP/sw.go
 
 
 
+
+
+# E2F targets -------------------------------------------------------------
+
+
+e2f = c('CCND1','CCND3','JUN','MYC','MYCN','CCNE1','CCNE2','CDC25A','CDK2','E2F1','E2F2','E2F3',
+        'NPAT','MYB','MYBL2','TFDP1','AURKB','CCNA1','CCNA2','CDC25A','CDC20','CKS1B','CKS2','NDC80',
+        'MKI67','KIF4A','KIF22','PLK1','PRC1','SMC2','SMC4','AURKB','CDC14B','CDC45','CDC6',
+        'CDC7','CDT1','DCK','DHFR','DUT','LIG1','MCM2','MCM3','MCM4','MCM5','MCM6','MCM7','ORC1',
+        'PCNA','POLA1','POLA2','POLD1','PRIM2','RFC1','RFC2','RFC3','RFC4','RPA1','RPA2','RPA3','RRM1',
+        'RRM2','TK1','TOP2A','TYMS','CDKN1C','CDKN2C','CDKN2D','E2F7','RB1','RBL1','BRCA1','BRCA2',
+        'BUB1','BUB1B','BUB3','CENPE','CHEK1','MAD2L1','TP53','TTK','BARD1','CSTF1','FEN1','MGMT',
+        'MLH1','MSH2','MSH6','PMS2','PRKDC','RAD51','RAD54L','UNG','UNG2','APAF1','BAD','BAK1',
+        'BCL2','BID','BOK','CASP3','CASP7','CASP8','MAP3K14','MAP3K5','TP73','NKX3-2','EED','EN2',
+        'EZH2','FOS','HEY1','HOXA4','HOXA5','HOXA7','HOXA9','HOXA10','HOXA11','HOXB9','HOXD8',
+        'PITX1','SIX1','SUZ12','BMP2','FST','TGFA','PPARGC1A','JUNB','TEAD4')
+
+e2f_res = res.hct.tidy %>% 
+  filter(gene_name %in% e2f) %>% 
+  select(gene_name, log2FoldChange, padj, p_adj_stars, Direction) 
+
+
+# arrange table by vector
+e2f_res[match(e2f, e2f_res$gene_name),] %>% 
+  write_csv(here('summary','e2f_targets_hct116.csv'))
 
 
 

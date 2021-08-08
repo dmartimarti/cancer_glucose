@@ -3,6 +3,7 @@ library(readr)
 library(readxl)
 library(here)
 library(broom)
+library(cowplot)
 
 theme_set(theme_classic())
 
@@ -24,7 +25,7 @@ data = data %>%
   mutate(confluence2 = confluence - min(confluence))
 
 
-# this is a second run of incucyte sent by Tanara on 16/04/2021
+# this is a second run of incucyte sent by Tanara on 16/07/2021
 data2 = read_excel('Run2_cells.xlsx') %>% 
   drop_na(confluence) %>% 
   mutate(IC = factor(IC),
@@ -453,8 +454,29 @@ for (line in cells){
   
 }
 
+#### summary for the paper
 
+data.sum.select %>% 
+  mutate(selected = case_when(cell == 'HCT116' & IC == 500 ~ 'Yes',
+                              cell == 'DLD-1' ~ 'Yes',
+                              cell == 'LoVo' & IC == 1000 ~ 'Yes',
+                              TRUE ~ 'No')) %>% 
+  filter(selected == 'Yes') %>%
+  ggplot(aes(x = elapsed, y = Mean, color = Micit_mM, fill = Micit_mM)) +
+  geom_ribbon(aes(ymin = Mean - SEM, ymax = Mean + SEM), color = NA, alpha = 0.2)+
+  geom_line() +
+  labs(y = 'Mean confluence (+- SEM)',
+       x = 'Time (h)') +
+  scale_x_continuous(breaks = seq(0, 335, by = 60)) +
+  theme(legend.position = "top", strip.text = element_text(size = 13)) +
+  scale_fill_viridis_d() + 
+  scale_color_viridis_d() +
+  facet_wrap(~cell, scales = 'free_y') +
+  theme_cowplot(19)
 
+ggsave(here('summary/growth_curves_selected/', 'selected_paper.pdf'), 
+       height = 7, 
+       width = 12)
 
 
 # normalise AUC -----------------------------------------------------------
@@ -595,6 +617,32 @@ for (line in cells){
 
 
 
+# viab plots paper --------------------------------------------------------
 
 
+auc_viab %>% 
+  mutate(selected = case_when(cell == 'HCT116' & IC == 500 ~ 'Yes',
+                              cell == 'DLD-1' ~ 'Yes',
+                              cell == 'LoVo' & IC == 1000 ~ 'Yes',
+                              TRUE ~ 'No')) %>% 
+  filter(selected == 'Yes') %>% 
+  # filter(Micit_mM != 0) %>% 
+  ggplot(aes(x = Micit_mM, y =  Viability,  fill = Micit_mM)) +
+  geom_boxplot() +
+  geom_point(position = position_jitterdodge()) +
+  stat_summary(fun.data = "mean_cl_boot", size = 1)  +
+  labs(y = 'Normalized confluence',
+       x = '2-methylisocitrate (mM)',
+       color = '2-methylisocitrate (mM)',
+       fill = '2-methylisocitrate (mM)') +
+  scale_fill_viridis_d() +
+  scale_color_viridis_d() +
+  facet_wrap(~cell) +
+  theme_cowplot(18) +
+  theme(legend.position="top")
+
+
+ggsave(here('summary/Viability_plots/', 'selected_paper.pdf'), 
+       height = 7, 
+       width = 12)
 
