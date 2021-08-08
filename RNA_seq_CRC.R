@@ -16,7 +16,7 @@
 ### libraries ####
 # library(tximport)
 library(tidyverse)
-# library(DESeq2)
+library(DESeq2)
 # notice that DESeq2 library masks 'rename' function from dplyr 
 # library(ensembldb) # use only if you are going to deal with db
 here::set_here()
@@ -579,7 +579,7 @@ dev.copy2pdf(device = cairo_pdf,
 # PCA (manual) ------------------------------------------------------------
 
 
-
+#### old method ####
 
 ###
 # PCA data manual way
@@ -650,6 +650,91 @@ ggplot(ind_df, aes(x = Dim1, y = Dim2, color = Condition, group = interaction(Co
 ggsave(here('summary',glue('PCA_{line}.pdf')), height = 7, width = 8)
 
 
+
+
+
+
+
+# PCA and UMAP (tidymodels) --------------------------------------------------------------------
+
+
+#### PCA tidymodels ####
+
+library(tidymodels)
+library(ggrepel)
+
+rld_table = t(assay(rld)) %>% as_tibble(rownames = 'Name')
+
+rld_table = samples %>% select(Name, Cell_line, Replicate, Sample) %>% 
+  left_join(rld_table) %>% as_tibble() %>% 
+  select(-Name) 
+
+
+pca_rec = recipe(~., data = rld_table) %>%
+  update_role(Replicate, Sample, Cell_line, new_role = "id") %>%
+  # step_normalize(all_predictors()) %>%
+  step_pca(all_predictors())
+
+pca_prep = prep(pca_rec)
+
+pca_prep
+
+tidied_pca = tidy(pca_prep,1)
+
+selection = tidied_pca %>%
+  arrange(desc(abs(value))) %>% 
+  head(15) %>% 
+  pull(terms)
+
+tidied_pca %>% 
+  filter(terms %in% selection) %>% 
+  filter(component %in% paste0("PC", 1:5)) %>%
+  mutate(component = fct_inorder(component)) %>%
+  ggplot(aes(value, terms, fill = terms)) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~component, nrow = 1) +
+  labs(y = NULL) +
+  theme_classic()
+
+
+juice(pca_prep) %>%
+  ggplot(aes(PC1, PC2, label = Sample)) +
+  geom_point(aes(color = Sample), alpha = 0.7, size = 6) +
+  # geom_text(check_overlap = F, hjust = "inward") +
+  geom_text_repel(max.overlaps = 14) +
+  labs(color = NULL) +
+  guides(color = NULL) +
+  theme_cowplot(17) +
+  theme(legend.position = "none")
+
+ggsave(here('summary', 'PCA_tidymodels_all.pdf'), height = 6, width = 7)
+
+
+#### UMAP ####
+
+library(embed)
+
+umap_rec = recipe(~., data = rld_table) %>%
+  update_role(Replicate, Sample, Cell_line, new_role = "id") %>%
+  step_umap(all_predictors())
+
+
+
+umap_prep = prep(umap_rec)
+
+umap_prep
+
+juice(umap_prep) %>%
+  ggplot(aes(umap_1, umap_2, label = Sample)) +
+  geom_point(aes(color = Sample), alpha = 0.7, size = 4) +
+  geom_text_repel() +
+  labs(color = NULL,
+       x = 'UMAP 1',
+       y = 'UMAP 2') +
+  theme_cowplot(17) +
+  theme(legend.position = "none")
+
+ggsave(here('summary', 'UMAP_tidymodels_all.pdf'), height = 7, width = 8)
 
 # GSEA --------------------------------------------------------------------
 
