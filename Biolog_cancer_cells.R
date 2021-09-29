@@ -4,12 +4,9 @@ library(tidyverse)
 library(readxl)
 library(here)
 library(openxlsx)
+library(cowplot)
 
-theme_set(theme_classic() +
-            theme(axis.text.x = element_text(size = 13, color = 'black'),
-                  axis.text.y = element_text(size = 13, color = 'black'),
-                  axis.title.x = element_text(face = "bold", size = 13, color = 'black'),
-                  axis.title.y = element_text(face = "bold", size = 13, color = 'black')))
+theme_set(theme_cowplot(14))
 
 
 
@@ -576,4 +573,219 @@ data %>% filter(Drug == drug) %>%
         axis.title.y = element_text(face = "bold", size = 13, color = 'black'))
 
 ggsave(here('exploration', 'micit_heatmap_conference.pdf'), height = 8, width = 9)
+
+
+
+
+
+# PCA from fingerprints ---------------------------------------------------
+
+### TEST ZONE ####
+
+
+
+library(broom)
+library(cluster)
+library(factoextra)
+
+## load the Morgan fingerprints produced by the script: smiles2morgan.ipynb 
+
+morgan = read_csv("drug_cancer_biolog_morganFP.csv")
+
+
+### PCA ####
+
+pca_fit = morgan %>% 
+  select(where(is.numeric)) %>% # retain only numeric columns
+  prcomp(scale = F) # do PCA on scaled data
+
+
+pca_fit %>%
+  augment(morgan) %>% # add original dataset back in
+  ggplot(aes(.fittedPC1, .fittedPC2)) + 
+  geom_point(size = 1.5) +
+  labs(
+    x = 'PC1',
+    y = 'PC2'
+  ) +
+  theme_half_open(12) + 
+  background_grid()
+
+
+
+pca_fit %>%
+  tidy(matrix = "eigenvalues")
+
+# barplot of percent explained by PC
+pca_fit %>%
+  tidy(matrix = "eigenvalues") %>%
+  ggplot(aes(PC, percent)) +
+  geom_col(fill = "#56B4E9", alpha = 0.8) +
+  scale_x_continuous(breaks = 1:9) +
+  scale_y_continuous(
+    labels = scales::percent_format(),
+    expand = expansion(mult = c(0, 0.01))
+  ) +
+  theme_minimal_hgrid(12)
+
+# cumulative expl by PC 
+pca_fit %>%
+  tidy(matrix = "eigenvalues") %>%
+  ggplot(aes(PC, cumulative)) +
+  geom_line(color = "#56B4E9", alpha = 0.8) +
+  geom_point(color = '#56B4E9', alpha = 0.6) +
+  # scale_x_continuous(breaks = 1:9) +
+  scale_y_continuous(
+    labels = scales::percent_format(),
+    expand = expansion(mult = c(0, 0.01))
+  ) +
+  theme_minimal_hgrid(12)
+
+### distances ####
+
+drug_dists = morgan %>% data.frame %>% get_dist
+fviz_dist(drug_dists, gradient = list(low = "#00AFBB", mid = "white", high = "#FC4E07"))
+
+### K-means with morgan FP ####
+
+morgan_mat = morgan %>% 
+  select(where(is.numeric)) 
+
+
+
+kclust = morgan_mat %>% kmeans(centers = 30)
+
+pca_fit %>%
+  augment(morgan) %>% # add original dataset back in
+  mutate(cluster = kclust$cluster, .before = Drug,
+         cluster = as.factor(cluster))  %>% 
+  ggplot(aes(.fittedPC1, .fittedPC2, color = cluster)) + 
+  geom_point(size = 3.5) +
+  labs(
+    x = 'PC1',
+    y = 'PC2'
+  ) +
+  theme_half_open(12) + 
+  background_grid()
+
+
+
+pca_fit %>%
+  augment(morgan) %>% # add original dataset back in
+  mutate(cluster = kclust$cluster, .before = Drug,
+         cluster = as.factor(cluster)) %>% 
+  select(cluster, Drug) %>% 
+  left_join(drugs) %>% 
+  distinct(Drug, .keep_all=T) %>% 
+  filter(Drug %in% nucl) %>% view
+
+
+kclusts <- 
+  tibble(k = 1:80) %>%
+  mutate(
+    kclust = map(k, ~kmeans(morgan_mat, .x)),
+    tidied = map(kclust, tidy),
+    glanced = map(kclust, glance),
+    augmented = map(kclust, augment, morgan_mat)
+  )
+
+clusterings <- 
+  kclusts %>%
+  unnest(cols = c(glanced))
+
+ggplot(clusterings, aes(k, tot.withinss)) +
+  geom_line() +
+  geom_point()
+
+
+### K-means with PC from PCA ####
+
+pca_fit %>%
+  tidy(matrix = "eigenvalues") %>%
+  ggplot(aes(PC, cumulative)) +
+  geom_line(color = "#56B4E9", alpha = 0.8) +
+  geom_point(color = '#56B4E9', alpha = 0.6) +
+  # scale_x_continuous(breaks = 1:9) +
+  scale_y_continuous(
+    labels = scales::percent_format(),
+    expand = expansion(mult = c(0, 0.01))
+  ) +
+  theme_minimal_hgrid(12)
+
+
+pca_PC = pca_fit %>%
+  augment(morgan) %>% 
+  # select(Drug, .fittedPC1:.fittedPC89)
+  select(Drug, .fittedPC1:.fittedPC30)
+
+
+pca_pc_mat = pca_PC %>% 
+  select(where(is.numeric)) 
+
+kclust = pca_pc_mat %>% 
+  kmeans(centers = 10)
+
+
+pca_fit %>%
+  augment(morgan) %>% # add original dataset back in
+  mutate(cluster = kclust$cluster, .before = Drug,
+         cluster = as.factor(cluster))  %>% 
+  ggplot(aes(.fittedPC1, .fittedPC2, color = cluster)) + 
+  geom_point(size = 3.5) +
+  labs(
+    x = 'PC1',
+    y = 'PC2'
+  ) +
+  theme_half_open(12) + 
+  background_grid()
+
+
+
+pca_fit %>%
+  augment(morgan) %>% # add original dataset back in
+  mutate(cluster = kclust$cluster, .before = Drug,
+         cluster = as.factor(cluster)) %>% 
+  select(cluster, Drug) %>% 
+  left_join(drugs) %>% 
+  distinct(Drug, .keep_all=T) %>% 
+  filter(Drug %in% nucl) %>% view
+
+
+kclusts <- 
+  tibble(k = 1:50) %>%
+  mutate(
+    kclust = map(k, ~kmeans(pca_pc_mat, .x)),
+    tidied = map(kclust, tidy),
+    glanced = map(kclust, glance),
+    augmented = map(kclust, augment, morgan_mat)
+  )
+
+clusterings <- 
+  kclusts %>%
+  unnest(cols = c(glanced))
+
+ggplot(clusterings, aes(k, tot.withinss)) +
+  geom_line() +
+  geom_point()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
