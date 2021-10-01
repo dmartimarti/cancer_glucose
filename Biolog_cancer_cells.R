@@ -29,6 +29,18 @@ rep3 = read_excel("rep3/Biolog_220721.xlsx", sheet = "Data") %>%
 drugs = read_excel("biolog_metabolites_cancer.xlsx") %>% 
   mutate(Plate = as.factor(Plate))
 
+
+# load cancer drugs db from: https://www.anticancerfund.org/en/cancerdrugs-db
+cancerdrugsdb = read_delim("cancerdrugsdb.txt", 
+           delim = "\t", escape_double = FALSE, 
+           trim_ws = TRUE)
+
+# read file with drugbank compounds with FP 
+drugbank_fp = read_csv("DrugBank_drugs_FP.csv")
+
+
+
+
 rep1 = left_join(rep1, drugs) %>% 
   mutate(Well = as.factor(Well),
          Drug = as.factor(Drug), 
@@ -578,13 +590,17 @@ ggsave(here('exploration', 'micit_heatmap_conference.pdf'), height = 8, width = 
 
 
 
-# PCA from fingerprints ---------------------------------------------------
+# Fingerprints ---------------------------------------------------
+
+dir.create(here('exploration', 'Fingerprints_results'))
+
 
 ### TEST ZONE ####
 
 
 
 library(broom)
+library(plotly)
 library(cluster)
 library(factoextra)
 
@@ -604,6 +620,7 @@ pca_fit %>%
   augment(morgan) %>% # add original dataset back in
   ggplot(aes(.fittedPC1, .fittedPC2)) + 
   geom_point(size = 1.5) +
+  geom_label(aes(label = Drug), alpha = 0.6) +
   labs(
     x = 'PC1',
     y = 'PC2'
@@ -611,6 +628,15 @@ pca_fit %>%
   theme_half_open(12) + 
   background_grid()
 
+ggsave(here('exploration/Fingerprints_results', 'PCA_fgroups.pdf'), 
+       height = 13, width = 14)
+
+
+pca_fit %>%
+  augment(morgan) %>% 
+  plot_ly(x = ~.fittedPC1, y = ~.fittedPC2, z = ~.fittedPC3,
+          text = ~Drug) %>% 
+  add_markers()
 
 
 pca_fit %>%
@@ -628,12 +654,16 @@ pca_fit %>%
   ) +
   theme_minimal_hgrid(12)
 
+ggsave(here('exploration/Fingerprints_results', 'percent_explained.pdf'), 
+       height = 9, width = 10)
+
 # cumulative expl by PC 
 pca_fit %>%
   tidy(matrix = "eigenvalues") %>%
   ggplot(aes(PC, cumulative)) +
   geom_line(color = "#56B4E9", alpha = 0.8) +
   geom_point(color = '#56B4E9', alpha = 0.6) +
+  geom_text(aes(label = round(PC,2)), nudge_x = 0, nudge_y = 0.05) +
   # scale_x_continuous(breaks = 1:9) +
   scale_y_continuous(
     labels = scales::percent_format(),
@@ -641,10 +671,16 @@ pca_fit %>%
   ) +
   theme_minimal_hgrid(12)
 
+ggsave(here('exploration/Fingerprints_results', 'percent_explained_cumulative.pdf'), 
+       height = 9, width = 10)
+
 ### distances ####
 
-drug_dists = morgan %>% data.frame %>% get_dist
+drug_dists = morgan %>% select(where(is.numeric)) %>%  data.frame %>% get_dist
 fviz_dist(drug_dists, gradient = list(low = "#00AFBB", mid = "white", high = "#FC4E07"))
+
+ggsave(here('exploration/Fingerprints_results', 'distances.pdf'), 
+       height = 9, width = 10)
 
 ### K-means with morgan FP ####
 
@@ -668,6 +704,14 @@ pca_fit %>%
   theme_half_open(12) + 
   background_grid()
 
+
+pca_fit %>%
+  augment(morgan) %>% # add original dataset back in
+  mutate(cluster = kclust$cluster, .before = Drug,
+         cluster = as.factor(cluster))  %>% 
+  plot_ly(x = ~.fittedPC1, y = ~.fittedPC2, z = ~.fittedPC3,
+          text = ~Drug, color=~cluster) %>% 
+  add_markers()
 
 
 pca_fit %>%
@@ -695,7 +739,11 @@ clusterings <-
 
 ggplot(clusterings, aes(k, tot.withinss)) +
   geom_line() +
-  geom_point()
+  geom_point() +
+  geom_text(aes(label = k), nudge_y = 90, nudge_x = 0.3)
+
+ggsave(here('exploration/Fingerprints_results', 'silhouette_plot_kmeans.pdf'), 
+       height = 9, width = 10)
 
 
 ### K-means with PC from PCA ####
@@ -767,6 +815,336 @@ clusterings <-
 ggplot(clusterings, aes(k, tot.withinss)) +
   geom_line() +
   geom_point()
+
+
+
+
+
+
+# Functional groups -------------------------------------------------------
+
+dir.create(here('exploration', 'Functional_groups_results'))
+
+## load the Morgan fingerprints produced by the script: pyMol2FuncGroup.py 
+
+fgroups = read_csv("func_groups_biolog.csv")
+
+# remove dactinomycin as it's very different from all the others
+fgroups = fgroups %>% 
+  filter(Drug != 'Dactinomycin')
+
+### PCA ####
+
+pca_fit = fgroups %>% 
+  select(where(is.numeric)) %>% # retain only numeric columns
+  prcomp(scale = F) # do PCA on scaled data
+
+
+pca_fit %>%
+  augment(fgroups) %>% # add original dataset back in
+  ggplot(aes(.fittedPC1, .fittedPC2)) + 
+  geom_point(size = 1.5) +
+  geom_label(aes(label = Drug)) +
+  labs(
+    x = 'PC1',
+    y = 'PC2'
+  ) +
+  theme_half_open(12) + 
+  background_grid()
+
+ggsave(here('exploration/Functional_groups_results', 'PCA_fgroups.pdf'), 
+       height = 13, width = 14)
+
+
+pca_fit %>%
+  augment(fgroups) %>% 
+  plot_ly(x = ~.fittedPC1, y = ~.fittedPC2, z = ~.fittedPC3,
+          text = ~Drug) %>% 
+  add_markers()
+
+
+
+pca_fit %>%
+  tidy(matrix = "eigenvalues")
+
+# barplot of percent explained by PC
+pca_fit %>%
+  tidy(matrix = "eigenvalues") %>%
+  ggplot(aes(PC, percent)) +
+  geom_col(fill = "#56B4E9", alpha = 0.8) +
+  scale_x_continuous(breaks = 1:9) +
+  scale_y_continuous(
+    labels = scales::percent_format(),
+    expand = expansion(mult = c(0, 0.01))
+  ) +
+  theme_minimal_hgrid(12)
+
+ggsave(here('exploration/Functional_groups_results', 'percent_explained.pdf'), 
+       height = 9, width = 10)
+
+# cumulative expl by PC 
+pca_fit %>%
+  tidy(matrix = "eigenvalues") %>%
+  ggplot(aes(PC, cumulative)) +
+  geom_line(color = "#56B4E9", alpha = 0.8) +
+  geom_point(color = 'black', alpha = 0.7) +
+  geom_text(aes(label = round(PC,2)), nudge_x = 0, nudge_y = 0.05) +
+  # scale_x_continuous(breaks = 1:9) +
+  scale_y_continuous(
+    labels = scales::percent_format(),
+    expand = expansion(mult = c(0, 0.01))
+  ) +
+  theme_minimal_hgrid(12)
+
+ggsave(here('exploration/Functional_groups_results', 'percent_explained_cumulative.pdf'), 
+       height = 9, width = 10)
+
+### distances ####
+
+drug_dists = fgroups %>% select(where(is.numeric)) %>%  data.frame %>% get_dist
+fviz_dist(drug_dists, gradient = list(low = "#00AFBB", mid = "white", high = "#FC4E07"))
+
+ggsave(here('exploration/Functional_groups_results', 'distances.pdf'), 
+       height = 9, width = 10)
+
+
+### K-means with morgan FP ####
+
+morgan_mat = fgroups %>% 
+  select(where(is.numeric)) 
+
+
+
+kclust = morgan_mat %>% kmeans(centers = 10)
+
+pca_fit %>%
+  augment(fgroups) %>% # add original dataset back in
+  mutate(cluster = kclust$cluster, .before = Drug,
+         cluster = as.factor(cluster))  %>% 
+  ggplot(aes(.fittedPC1, .fittedPC2, color = cluster)) + 
+  geom_point(size = 3.5) +
+  labs(
+    x = 'PC1',
+    y = 'PC2'
+  ) +
+  theme_half_open(12) + 
+  background_grid()
+
+
+# 3D plot 
+pca_fit %>%
+  augment(fgroups) %>% # add original dataset back in
+  mutate(cluster = kclust$cluster, .before = Drug,
+         cluster = as.factor(cluster))  %>% 
+  plot_ly(x = ~.fittedPC1, y = ~.fittedPC2, z = ~.fittedPC3,
+          text = ~Drug, color=~cluster) %>% 
+  add_markers()
+
+
+
+pca_fit %>%
+  augment(fgroups) %>% # add original dataset back in
+  mutate(cluster = kclust$cluster, .before = Drug,
+         cluster = as.factor(cluster)) %>% 
+  select(cluster, Drug) %>% 
+  left_join(drugs) %>% 
+  distinct(Drug, .keep_all=T) %>% 
+  filter(Drug %in% nucl) %>% view
+
+
+kclusts <- 
+  tibble(k = 1:50) %>%
+  mutate(
+    kclust = map(k, ~kmeans(morgan_mat, .x)),
+    tidied = map(kclust, tidy),
+    glanced = map(kclust, glance),
+    augmented = map(kclust, augment, morgan_mat)
+  )
+
+clusterings <- 
+  kclusts %>%
+  unnest(cols = c(glanced))
+
+ggplot(clusterings, aes(k, tot.withinss)) +
+  geom_line() +
+  geom_point() +
+  geom_text(aes(label = k), nudge_y = 90, nudge_x = 0.3)
+
+ggsave(here('exploration/Functional_groups_results', 'silhouette_plot_kmeans.pdf'), 
+       height = 9, width = 10)
+
+
+
+
+
+
+# BIG PCA -----------------------------------------------------------------
+
+
+
+dir.create(here('exploration', 'DrugBank_biolog_drugs'))
+
+## load the Morgan fingerprints produced by the script: pyMol2FuncGroup.py 
+
+all_compounds = fgroups %>% 
+  mutate(DB = 'Biolog', .before = 'Al_COO') %>% 
+  bind_rows(drugbank_fp %>% 
+              mutate(DB = 'DrugBank', .before = 'Al_COO'))
+
+# remove dactinomycin as it's very different from all the others
+all_compounds = all_compounds %>% 
+  filter(Drug != 'Dactinomycin')
+
+### PCA ####
+
+pca_fit = all_compounds %>% 
+  select(where(is.numeric)) %>% # retain only numeric columns
+  prcomp(scale = F) # do PCA on scaled data
+
+
+pca_fit %>%
+  augment(all_compounds) %>% # add original dataset back in
+  ggplot(aes(.fittedPC1, .fittedPC2)) + 
+  geom_point(size = 1.5, alpha = 0.3) +
+  # geom_label(aes(label = Drug)) +
+  labs(
+    x = 'PC1',
+    y = 'PC2'
+  ) +
+  theme_half_open(12) + 
+  background_grid()
+
+ggsave(here('exploration/DrugBank_biolog_drugs', 'PCA_fgroups.pdf'), 
+       height = 13, width = 14)
+
+
+pca_fit %>%
+  augment(all_compounds) %>% 
+  plot_ly(x = ~.fittedPC1, y = ~.fittedPC2, z = ~.fittedPC3,
+          text = ~Drug) %>% 
+  add_markers()
+
+
+
+pca_fit %>%
+  tidy(matrix = "eigenvalues")
+
+# barplot of percent explained by PC
+pca_fit %>%
+  tidy(matrix = "eigenvalues") %>%
+  ggplot(aes(PC, percent)) +
+  geom_col(fill = "#56B4E9", alpha = 0.8) +
+  scale_x_continuous(breaks = 1:9) +
+  scale_y_continuous(
+    labels = scales::percent_format(),
+    expand = expansion(mult = c(0, 0.01))
+  ) +
+  theme_minimal_hgrid(12)
+
+ggsave(here('exploration/DrugBank_biolog_drugs', 'percent_explained.pdf'), 
+       height = 9, width = 10)
+
+# cumulative expl by PC 
+pca_fit %>%
+  tidy(matrix = "eigenvalues") %>%
+  ggplot(aes(PC, cumulative)) +
+  geom_line(color = "#56B4E9", alpha = 0.8) +
+  geom_point(color = 'black', alpha = 0.7) +
+  geom_text(aes(label = round(PC,2)), nudge_x = 0, nudge_y = 0.05) +
+  # scale_x_continuous(breaks = 1:9) +
+  scale_y_continuous(
+    labels = scales::percent_format(),
+    expand = expansion(mult = c(0, 0.01))
+  ) +
+  theme_minimal_hgrid(12)
+
+ggsave(here('exploration/DrugBank_biolog_drugs', 'percent_explained_cumulative.pdf'), 
+       height = 9, width = 10)
+
+### distances ####
+
+drug_dists = all_compounds %>% select(where(is.numeric)) %>%  data.frame %>% get_dist
+fviz_dist(drug_dists, gradient = list(low = "#00AFBB", mid = "white", high = "#FC4E07"))
+
+ggsave(here('exploration/DrugBank_biolog_drugs', 'distances.pdf'), 
+       height = 19, width = 21)
+
+
+### K-means with morgan FP ####
+
+morgan_mat = all_compounds %>% 
+  select(where(is.numeric)) 
+
+
+
+kclust = morgan_mat %>% kmeans(centers = 10)
+
+pca_fit %>%
+  augment(all_compounds) %>% # add original dataset back in
+  mutate(cluster = kclust$cluster, .before = Drug,
+         cluster = as.factor(cluster))  %>% 
+  ggplot(aes(.fittedPC1, .fittedPC2, color = cluster)) + 
+  geom_point(size = 3.5) +
+  labs(
+    x = 'PC1',
+    y = 'PC2'
+  ) +
+  theme_half_open(12) + 
+  background_grid()
+
+
+# 3D plot 
+pca_fit %>%
+  augment(all_compounds) %>% # add original dataset back in
+  mutate(cluster = kclust$cluster, .before = Drug,
+         cluster = as.factor(cluster))  %>% 
+  plot_ly(x = ~.fittedPC1, y = ~.fittedPC2, z = ~.fittedPC3,
+          text = ~Drug, color=~cluster) %>% 
+  add_markers()
+
+
+# 3D plot with Biolog/DrugBank info
+pca_fit %>%
+  augment(all_compounds) %>% # add original dataset back in
+  mutate(cluster = kclust$cluster, .before = Drug,
+         cluster = as.factor(cluster))  %>% 
+  plot_ly(x = ~.fittedPC1, y = ~.fittedPC2, z = ~.fittedPC3,
+          text = ~Drug, color=~DB) %>% 
+  add_markers()
+
+
+
+pca_fit %>%
+  augment(fgroups) %>% # add original dataset back in
+  mutate(cluster = kclust$cluster, .before = Drug,
+         cluster = as.factor(cluster)) %>% 
+  select(cluster, Drug) %>% 
+  left_join(drugs) %>% 
+  distinct(Drug, .keep_all=T) %>% 
+  filter(Drug %in% nucl) %>% view
+
+
+kclusts <- 
+  tibble(k = 1:50) %>%
+  mutate(
+    kclust = map(k, ~kmeans(morgan_mat, .x)),
+    tidied = map(kclust, tidy),
+    glanced = map(kclust, glance),
+    augmented = map(kclust, augment, morgan_mat)
+  )
+
+clusterings <- 
+  kclusts %>%
+  unnest(cols = c(glanced))
+
+ggplot(clusterings, aes(k, tot.withinss)) +
+  geom_line() +
+  geom_point() +
+  geom_text(aes(label = k), nudge_y = 90, nudge_x = 0.3)
+
+ggsave(here('exploration/Functional_groups_results', 'silhouette_plot_kmeans.pdf'), 
+       height = 9, width = 10)
+
 
 
 
