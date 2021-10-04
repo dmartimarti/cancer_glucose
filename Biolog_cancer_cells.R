@@ -595,14 +595,12 @@ ggsave(here('exploration', 'micit_heatmap_conference.pdf'), height = 8, width = 
 dir.create(here('exploration', 'Fingerprints_results'))
 
 
-### TEST ZONE ####
-
-
 
 library(broom)
 library(plotly)
 library(cluster)
 library(factoextra)
+library(Rtsne)
 
 ## load the Morgan fingerprints produced by the script: smiles2morgan.ipynb 
 
@@ -628,7 +626,7 @@ pca_fit %>%
   theme_half_open(12) + 
   background_grid()
 
-ggsave(here('exploration/Fingerprints_results', 'PCA_fgroups.pdf'), 
+ggsave(here('exploration/Fingerprints_results', 'PCA_morgan.pdf'), 
        height = 13, width = 14)
 
 
@@ -674,6 +672,50 @@ pca_fit %>%
 ggsave(here('exploration/Fingerprints_results', 'percent_explained_cumulative.pdf'), 
        height = 9, width = 10)
 
+
+
+### t-SNE ####
+
+tsne_fit = morgan %>% 
+  select(where(is.numeric)) %>% # retain only numeric columns
+  Rtsne(check_duplicates = FALSE, pca = FALSE, num_threads = 12,
+        normalize = FALSE, max_iter = 2000, 
+        perplexity = 20, theta = 0, dims = 3)
+
+# generate data frame from tnse results
+tsne.df = data.frame(tsne_fit$Y)
+colnames(tsne.df) = c('Dim1', 'Dim2', 'Dim3')
+
+tsne.df = tsne.df %>% 
+  mutate(Drug = morgan$Drug)
+
+tsne.df %>% 
+  ggplot(aes(Dim1, Dim2)) + 
+  geom_point(size = 1.5) +
+  geom_label(aes(label = Drug), alpha = 0.6) +
+  labs(
+    x = 'PC1',
+    y = 'PC2'
+  ) +
+  theme_half_open(12) + 
+  background_grid()
+
+
+
+
+ggsave(here('exploration/Fingerprints_results', 't-SNE_fgroups.pdf'), 
+       height = 13, width = 14)
+
+
+
+
+tsne.df %>%
+  plot_ly(x = ~Dim1, y = ~Dim2, z = ~Dim3,
+          text = ~Drug) %>% 
+  add_markers()
+
+
+
 ### distances ####
 
 drug_dists = morgan %>% select(where(is.numeric)) %>%  data.frame %>% get_dist
@@ -682,14 +724,44 @@ fviz_dist(drug_dists, gradient = list(low = "#00AFBB", mid = "white", high = "#F
 ggsave(here('exploration/Fingerprints_results', 'distances.pdf'), 
        height = 9, width = 10)
 
-### K-means with morgan FP ####
+### K-means FP ####
 
 morgan_mat = morgan %>% 
   select(where(is.numeric)) 
 
 
 
-kclust = morgan_mat %>% kmeans(centers = 30)
+### silhouette plot ####
+
+kclusts <- 
+  tibble(k = 1:80) %>%
+  mutate(
+    kclust = map(k, ~kmeans(morgan_mat, .x)),
+    tidied = map(kclust, tidy),
+    glanced = map(kclust, glance),
+    augmented = map(kclust, augment, morgan_mat)
+  )
+
+clusterings <- 
+  kclusts %>%
+  unnest(cols = c(glanced))
+
+ggplot(clusterings, aes(k, tot.withinss)) +
+  geom_line() +
+  geom_point() +
+  geom_text(aes(label = k), nudge_y = 90, nudge_x = 0.3)
+
+ggsave(here('exploration/Fingerprints_results', 'silhouette_plot_kmeans.pdf'), 
+       height = 9, width = 10)
+
+
+
+### k-means plots ####
+
+# perhaps 17 clusters...
+
+kclust = morgan_mat %>% kmeans(centers = 17)
+
 
 pca_fit %>%
   augment(morgan) %>% # add original dataset back in
@@ -724,29 +796,9 @@ pca_fit %>%
   filter(Drug %in% nucl) %>% view
 
 
-kclusts <- 
-  tibble(k = 1:80) %>%
-  mutate(
-    kclust = map(k, ~kmeans(morgan_mat, .x)),
-    tidied = map(kclust, tidy),
-    glanced = map(kclust, glance),
-    augmented = map(kclust, augment, morgan_mat)
-  )
-
-clusterings <- 
-  kclusts %>%
-  unnest(cols = c(glanced))
-
-ggplot(clusterings, aes(k, tot.withinss)) +
-  geom_line() +
-  geom_point() +
-  geom_text(aes(label = k), nudge_y = 90, nudge_x = 0.3)
-
-ggsave(here('exploration/Fingerprints_results', 'silhouette_plot_kmeans.pdf'), 
-       height = 9, width = 10)
 
 
-### K-means with PC from PCA ####
+### K-means PCA ####
 
 pca_fit %>%
   tidy(matrix = "eigenvalues") %>%
@@ -814,10 +866,58 @@ clusterings <-
 
 ggplot(clusterings, aes(k, tot.withinss)) +
   geom_line() +
-  geom_point()
+  geom_point() +
+  geom_text(aes(label = k), nudge_y = 90, nudge_x = 0.3)
+
+ggsave(here('exploration/Fingerprints_results', 'silhouette_plot_kmeans_PCA.pdf'), 
+       height = 9, width = 10)
 
 
 
+
+### K-means t-SNE ####
+
+
+tsne_mat = tsne.df %>% 
+  select(where(is.numeric)) 
+
+kclust = tsne_mat %>% 
+  kmeans(centers = 10)
+
+
+tsne.df %>%
+  mutate(cluster = kclust$cluster, .before = Drug,
+         cluster = as.factor(cluster))  %>% 
+  ggplot(aes(Dim1,Dim2, color = cluster)) + 
+  geom_point(size = 3.5) +
+  labs(
+    x = 't-SNE 1',
+    y = 't-SNE 2'
+  ) +
+  theme_half_open(12) + 
+  background_grid()
+
+
+
+kclusts <- 
+  tibble(k = 1:50) %>%
+  mutate(
+    kclust = map(k, ~kmeans(tsne_mat, .x)),
+    tidied = map(kclust, tidy),
+    glanced = map(kclust, glance)
+  )
+
+clusterings <- 
+  kclusts %>%
+  unnest(cols = c(glanced))
+
+ggplot(clusterings, aes(k, tot.withinss)) +
+  geom_line() +
+  geom_point() +
+  geom_text(aes(label = k), nudge_y = 10000, nudge_x = 0.4)
+
+ggsave(here('exploration/Fingerprints_results', 'silhouette_plot_kmeans_tSNE.pdf'), 
+       height = 9, width = 10)
 
 
 
@@ -899,6 +999,52 @@ pca_fit %>%
 ggsave(here('exploration/Functional_groups_results', 'percent_explained_cumulative.pdf'), 
        height = 9, width = 10)
 
+
+
+
+### t-SNE ####
+
+tsne_fit = fgroups %>% 
+  select(where(is.numeric)) %>% # retain only numeric columns
+  Rtsne(check_duplicates = FALSE, pca = FALSE, num_threads = 12,
+        normalize = FALSE, max_iter = 2000, 
+        perplexity = 30, theta = 0.1, dims = 3)
+
+# generate data frame from tnse results
+tsne.df = data.frame(tsne_fit$Y)
+colnames(tsne.df) = c('Dim1', 'Dim2', 'Dim3')
+
+tsne.df = tsne.df %>% 
+  mutate(Drug = fgroups$Drug)
+
+tsne.df %>% 
+  ggplot(aes(Dim1, Dim2)) + 
+  geom_point(size = 1.5) +
+  geom_label(aes(label = Drug), alpha = 0.6) +
+  labs(
+    x = 'PC1',
+    y = 'PC2'
+  ) +
+  theme_half_open(12) + 
+  background_grid()
+
+
+ggsave(here('exploration/Functional_groups_results', 't-SNE_fgroups.pdf'), 
+       height = 13, width = 14)
+
+
+
+
+tsne.df %>%
+  plot_ly(x = ~Dim1, y = ~Dim2, z = ~Dim3,
+          text = ~Drug) %>% 
+  add_markers()
+
+
+
+
+
+
 ### distances ####
 
 drug_dists = fgroups %>% select(where(is.numeric)) %>%  data.frame %>% get_dist
@@ -908,14 +1054,50 @@ ggsave(here('exploration/Functional_groups_results', 'distances.pdf'),
        height = 9, width = 10)
 
 
-### K-means with morgan FP ####
+
+
+
+
+### K-means  FP ####
 
 morgan_mat = fgroups %>% 
   select(where(is.numeric)) 
 
 
 
-kclust = morgan_mat %>% kmeans(centers = 10)
+### silhouette plot ####
+
+kclusts <- 
+  tibble(k = 1:50) %>%
+  mutate(
+    kclust = map(k, ~kmeans(morgan_mat, .x)),
+    tidied = map(kclust, tidy),
+    glanced = map(kclust, glance)
+  )
+
+clusterings <- 
+  kclusts %>%
+  unnest(cols = c(glanced))
+
+ggplot(clusterings, aes(k, tot.withinss)) +
+  geom_line() +
+  geom_point() +
+  geom_text(aes(label = k), nudge_y = 90, nudge_x = 0.3)
+
+
+
+ggsave(here('exploration/Functional_groups_results', 'silhouette_plot_kmeans.pdf'), 
+       height = 9, width = 10)
+
+
+
+
+
+
+### k-means plots ####
+
+# around 10 clusters is good!
+kclust = morgan_mat %>% kmeans(centers = 9)
 
 pca_fit %>%
   augment(fgroups) %>% # add original dataset back in
@@ -930,6 +1112,8 @@ pca_fit %>%
   theme_half_open(12) + 
   background_grid()
 
+ggsave(here('exploration/Functional_groups_results', 'PCA_fgroups_10_clusters.pdf'), 
+       height = 9, width = 10)
 
 # 3D plot 
 pca_fit %>%
@@ -941,24 +1125,53 @@ pca_fit %>%
   add_markers()
 
 
-
-pca_fit %>%
-  augment(fgroups) %>% # add original dataset back in
+tsne.df %>%
   mutate(cluster = kclust$cluster, .before = Drug,
-         cluster = as.factor(cluster)) %>% 
-  select(cluster, Drug) %>% 
-  left_join(drugs) %>% 
-  distinct(Drug, .keep_all=T) %>% 
-  filter(Drug %in% nucl) %>% view
+         cluster = as.factor(cluster))  %>%
+  plot_ly(x = ~Dim1, y = ~Dim2, z = ~Dim3,
+          text = ~Drug, color = ~cluster) %>% 
+  add_markers()
+
+
+
+
+### K-means t-SNE ####
+
+
+tsne_mat = tsne.df %>% 
+  select(where(is.numeric)) 
+
+kclust = tsne_mat %>% 
+  kmeans(centers = 8)
+
+
+tsne.df %>%
+  mutate(cluster = kclust$cluster, .before = Drug,
+         cluster = as.factor(cluster))  %>% 
+  ggplot(aes(Dim1,Dim2, color = cluster)) + 
+  geom_point(size = 3.5) +
+  labs(
+    x = 't-SNE 1',
+    y = 't-SNE 2'
+  ) +
+  theme_half_open(12) + 
+  background_grid()
+
+
+tsne.df %>%
+  mutate(cluster = kclust$cluster, .before = Drug,
+         cluster = as.factor(cluster))  %>%
+  plot_ly(x = ~Dim1, y = ~Dim2, z = ~Dim3,
+          text = ~Drug, color = ~cluster) %>% 
+  add_markers()
 
 
 kclusts <- 
   tibble(k = 1:50) %>%
   mutate(
-    kclust = map(k, ~kmeans(morgan_mat, .x)),
+    kclust = map(k, ~kmeans(tsne_mat, .x)),
     tidied = map(kclust, tidy),
-    glanced = map(kclust, glance),
-    augmented = map(kclust, augment, morgan_mat)
+    glanced = map(kclust, glance)
   )
 
 clusterings <- 
@@ -968,12 +1181,21 @@ clusterings <-
 ggplot(clusterings, aes(k, tot.withinss)) +
   geom_line() +
   geom_point() +
-  geom_text(aes(label = k), nudge_y = 90, nudge_x = 0.3)
+  geom_text(aes(label = k), nudge_y = 50000, nudge_x = 0.4)
 
-ggsave(here('exploration/Functional_groups_results', 'silhouette_plot_kmeans.pdf'), 
+ggsave(here('exploration/Functional_groups_results', 'silhouette_plot_kmeans_tSNE.pdf'), 
        height = 9, width = 10)
 
 
+
+### SAVE DF CLUSTERS ####
+
+# this object contains the clusters that could be useful to split the data
+
+tsne_clusters = tsne.df %>%
+  mutate(cluster = kclust$cluster, .before = Drug,
+         cluster = as.factor(cluster))  %>% 
+  as_tibble()
 
 
 
@@ -1061,6 +1283,49 @@ pca_fit %>%
 ggsave(here('exploration/DrugBank_biolog_drugs', 'percent_explained_cumulative.pdf'), 
        height = 9, width = 10)
 
+
+
+
+### t-SNE ####
+
+tsne_fit = all_compounds %>% 
+  select(where(is.numeric)) %>% # retain only numeric columns
+  Rtsne(check_duplicates = FALSE, pca = FALSE, num_threads = 12,
+        normalize = FALSE, max_iter = 2000, 
+        perplexity = 20, theta = 0.1, dims = 3)
+
+# generate data frame from tnse results
+tsne.df = data.frame(tsne_fit$Y)
+colnames(tsne.df) = c('Dim1', 'Dim2', 'Dim3')
+
+tsne.df = tsne.df %>% 
+  mutate(Drug = all_compounds$Drug)
+
+tsne.df %>% 
+  ggplot(aes(Dim1, Dim2)) + 
+  geom_point(size = 1.5) +
+  # geom_label(aes(label = Drug), alpha = 0.6) +
+  labs(
+    x = 't-SNE 1',
+    y = 't-SNE 2'
+  ) +
+  theme_half_open(12) + 
+  background_grid()
+
+
+ggsave(here('exploration/DrugBank_biolog_drugs', 't-SNE_fgroups.pdf'), 
+       height = 13, width = 14)
+
+
+
+tsne.df %>%
+  plot_ly(x = ~Dim1, y = ~Dim2, z = ~Dim3,
+          text = ~Drug) %>% 
+  add_markers()
+
+
+
+
 ### distances ####
 
 drug_dists = all_compounds %>% select(where(is.numeric)) %>%  data.frame %>% get_dist
@@ -1103,6 +1368,15 @@ pca_fit %>%
   add_markers()
 
 
+tsne.df%>%
+  mutate(cluster = kclust$cluster, .before = Drug,
+         cluster = as.factor(cluster))  %>% 
+  plot_ly(x = ~Dim1, y = ~Dim2, z = ~Dim3,
+          text = ~Drug, color=~cluster) %>% 
+  add_markers()
+
+
+
 # 3D plot with Biolog/DrugBank info
 pca_fit %>%
   augment(all_compounds) %>% # add original dataset back in
@@ -1112,16 +1386,16 @@ pca_fit %>%
           text = ~Drug, color=~DB) %>% 
   add_markers()
 
-
-
-pca_fit %>%
-  augment(fgroups) %>% # add original dataset back in
+tsne.df%>%
+  mutate(DB = all_compounds$DB) %>% 
   mutate(cluster = kclust$cluster, .before = Drug,
-         cluster = as.factor(cluster)) %>% 
-  select(cluster, Drug) %>% 
-  left_join(drugs) %>% 
-  distinct(Drug, .keep_all=T) %>% 
-  filter(Drug %in% nucl) %>% view
+         cluster = as.factor(cluster))  %>% 
+  plot_ly(x = ~Dim1, y = ~Dim2, z = ~Dim3,
+          text = ~Drug, color=~DB) %>% 
+  add_markers()
+
+
+
 
 
 kclusts <- 
@@ -1151,19 +1425,164 @@ ggsave(here('exploration/Functional_groups_results', 'silhouette_plot_kmeans.pdf
 
 
 
+# working with clusters ---------------------------------------------------
+
+# a bit of exploration
+
+n_clusters = max(as.numeric(tsne_clusters$cluster))
+
+tsne_clusters %>% 
+  group_by(cluster) %>% 
+  count() %>% 
+  ggplot(aes(x = cluster, y = n)) +
+  geom_col(aes(fill = cluster), color = 'black') +
+  labs(x = 'Cluster',
+       y = 'Elements in cluster',
+       caption = 'Number of elements in each cluster as calculated in the t-SNE') +
+  guides(fill = 'none')
+
+
+ggsave(here('exploration/Functional_groups_results', 'elements_in_cluster.pdf'), 
+       height = 9, width = 10)
+
+
+result_ZIP %>% 
+  left_join(tsne_clusters) %>% 
+  drop_na(cluster) %>% 
+  # left_join(drugs) %>% 
+  ggplot(aes(Synergy.score)) +
+  geom_density() +
+  # geom_point(aes(y = cluster)) +
+  facet_wrap(~cluster)
+
+
+
+result_ZIP %>% 
+  left_join(tsne_clusters) %>% 
+  drop_na(cluster) %>% 
+  ggplot(aes(y = Synergy.score, x = cluster, fill = cluster)) +
+  geom_boxplot() +
+  geom_point(position = position_jitterdodge()) +
+  guides(fill = 'none') +
+  labs(x = 'Cluster',
+       y = 'Synergy score', 
+       caption = 'Boxplots from the synergy scores per cluster')
+
+ggsave(here('exploration/Functional_groups_results', 'boxplot_cluster.pdf'), 
+       height = 9, width = 10)
 
 
 
 
 
+### stats ####
+
+# let's do some magic 
+
+results_cluster = result_ZIP %>% 
+  left_join(tsne_clusters) %>% 
+  drop_na(cluster)
+
+
+results_cluster = results_cluster %>% 
+  mutate(new_cat = 0,
+         new_cat= factor(new_cat)) %>% # create a dummy category column
+  bind_rows(results_cluster %>% 
+              mutate(new_cat = cluster)) %>% 
+  mutate(new_cat = as.factor(new_cat)) 
+
+
+
+results_cluster %>% 
+  mutate( new_cat = recode(new_cat, `0` = 'ALL')) %>%
+  ggplot(aes(y = Synergy.score, x = new_cat, fill = new_cat)) +
+  geom_boxplot() +
+  geom_point(position = position_jitterdodge()) +
+  guides(fill = 'none') +
+  labs(x = 'Cluster',
+       y = 'Synergy score', 
+       caption = 'Boxplots from the synergy scores per cluster')
+
+ggsave(here('exploration/Functional_groups_results', 'boxplot_cluster_ALL.pdf'), 
+       height = 9, width = 10)
+
+
+
+# helper function
+adhoc_stats = function(cluster = 1){
+  
+  ### Takes the dataset I created, filters it, and calculates the stats
+  
+  pair = c(0,cluster)
+  
+  res = results_cluster %>% 
+    filter(new_cat %in% pair) %>% 
+    # group_by(new_cat) %>% 
+    nest(data = everything()) %>% 
+    mutate(model = map(data, lm, formula = 'Synergy.score ~ new_cat'),
+           model_tidy = map(model, tidy)) %>% 
+    select(model_tidy) %>% 
+    unnest(cols = c(model_tidy)) %>% 
+    filter(term != '(Intercept)') %>% 
+    mutate(term = cluster)
+  
+  return(res)
+    
+}
+
+
+
+# helper function for Welch test
+adhoc_welch_stats = function(cluster = 1){
+  
+  ### Takes the dataset I created, filters it, and calculates the stats
+  
+  query = cluster
+  basal = c(0)
+  
+  CG = results_cluster %>% 
+    # mutate(new_cat = as.numeric(new_cat)) %>% 
+    filter(new_cat == query) %>% pull(Synergy.score)
+  TG = results_cluster %>% 
+    # mutate(new_cat = as.numeric(new_cat)) %>% 
+    filter(new_cat == basal) %>% pull(Synergy.score)
+  
+  # as they suffer from heterocedasticity, var.equal to FALSE
+  welch_stats = tidy(t.test(CG, TG, var.equal = F))
+  
+  return(welch_stats)
+  
+}
 
 
 
 
+df_lm = tibble()
+for (k in 1:n_clusters){
+  
+  res = adhoc_stats(cluster = k)
+  
+  df_lm = df_lm %>% bind_rows(res)
+
+  }
+
+df_lm
 
 
 
 
+adhoc_welch_stats(cluster = 1)
 
+
+df_welch = tibble()
+for (k in 1:n_clusters){
+  
+  res = adhoc_welch_stats(cluster = k)
+  
+  df_welch = df_welch %>% bind_rows(res)
+  
+}
+
+df_welch
 
 
