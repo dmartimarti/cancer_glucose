@@ -104,12 +104,18 @@ respT = read_excel("Sub_library/Tanara/res_sublibrary_exp090821.xlsx",
 respT = respT %>% 
   mutate(`0` = as.numeric(`0`),
          `5` = as.numeric(`5`)) %>% 
+  # this line modifies the lost values in `0` to be 4
+  mutate(`0` = case_when(is.na(`0`) ~ 4,
+                         TRUE ~ `0`)) %>% 
   drop_na(Genes) %>% 
   filter(Genes != 'EMPTY')
 
 
 respT
 
+remove = c('crp_prpB:K','crp_pyrE:K','gltA_gpt','gltA_hpt',
+           'gpt_hpt','hpt_guaA','pyrE_gpt','pyrE_guaA','pyrE_hpt',
+           'upp_udp_p(prpB)')
 
 
 respT = respT %>%
@@ -145,6 +151,7 @@ respT.sum = respT %>%
 drug = 5
 pos = position_jitter(width = 0.05, height = 0.05, seed = 1) # to plot names in jitter positions
 respT.sum %>% 
+  filter(!(Genes %in% remove)) %>% 
   filter(Drug == drug) %>% 
   select(Supplement, Supplement_mM, Genes, BW_norm) %>%
   unite(Supp, Supplement, Supplement_mM) %>%
@@ -167,8 +174,56 @@ respT.sum %>%
   guides(colour = guide_legend(override.aes = list(size = 4))) 
 
 
-ggsave(file = here('Summary', 'Scatter_sub_lib_RESP_5uM.pdf'),
+ggsave(file = here('Summary', 'Scatter_sub_lib_RESP_Tanara_5uM.pdf'),
        height = 10, width = 12)
+
+
+
+
+
+#### correlation between Leo and 
+
+leogenes = glu.sum %>% distinct(Genes) %>% pull(Genes)
+
+gluc = 10
+# my assay
+resp.short = resp.sum %>% 
+  filter(Genes %in% leogenes,
+         Supplement_mM == gluc, 
+         Drug == 5)  %>% 
+  select(Genes, 
+         resp = Median_Score)
+
+# Tanara's assay
+respT.short = respT.sum %>% 
+  filter(Genes %in% leogenes,
+         Supplement_mM == gluc, 
+         Drug == 5)  %>% 
+  select(Genes, 
+         respT = Median_Score)
+
+# Leo's assay
+glu.short = glu.sum %>% 
+  filter(Genes %in% leogenes,
+         Supplement_mM == gluc, 
+         Drug == 5) %>% 
+  select(Genes, 
+         Leo = Median_Score) 
+
+
+
+respT.short %>% left_join(glu.short) %>%
+  left_join(resp.short) %>% 
+  ggplot(aes(x = respT, y = Leo)) +
+  geom_smooth() +
+  geom_point(position = position_jitter(width = 0.05, height = 0.05, seed = 1)) +
+  labs(x = 'Leo scores',
+       y = 'Tanara scores') +
+  theme_cowplot(14)
+  
+ggsave(file = here('Summary', glue::glue('Correlation_Glucose_{gluc}_Tanara_Leo.pdf')),
+       height = 10, width = 12)
+
 
 
 # compare old and new glu -------------------------------------------------
