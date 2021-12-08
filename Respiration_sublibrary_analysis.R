@@ -98,8 +98,10 @@ ggsave(file = here('Summary', 'Scatter_sub_lib_RESP_5uM.pdf'),
 # Tanara version ----------------------------------------------------------
 
 
-respT = read_excel("Sub_library/Tanara/res_sublibrary_exp090821.xlsx", 
-                   sheet = "Summary")
+respT = read_excel("Sub_library/Tanara/res_sublibrary_exp090821.xlsx",
+sheet = "Summary")
+
+
 # remove bad data
 respT = respT %>% 
   mutate(`0` = as.numeric(`0`),
@@ -179,6 +181,154 @@ ggsave(file = here('Summary', 'Scatter_sub_lib_RESP_Tanara_5uM.pdf'),
 
 
 
+#### New assay by Tanara (6th - December - 2021) ####
+
+respTnew = read_excel("Sub_library/Tanara/Developmentalassay_respirartionsublibrary_061221_TVP.xlsx",
+                   sheet = "Summary")
+
+
+# remove bad data
+respTnew = respTnew %>% 
+  mutate(`0` = as.numeric(`0`),
+         `5` = as.numeric(`5`)) %>% 
+  # this line modifies the lost values in `0` to be 4
+  mutate(`0` = case_when(is.na(`0`) ~ 4,
+                         TRUE ~ `0`)) %>% 
+  drop_na(Genes) %>% 
+  filter(Genes != 'EMPTY')
+
+
+respTnew
+
+remove = c('crp_prpB:K','crp_pyrE:K','gltA_gpt','gltA_hpt',
+           'gpt_hpt','hpt_guaA','pyrE_gpt','pyrE_guaA','pyrE_hpt',
+           'upp_udp_p(prpB)')
+
+
+respTnew = respTnew %>%
+  gather(Drug, Score, `0`, `5`) %>% # make table long
+  unite(ID, Genes, Supplement, Replicate, remove = FALSE) %>% 
+  mutate(Replicate = as.numeric(Replicate),
+         Supplement_mM = as.factor(Supplement_mM),
+         Supplement = as.factor(Supplement),
+         Genes = as.factor(Genes),
+         ID = as.factor(ID),
+         Drug = as.factor(Drug)) %>%
+  select(Genes, Well, ID, Replicate, Supplement, Supplement_mM, Drug, Score)
+
+
+
+respTnew.sum = respTnew %>%
+  group_by(Supplement, Supplement_mM, Drug, Genes) %>%
+  summarise(Median_Score = median(Score, na.rm = TRUE),
+            MAD = mad(Score, na.rm = TRUE),
+            Mean = mean(Score, na.rm = TRUE),
+            SD = sd(Score, na.rm = TRUE)) %>%
+  mutate(BW_Score = Median_Score[Genes == 'BW'],
+         BW_Mean = Mean[Genes == 'BW']) %>%
+  ungroup %>%
+  group_by(Genes, Drug) %>%
+  ungroup %>%
+  mutate(BW_norm = Median_Score - BW_Score,
+         BW_Mean_norm = Mean - BW_Mean)
+
+
+
+
+drug = 5
+pos = position_jitter(width = 0.05, height = 0.05, seed = 1) # to plot names in jitter positions
+respTnew.sum %>% 
+  filter(!(Genes %in% remove)) %>% 
+  filter(Drug == drug) %>% 
+  select(Supplement, Supplement_mM, Genes, BW_norm) %>%
+  unite(Supp, Supplement, Supplement_mM) %>%
+  spread(Supp, BW_norm) %>%
+  ggplot(aes(x = Glucose_0, y = Glucose_10)) + 
+  geom_hline(yintercept = 0, colour = 'grey30') +
+  geom_vline(xintercept = 0, colour = 'grey30') +
+  geom_point(position = pos, size = 2) + 
+  geom_text_repel(aes(label = Genes), position = pos, max.overlaps = 100) +
+  labs(title = expression(paste("5FU + Glucose effect on ", italic('C. elegans'),
+                                " N2 phenotype", sep = '')),
+       x = "Normalised median scores of *C. elegans* N2 phenotype",
+       y = "Normalised median scores of *C. elegans* N2 phenotype with **Glucose**") +
+  theme(plot.title = element_text(size = 15, hjust = 0.5, face = "bold"),
+        panel.grid.major = element_line(colour = "grey90"),
+        panel.background = element_rect(fill = "white", colour = "grey50"),
+        legend.text = element_text(size = 6),
+        axis.title.y = ggtext::element_markdown(),
+        axis.title.x = ggtext::element_markdown()) + 
+  guides(colour = guide_legend(override.aes = list(size = 4))) 
+
+
+ggsave(file = here('Summary', 'Scatter_sub_lib_RESP_Tanara_6thDec2021_5uM.pdf'),
+       height = 10, width = 12)
+
+
+
+
+
+
+#### mix the two assays by Tanara ####
+
+
+
+joint_resp = respT %>% 
+  bind_rows(respTnew %>% 
+              mutate(Replicate = Replicate + 3))
+
+
+
+joint_resp.sum = joint_resp %>%
+  group_by(Supplement, Supplement_mM, Drug, Genes) %>%
+  summarise(Median_Score = median(Score, na.rm = TRUE),
+            MAD = mad(Score, na.rm = TRUE),
+            Mean = mean(Score, na.rm = TRUE),
+            SD = sd(Score, na.rm = TRUE)) %>%
+  mutate(BW_Score = Median_Score[Genes == 'BW'],
+         BW_Mean = Mean[Genes == 'BW']) %>%
+  ungroup %>%
+  group_by(Genes, Drug) %>%
+  ungroup %>%
+  mutate(BW_norm = Median_Score - BW_Score,
+         BW_Mean_norm = Mean - BW_Mean)
+
+
+
+
+drug = 5
+pos = position_jitter(width = 0.05, height = 0.05, seed = 1) # to plot names in jitter positions
+joint_resp.sum %>% 
+  filter(!(Genes %in% remove)) %>% 
+  filter(Drug == drug) %>% 
+  select(Supplement, Supplement_mM, Genes, BW_norm) %>%
+  unite(Supp, Supplement, Supplement_mM) %>%
+  spread(Supp, BW_norm) %>%
+  ggplot(aes(x = Glucose_0, y = Glucose_10)) + 
+  geom_hline(yintercept = 0, colour = 'grey30') +
+  geom_vline(xintercept = 0, colour = 'grey30') +
+  geom_point(position = pos, size = 2) + 
+  geom_text_repel(aes(label = Genes), position = pos, max.overlaps = 100) +
+  labs(title = expression(paste("5FU + Glucose effect on ", italic('C. elegans'),
+                                " N2 phenotype", sep = '')),
+       x = "Normalised median scores of *C. elegans* N2 phenotype",
+       y = "Normalised median scores of *C. elegans* N2 phenotype with **Glucose**") +
+  theme(plot.title = element_text(size = 15, hjust = 0.5, face = "bold"),
+        panel.grid.major = element_line(colour = "grey90"),
+        panel.background = element_rect(fill = "white", colour = "grey50"),
+        legend.text = element_text(size = 6),
+        axis.title.y = ggtext::element_markdown(),
+        axis.title.x = ggtext::element_markdown()) + 
+  guides(colour = guide_legend(override.aes = list(size = 4))) 
+
+
+ggsave(file = here('Summary', 'Scatter_sub_lib_RESP_Tanara_5uM_JOINED.pdf'),
+       height = 10, width = 12)
+
+
+
+
+
 
 
 #### correlation between Leo and 
@@ -223,6 +373,23 @@ respT.short %>% left_join(glu.short) %>%
   
 ggsave(file = here('Summary', glue::glue('Correlation_Glucose_{gluc}_Tanara_Leo.pdf')),
        height = 10, width = 12)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
