@@ -57,9 +57,12 @@ sh_rate = sh_rate %>%
                       Measurement %in% c(10,11,12) ~ 'stage_4')
   )
 
+
+# Main plots --------------------------------------------------------------
+
+
+
 # summarise data
-
-
 sh_rate %>% 
   filter(Time < 2, Measure == 'OCR', 
          Genotype == 'WT',
@@ -143,22 +146,53 @@ proton_leak =
   mutate(prot_leak = min_oligo - min_val) %>% 
   mutate(description = 'Proton Leak')
 
+# ATP production
+
+last_oligo = sh_rate %>% 
+  filter(Measure == 'OCR') %>% 
+  filter(Measurement == 9)
+
+atp_prod = min_oligo %>% 
+  left_join(last_oligo) %>% 
+  mutate(atp_prod = Value - min_oligo) %>% 
+  mutate(description = 'ATP production')
+
+
+# spare respiratory capacity
+spare_resp = mresp %>% 
+  select(-description) %>% 
+  left_join(bs_resp %>% select(-description)) %>% 
+  mutate(spare_resp = max_resp - basal_resp)
+
+# spare respiratory capacity as %
+spare_resp_per = mresp %>% 
+  select(-description) %>% 
+  left_join(bs_resp %>% select(-description)) %>% 
+  mutate(spare_resp = (max_resp/basal_resp)*100)
+
+# coupling efficiency
+## CHECK THIS, COULD BE WRONG ##
+coup_eff = atp_prod %>% 
+  select(-description,-Time,-Well) %>% 
+  left_join(bs_resp %>% select(-description,-Well,
+                               -Time,-min_val,-Value,
+                               -stage,-Measurement)) %>% 
+  mutate(coup_eff = (atp_prod/basal_resp)*100)
 
 
 
 
 
 
-
-
-# ploting the different values
+### ploting the different values ####
 
 nmoc %>% 
   ggplot(aes(x = Micit, y = min_val, color = Micit)) +
   stat_summary(fun.data = "mean_cl_boot", size = 1.5) +
   geom_point(color = 'black') +
   facet_wrap(~Genotype) +
-  scale_color_viridis(discrete = T)
+  scale_color_viridis(discrete = T) +
+  labs(title = 'Non-mitochondrial Oxygen Consumption')
   
 bs_resp %>% 
   ggplot(aes(x = Micit, y = basal_resp, fill = Micit,
@@ -176,7 +210,6 @@ mresp %>%
   stat_summary(fun.data = "mean_cl_boot", size = 1.5) +
   geom_point(size = 3, alpha = .7) +
   facet_wrap(~Genotype) +
-  # ylim(0,250) +
   scale_color_viridis(discrete = T)
   
 proton_leak %>% 
@@ -185,8 +218,49 @@ proton_leak %>%
   stat_summary(fun.data = "mean_cl_boot", size = 1.5) +
   geom_point(size = 3, alpha = .7) +
   facet_wrap(~Genotype) +
-  # ylim(0,250) +
   scale_color_viridis(discrete = T)
   
+
+atp_prod %>% 
+  ggplot(aes(x = Micit, y = atp_prod, fill = Micit,
+             color = Micit)) +
+  stat_summary(fun.data = "mean_cl_boot", size = 1.5) +
+  geom_point(size = 3, alpha = .7) +
+  facet_wrap(~Genotype) +
+  scale_color_viridis(discrete = T)
+
+
+
+spare_resp %>% 
+  ggplot(aes(x = Micit, y = spare_resp, fill = Micit,
+             color = Micit)) +
+  stat_summary(fun.data = "mean_cl_boot", size = 1.5) +
+  geom_point(size = 3, alpha = .7) +
+  facet_wrap(~Genotype) +
+  scale_color_viridis(discrete = T) + 
+  labs(title = 'Spare respiration')
   
-  
+
+
+
+spare_resp_per %>% 
+  ggplot(aes(x = Micit, y = spare_resp, fill = Micit,
+             color = Micit)) +
+  stat_summary(fun.data = "mean_cl_boot", size = 1.5) +
+  geom_point(size = 3, alpha = .7) +
+  facet_wrap(~Genotype) +
+  scale_color_viridis(discrete = T) + 
+  labs(title = 'Spare respiration as %')
+
+
+coup_eff %>% 
+  ggplot(aes(x = Micit, y = coup_eff, fill = Micit,
+             color = Micit)) +
+  stat_summary(fun.data = "mean_cl_boot", size = 1.5) +
+  geom_point(size = 3, alpha = .7) +
+  facet_wrap(~Genotype) +
+  scale_color_viridis(discrete = T) + 
+  labs(title = 'Coupling efficiency as %')
+
+
+ 
