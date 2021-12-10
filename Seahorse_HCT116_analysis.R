@@ -9,6 +9,7 @@ library(tidyverse)
 library(readxl)
 library(cowplot)
 library(viridis)
+library(broom)
 
 
 theme_set(theme_cowplot(14) + background_grid())
@@ -95,7 +96,7 @@ sh_sum %>%
 
 
 
-# stats -------------------------------------------------------------------
+# summary stats -------------------------------------------------------------------
 
 # according to the Seahorse manual, there are several data that can be 
 # calculated from the values obtained in the different stages
@@ -263,4 +264,51 @@ coup_eff %>%
   labs(title = 'Coupling efficiency as %')
 
 
- 
+
+
+
+
+
+# t-test ------------------------------------------------------------------
+
+
+nmoc %>% 
+  group_by(Genotype) %>% 
+  nest() %>% 
+  mutate(
+    model = map(data, ~pairwise_t_test(min_val ~ Micit, 
+                                       data = ., 
+                                       p.adjust.method = 'none')) 
+  ) %>% 
+  select(Genotype, model) %>% 
+  unnest(model)
+
+
+
+mresp %>% 
+  group_by(Genotype) %>% 
+  nest() %>% 
+  mutate(
+    model = map(data, ~pairwise_t_test(max_resp ~ Micit, 
+                                       data = ., 
+                                       p.adjust.method = 'none')) 
+  ) %>% 
+  select(Genotype, model) %>% 
+  unnest(model)
+
+
+atp_prod %>% 
+  group_by(Genotype) %>% 
+  nest() %>% 
+  mutate(
+    model = map(data, ~pairwise_t_test(atp_prod ~ Micit, 
+                                       data = ., 
+                                       p.adjust.method = 'none')) 
+  ) %>% 
+  select(Genotype, model) %>% 
+  unnest(model)
+
+
+
+
+
