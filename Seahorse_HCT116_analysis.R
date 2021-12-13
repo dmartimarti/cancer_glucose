@@ -10,7 +10,8 @@ library(readxl)
 library(cowplot)
 library(viridis)
 library(broom)
-
+library(here)
+library(openxlsx)
 
 theme_set(theme_cowplot(14) + background_grid())
 
@@ -102,24 +103,23 @@ sh_sum %>%
 # calculated from the values obtained in the different stages
 
 # min vals
-# non-mitochondrial oxygen consumption
+### non-mitochondrial oxygen consumption ####
 nmoc = sh_rate %>% 
   filter(Measure == 'OCR') %>% 
   filter(stage == 'stage_4') %>% 
   group_by(Group, Micit, Genotype, Replicate) %>% 
   summarise(min_val = min(Value)) %>% 
   ungroup %>% 
-  # select(-Time) %>% 
   mutate(description = 'Non-mitochondrial Oxygen Consumption')
 
-# basal respiration 
+### basal respiration ####
 bs_resp = sh_rate %>% 
   filter(Measure == 'OCR', Measurement == 3) %>%
   left_join(nmoc %>% select(-description)) %>%
   mutate(basal_resp = Value - min_val) %>% 
   mutate(description = 'Basal Respiration')
 
-# maximal respiration
+### maximal respiration ####
 mresp_temp = sh_rate %>% 
   filter(Measure == 'OCR') %>% 
   filter(stage == 'stage_3') %>% 
@@ -133,13 +133,23 @@ mresp = mresp_temp %>%
   mutate(max_resp = max_val - min_val) %>% 
   mutate(description = 'Maximal Respiration')
 
-# proton leak
+
+### proton leak ####
+
+# this is how I think it should be done
+# min_oligo = sh_rate %>% 
+#   filter(Measure == 'OCR') %>% 
+#   filter(stage == 'stage_2') %>% 
+#   group_by(Group, Micit, Genotype, Replicate) %>% 
+#   summarise(min_oligo = min(Value)) %>% 
+#   ungroup
+
+# this is how it's in the instructions form Agilent
 min_oligo = sh_rate %>% 
   filter(Measure == 'OCR') %>% 
-  filter(stage == 'stage_3') %>% 
-  group_by(Group, Micit, Genotype, Replicate) %>% 
-  summarise(min_oligo = min(Value)) %>% 
-  ungroup
+  filter(Measurement == 6) %>% 
+  rename(min_oligo = Value) %>% 
+  select(-stage,-Time,-Measure,-Measurement)
 
 proton_leak =
   min_oligo %>% 
@@ -147,40 +157,48 @@ proton_leak =
   mutate(prot_leak = min_oligo - min_val) %>% 
   mutate(description = 'Proton Leak')
 
-# ATP production
+### ATP production ####
 
 last_oligo = sh_rate %>% 
   filter(Measure == 'OCR') %>% 
-  filter(Measurement == 9)
+  filter(Measurement == 3) %>% 
+  select(-stage,-Time,-Measure,-Measurement) %>% 
+  rename(last_oligo = Value)
 
 atp_prod = min_oligo %>% 
   left_join(last_oligo) %>% 
-  mutate(atp_prod = Value - min_oligo) %>% 
+  mutate(atp_prod = last_oligo - min_oligo) %>% 
   mutate(description = 'ATP production')
 
 
-# spare respiratory capacity
+
+### spare respiratory capacity ####
 spare_resp = mresp %>% 
   select(-description) %>% 
   left_join(bs_resp %>% select(-description)) %>% 
   mutate(spare_resp = max_resp - basal_resp)
 
-# spare respiratory capacity as %
+### spare respiratory capacity as % ####
 spare_resp_per = mresp %>% 
   select(-description) %>% 
   left_join(bs_resp %>% select(-description)) %>% 
   mutate(spare_resp = (max_resp/basal_resp)*100)
 
-# coupling efficiency
+### coupling efficiency ####
 ## CHECK THIS, COULD BE WRONG ##
 coup_eff = atp_prod %>% 
-  select(-description,-Time,-Well) %>% 
+  select(-description,-Well) %>% 
   left_join(bs_resp %>% select(-description,-Well,
                                -Time,-min_val,-Value,
                                -stage,-Measurement)) %>% 
   mutate(coup_eff = (atp_prod/basal_resp)*100)
 
-
+atp_prod %>% 
+  select(-description,-Well) %>% 
+  left_join(bs_resp %>% select(-description,-Well,
+                               -Time,-min_val,-Value,
+                               -stage,-Measurement)) %>% 
+  mutate(coup_eff = (atp_prod/basal_resp)*100)
 
 
 
@@ -193,8 +211,14 @@ nmoc %>%
   geom_point(color = 'black') +
   facet_wrap(~Genotype) +
   scale_color_viridis(discrete = T) +
-  labs(title = 'Non-mitochondrial Oxygen Consumption')
-  
+  labs(title = 'Non-mitochondrial Oxygen Consumption',
+       y = 'OCR (pmol/min)',
+       x = 'Micit (mM)')
+
+ggsave(here('summary', 'non_mitochondrial_ox_consumption.pdf'),
+       height = 7, width = 9)
+
+
 bs_resp %>% 
   ggplot(aes(x = Micit, y = basal_resp, fill = Micit,
              color = Micit)) +
@@ -202,7 +226,14 @@ bs_resp %>%
   geom_point() +
   facet_wrap(~Genotype) +
   ylim(0,250) +
-  scale_color_viridis(discrete = T)
+  scale_color_viridis(discrete = T) +
+  labs(title = 'Basal Respiration',
+       y = 'OCR (pmol/min)',
+       x = 'Micit (mM)')
+
+ggsave(here('summary', 'basal_respiration.pdf'),
+       height = 7, width = 9)
+
 
   
 mresp %>% 
@@ -211,16 +242,30 @@ mresp %>%
   stat_summary(fun.data = "mean_cl_boot", size = 1.5) +
   geom_point(size = 3, alpha = .7) +
   facet_wrap(~Genotype) +
-  scale_color_viridis(discrete = T)
+  scale_color_viridis(discrete = T) +
+  labs(title = 'Maximal Respiration',
+       y = 'OCR (pmol/min)',
+       x = 'Micit (mM)')
   
+ggsave(here('summary', 'maximal_respiration.pdf'),
+       height = 7, width = 9)
+
+
+
 proton_leak %>% 
   ggplot(aes(x = Micit, y = prot_leak, fill = Micit,
              color = Micit)) +
   stat_summary(fun.data = "mean_cl_boot", size = 1.5) +
   geom_point(size = 3, alpha = .7) +
   facet_wrap(~Genotype) +
-  scale_color_viridis(discrete = T)
-  
+  scale_color_viridis(discrete = T) +
+  labs(title = 'Proton Leak',
+       y = 'OCR (pmol/min)',
+       x = 'Micit (mM)')
+
+ggsave(here('summary', 'proton_leak.pdf'),
+       height = 7, width = 9)
+
 
 atp_prod %>% 
   ggplot(aes(x = Micit, y = atp_prod, fill = Micit,
@@ -228,7 +273,13 @@ atp_prod %>%
   stat_summary(fun.data = "mean_cl_boot", size = 1.5) +
   geom_point(size = 3, alpha = .7) +
   facet_wrap(~Genotype) +
-  scale_color_viridis(discrete = T)
+  scale_color_viridis(discrete = T) +
+  labs(title = 'ATP Production',
+       y = 'OCR (pmol/min)',
+       x = 'Micit (mM)')
+
+ggsave(here('summary', 'atp_production.pdf'),
+       height = 7, width = 9)
 
 
 
@@ -239,29 +290,32 @@ spare_resp %>%
   geom_point(size = 3, alpha = .7) +
   facet_wrap(~Genotype) +
   scale_color_viridis(discrete = T) + 
-  labs(title = 'Spare respiration')
+  labs(title = 'Spare Respiration',
+       y = 'OCR (pmol/min)',
+       x = 'Micit (mM)')
   
+ggsave(here('summary', 'spare_respiration.pdf'),
+       height = 7, width = 9)
 
 
+# spare_resp_per %>%
+#   ggplot(aes(x = Micit, y = spare_resp, fill = Micit,
+#              color = Micit)) +
+#   stat_summary(fun.data = "mean_cl_boot", size = 1.5) +
+#   geom_point(size = 3, alpha = .7) +
+#   facet_wrap(~Genotype) +
+#   scale_color_viridis(discrete = T) +
+#   labs(title = 'Spare respiration as %')
 
-spare_resp_per %>% 
-  ggplot(aes(x = Micit, y = spare_resp, fill = Micit,
-             color = Micit)) +
-  stat_summary(fun.data = "mean_cl_boot", size = 1.5) +
-  geom_point(size = 3, alpha = .7) +
-  facet_wrap(~Genotype) +
-  scale_color_viridis(discrete = T) + 
-  labs(title = 'Spare respiration as %')
-
-
-coup_eff %>% 
-  ggplot(aes(x = Micit, y = coup_eff, fill = Micit,
-             color = Micit)) +
-  stat_summary(fun.data = "mean_cl_boot", size = 1.5) +
-  geom_point(size = 3, alpha = .7) +
-  facet_wrap(~Genotype) +
-  scale_color_viridis(discrete = T) + 
-  labs(title = 'Coupling efficiency as %')
+# 
+# coup_eff %>% 
+#   ggplot(aes(x = Micit, y = coup_eff, fill = Micit,
+#              color = Micit)) +
+#   stat_summary(fun.data = "mean_cl_boot", size = 1.5) +
+#   geom_point(size = 3, alpha = .7) +
+#   facet_wrap(~Genotype) +
+#   scale_color_viridis(discrete = T) + 
+#   labs(title = 'Coupling efficiency as %')
 
 
 
@@ -271,8 +325,10 @@ coup_eff %>%
 
 # t-test ------------------------------------------------------------------
 
+library(rstatix)
+library(ggpubr)
 
-nmoc %>% 
+nmoc_stats = nmoc %>% 
   group_by(Genotype) %>% 
   nest() %>% 
   mutate(
@@ -284,8 +340,20 @@ nmoc %>%
   unnest(model)
 
 
+bs_resp_stats = bs_resp  %>% 
+  group_by(Genotype) %>% 
+  nest() %>% 
+  mutate(
+    model = map(data, ~pairwise_t_test(basal_resp ~ Micit, 
+                                       data = ., 
+                                       p.adjust.method = 'none')) 
+  ) %>% 
+  select(Genotype, model) %>% 
+  unnest(model)
 
-mresp %>% 
+
+
+mresp_stats = mresp %>% 
   group_by(Genotype) %>% 
   nest() %>% 
   mutate(
@@ -297,7 +365,19 @@ mresp %>%
   unnest(model)
 
 
-atp_prod %>% 
+prot_leak_stats = proton_leak %>% 
+  group_by(Genotype) %>% 
+  nest() %>% 
+  mutate(
+    model = map(data, ~pairwise_t_test(prot_leak ~ Micit, 
+                                       data = ., 
+                                       p.adjust.method = 'none')) 
+  ) %>% 
+  select(Genotype, model) %>% 
+  unnest(model)
+
+
+atp_prod_stats = atp_prod %>% 
   group_by(Genotype) %>% 
   nest() %>% 
   mutate(
@@ -308,7 +388,28 @@ atp_prod %>%
   select(Genotype, model) %>% 
   unnest(model)
 
+spare_resp_stats = spare_resp %>% 
+  group_by(Genotype) %>% 
+  nest() %>% 
+  mutate(
+    model = map(data, ~pairwise_t_test(spare_resp ~ Micit, 
+                                       data = ., 
+                                       p.adjust.method = 'none')) 
+  ) %>% 
+  select(Genotype, model) %>% 
+  unnest(model)
 
+#### save stats ####
 
+list_of_datasets = list(
+  'non_mito ox consumption' = nmoc_stats,
+  'basal respiration' = bs_resp_stats,
+  'maximal respiration' = mresp_stats,
+  'proton leak' = prot_leak_stats,
+  'ATP production' = atp_prod_stats,
+  'spare respiration' = spare_resp_stats
+)
 
-
+write.xlsx(list_of_datasets,
+           here('summary','parameter_stats.xlsx'),
+           overwrite = TRUE)
