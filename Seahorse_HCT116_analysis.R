@@ -90,10 +90,13 @@ sh_sum %>%
   geom_line(size = 1.5) +
   # facet_wrap(~Genotype*Measure) +
   facet_grid(vars(Measure),vars(Genotype)) +
-  scale_color_viridis(discrete = T)
+  scale_color_viridis(discrete = T) + 
+  labs(y = 'pmol/min (mean +/− SEM)',
+       x = 'Time (in mins)')
 
 
-
+ggsave(here('summary', 'Main_plot.pdf'),
+       height = 7, width = 9)
 
 
 
