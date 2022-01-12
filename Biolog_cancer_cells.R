@@ -594,7 +594,7 @@ ggsave(here('exploration', 'micit_heatmap_conference.pdf'), height = 8, width = 
 
 dir.create(here('exploration', 'Fingerprints_results'))
 
-
+### libraries ####
 
 library(broom)
 library(plotly)
@@ -1328,11 +1328,13 @@ tsne.df %>%
 
 ### distances ####
 
-drug_dists = all_compounds %>% select(where(is.numeric)) %>%  data.frame %>% get_dist
-fviz_dist(drug_dists, gradient = list(low = "#00AFBB", mid = "white", high = "#FC4E07"))
+# takes a lot of time
 
-ggsave(here('exploration/DrugBank_biolog_drugs', 'distances.pdf'), 
-       height = 19, width = 21)
+# drug_dists = all_compounds %>% select(where(is.numeric)) %>%  data.frame %>% get_dist
+# fviz_dist(drug_dists, gradient = list(low = "#00AFBB", mid = "white", high = "#FC4E07"))
+# 
+# ggsave(here('exploration/DrugBank_biolog_drugs', 'distances.pdf'), 
+#        height = 19, width = 21)
 
 
 ### K-means with morgan FP ####
@@ -1422,6 +1424,77 @@ ggsave(here('exploration/Functional_groups_results', 'silhouette_plot_kmeans.pdf
 
 
 
+### get biolog compounds from general tsne ####
+
+# explore the distribution
+tsne.df%>%
+  mutate(DB = all_compounds$DB) %>% 
+  mutate(cluster = kclust$cluster, .before = Drug,
+         cluster = as.factor(cluster)) %>% 
+  as_tibble() %>% 
+  filter(DB == 'Biolog') %>% 
+  plot_ly(x = ~Dim1, y = ~Dim2, z = ~Dim3,
+          text = ~Drug, color=~DB) %>% 
+  add_markers()
+
+
+tsne.df.biolog = tsne.df %>%
+  mutate(DB = all_compounds$DB) %>% 
+  mutate(cluster = kclust$cluster, .before = Drug,
+         cluster = as.factor(cluster)) %>% 
+  as_tibble() %>% 
+  filter(DB == 'Biolog') 
+
+
+### k-clust of tSNE_biolog ####
+
+
+tsne_mat_biolog = tsne.df.biolog %>% select(Dim1:Dim3) %>% data.frame
+
+kclusts <- 
+  tibble(k = 1:50) %>%
+  mutate(
+    kclust = map(k, ~kmeans(tsne_mat_biolog, .x)),
+    tidied = map(kclust, tidy),
+    glanced = map(kclust, glance)
+  )
+
+clusterings <- 
+  kclusts %>%
+  unnest(cols = c(glanced))
+
+ggplot(clusterings, aes(k, tot.withinss)) +
+  geom_line() +
+  geom_point() +
+  geom_text(aes(label = k), nudge_y = 10000, nudge_x = 0.4)
+
+
+n_clusters = 8
+kclust = tsne_mat_biolog %>% 
+  kmeans(centers = n_clusters)
+
+
+# tsne.df.biolog %>%
+#   mutate(cluster = kclust$cluster, .before = Drug,
+#          cluster = as.factor(cluster))  %>% 
+#   ggplot(aes(Dim1,Dim2, color = cluster)) + 
+#   geom_point(size = 3.5) +
+#   labs(
+#     x = 't-SNE 1',
+#     y = 't-SNE 2'
+#   ) +
+#   theme_half_open(12) + 
+#   background_grid()
+
+tsne.df.biolog = tsne.df.biolog %>%
+  mutate(cluster = kclust$cluster, .before = Drug,
+         cluster = as.factor(cluster))
+
+tsne.df.biolog %>%
+  plot_ly(x = ~Dim1, y = ~Dim2, z = ~Dim3,
+          text = ~Drug, color=~cluster) %>% 
+  add_markers()
+
 
 
 
@@ -1429,9 +1502,10 @@ ggsave(here('exploration/Functional_groups_results', 'silhouette_plot_kmeans.pdf
 
 # a bit of exploration
 
-n_clusters = max(as.numeric(tsne_clusters$cluster))
+# n_clusters = max(as.numeric(tsne.df.biolog$cluster))
+# n_clusters = 9
 
-tsne_clusters %>% 
+tsne.df.biolog %>% 
   group_by(cluster) %>% 
   count() %>% 
   ggplot(aes(x = cluster, y = n)) +
@@ -1447,7 +1521,7 @@ ggsave(here('exploration/Functional_groups_results', 'elements_in_cluster.pdf'),
 
 
 result_ZIP %>% 
-  left_join(tsne_clusters) %>% 
+  left_join(tsne.df.biolog) %>% 
   drop_na(cluster) %>% 
   # left_join(drugs) %>% 
   ggplot(aes(Synergy.score)) +
@@ -1458,7 +1532,7 @@ result_ZIP %>%
 
 
 result_ZIP %>% 
-  left_join(tsne_clusters) %>% 
+  left_join(tsne.df.biolog) %>% 
   drop_na(cluster) %>% 
   ggplot(aes(y = Synergy.score, x = cluster, fill = cluster)) +
   geom_boxplot() +
@@ -1480,7 +1554,7 @@ ggsave(here('exploration/Functional_groups_results', 'boxplot_cluster.pdf'),
 # let's do some magic 
 
 results_cluster = result_ZIP %>% 
-  left_join(tsne_clusters) %>% 
+  left_join(tsne.df.biolog) %>% 
   drop_na(cluster)
 
 
@@ -1556,6 +1630,8 @@ adhoc_welch_stats = function(cluster = 1){
 
 
 
+adhoc_stats(cluster = n_clusters)
+
 
 df_lm = tibble()
 for (k in 1:n_clusters){
@@ -1584,5 +1660,9 @@ for (k in 1:n_clusters){
 }
 
 df_welch
+
+
+
+
 
 
