@@ -587,4 +587,62 @@ ggsave(here('summary', 'pval_plots/spare_respiration.pdf'),
 
 
 
+# ref pval version --------------------------------------------------------
+
+
+###
+
+df_p_val = spare_resp %>% 
+  rstatix::group_by(Genotype) %>% 
+  rstatix::pairwise_t_test(spare_resp ~ Micit, p.adjust.method = 'fdr', ref.group = "0") %>% 
+  rstatix::add_y_position()
+
+
+spare_resp %>% 
+  ggplot(aes(x = Micit, y = spare_resp)) +
+  stat_summary(aes(fill = Micit,
+                   color = Micit), fun.data = "mean_cl_boot", size = 1.5) +
+  geom_point(size = 3, alpha = .7) +
+  facet_wrap(~Genotype) +
+  scale_color_viridis(discrete = T) + 
+  labs(title = 'Spare Respiration',
+       y = 'OCR (pmol/min)',
+       x = 'Micit (mM)')+
+  add_pvalue(df_p_val, label = "p.adj.signif", remove.bracket = TRUE,
+             y.position = 310, label.size = 5) +
+  theme_prism()
+
+ ggsave(here('summary', 'pval_plots/spare_respiration_simple.pdf'),
+       height = 7, width = 9)
+
+
+###
+ 
+ 
+df_p_val = mresp %>% 
+   rstatix::group_by(Genotype) %>% 
+   rstatix::pairwise_t_test(max_resp ~ Micit, p.adjust.method = 'fdr', ref.group = "0") %>% 
+   rstatix::add_y_position()
+ 
+ 
+mresp %>% 
+   ggplot(aes(x = Micit, y = max_resp)) +
+   stat_summary(aes( fill = Micit,
+                     color = Micit), fun.data = "mean_cl_boot", size = 1.5) +
+   geom_point(size = 3, alpha = .7) +
+   facet_wrap(~Genotype) +
+   scale_color_viridis(discrete = T) +
+   labs(title = 'Maximal Respiration',
+        y = 'OCR (pmol/min)',
+        x = 'Micit (mM)') +
+  add_pvalue(df_p_val, label = "p.adj.signif", remove.bracket = TRUE,
+             y.position = 310, label.size = 5) +
+  theme_prism()
+
+ 
+ 
+ ggsave(here('summary', 'pval_plots/maximal_respiration_simple.pdf'),
+        height = 7, width = 9)
+ 
+
 
