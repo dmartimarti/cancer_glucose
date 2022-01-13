@@ -84,7 +84,7 @@ sh_sum = sh_rate %>%
 sh_sum %>%
   # filter(Measure == 'OCR') %>% 
   ggplot(aes(x = Time, y = Mean, color = Micit)) +
-  geom_errorbar(aes(ymin = Mean - SEM, ymax = Mean + SEM),
+  geom_errorbar(aes(ymin = Mean - SD, ymax = Mean + SD),
                 width = 1.4) +
   geom_point(size = 3) +
   geom_line(size = 1.5) +

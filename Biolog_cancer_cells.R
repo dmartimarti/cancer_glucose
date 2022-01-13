@@ -1429,10 +1429,10 @@ ggsave(here('exploration/Functional_groups_results', 'silhouette_plot_kmeans.pdf
 # explore the distribution
 tsne.df%>%
   mutate(DB = all_compounds$DB) %>% 
-  mutate(cluster = kclust$cluster, .before = Drug,
-         cluster = as.factor(cluster)) %>% 
+  # mutate(cluster = kclust$cluster, .before = Drug,
+  #        cluster = as.factor(cluster)) %>% 
   as_tibble() %>% 
-  filter(DB == 'Biolog') %>% 
+  # filter(DB == 'Biolog') %>% 
   plot_ly(x = ~Dim1, y = ~Dim2, z = ~Dim3,
           text = ~Drug, color=~DB) %>% 
   add_markers()
@@ -1577,7 +1577,7 @@ results_cluster %>%
        y = 'Synergy score', 
        caption = 'Boxplots from the synergy scores per cluster')
 
-ggsave(here('exploration/Functional_groups_results', 'boxplot_cluster_ALL.pdf'), 
+ggsave(here('exploration/DrugBank_biolog_drugs', 'boxplot_cluster_ALL.pdf'), 
        height = 9, width = 10)
 
 
@@ -1644,7 +1644,12 @@ for (k in 1:n_clusters){
 
 df_lm
 
+df_lm %>% 
+  write_csv(here('exploration/DrugBank_biolog_drugs', 'clusters_stats.csv'))
 
+# save the original file to see the clusters
+tsne.df.biolog %>% 
+  write_csv(here('exploration/DrugBank_biolog_drugs', 'biolog_with_clusters.csv'))
 
 
 adhoc_welch_stats(cluster = 1)
