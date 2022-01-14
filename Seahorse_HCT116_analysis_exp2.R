@@ -3,7 +3,7 @@
 # The experiment tested HCT116 cells (WT and -/-p53) with different
 # concentrations of micit
 
-# libraries
+# libraries ####
 
 library(tidyverse)
 library(readxl)
@@ -13,6 +13,10 @@ library(broom)
 library(here)
 library(openxlsx)
 library(ggpubr)
+library(rstatix)
+library(ggpubr)
+library(ggprism)
+
 
 theme_set(theme_cowplot(14) + background_grid())
 
@@ -331,9 +335,6 @@ ggsave(here('summary', 'spare_respiration.pdf'),
 
 # t-test ------------------------------------------------------------------
 
-library(rstatix)
-library(ggpubr)
-
 nmoc_stats = nmoc %>% 
   group_by(Genotype) %>% 
   nest() %>% 
@@ -433,6 +434,7 @@ write.xlsx(list_of_datasets,
 
 ###
 
+
 df_p_val = bs_resp %>% 
   rstatix::group_by(Genotype) %>% 
   rstatix::pairwise_t_test(basal_resp ~ Micit, p.adjust.method = 'fdr') %>% 
@@ -486,6 +488,7 @@ ggsave(here('summary', 'pval_plots/non_mitochondrial_ox_consumption.pdf'),
 
 ###
 
+
 df_p_val = mresp %>% 
   rstatix::group_by(Genotype) %>% 
   rstatix::pairwise_t_test(max_resp ~ Micit, p.adjust.method = 'fdr') %>% 
@@ -537,6 +540,8 @@ ggsave(here('summary', 'pval_plots/proton_leak.pdf'),
 
 ###
 
+
+
 df_p_val = atp_prod %>% 
   rstatix::group_by(Genotype) %>% 
   rstatix::pairwise_t_test(atp_prod ~ Micit, p.adjust.method = 'fdr') %>% 
@@ -561,6 +566,7 @@ ggsave(here('summary', 'pval_plots/atp_production.pdf'),
 
 
 ###
+
 
 df_p_val = spare_resp %>% 
   rstatix::group_by(Genotype) %>% 
@@ -646,3 +652,96 @@ mresp %>%
  
 
 
+ 
+ # interaction terms ####
+ 
+ 
+###
+bs_resp_int = bs_resp %>% 
+   rstatix::anova_test(basal_resp ~ Genotype * Micit) 
+ 
+bs_resp_micit = bs_resp %>% 
+   rstatix::group_by(Micit) %>% 
+   rstatix::anova_test(basal_resp ~ Genotype) 
+ 
+ 
+ ###
+nmoc_int = nmoc %>% 
+   rstatix::anova_test(min_val ~ Genotype * Micit)
+ 
+nmoc_micit = nmoc %>% 
+   rstatix::group_by(Micit) %>% 
+   rstatix::anova_test(min_val ~ Genotype)
+ 
+ 
+ ###
+ mresp_int = mresp %>% 
+   rstatix::anova_test(max_resp ~ Genotype * Micit)
+ 
+ mresp_micit = mresp %>% 
+   rstatix::group_by(Micit) %>% 
+   rstatix::anova_test(max_resp ~ Genotype)
+ 
+ ###
+ 
+ proton_leak_int = proton_leak %>% 
+   rstatix::anova_test(prot_leak ~ Genotype * Micit)
+ 
+ proton_leak_micit = proton_leak %>% 
+   rstatix::group_by(Micit) %>% 
+   rstatix::anova_test(prot_leak ~ Genotype)
+ 
+ 
+###
+atp_prod_int = atp_prod %>% 
+   rstatix::anova_test(atp_prod ~ Genotype * Micit)
+
+atp_prod_micit = atp_prod %>% 
+  rstatix::group_by(Micit) %>% 
+  rstatix::anova_test(atp_prod ~ Genotype)
+
+###
+
+
+spare_resp_int = spare_resp %>% 
+   rstatix::anova_test(spare_resp ~ Genotype * Micit)
+
+
+spare_resp_micit = spare_resp %>% 
+  rstatix::group_by(Micit) %>% 
+  rstatix::anova_test(spare_resp ~ Genotype)
+
+
+ # save interaction terms
+
+list_of_datasets = list(
+  'non_mito ox consumption' = nmoc_int,
+  'basal respiration' = bs_resp_int,
+  'maximal respiration' = mresp_int,
+  'proton leak' = proton_leak_int,
+  'ATP production' = atp_prod_int,
+  'spare respiration' = spare_resp_int
+)
+
+write.xlsx(list_of_datasets,
+           here('summary','parameter_interaction_terms.xlsx'),
+           overwrite = TRUE)
+ 
+ 
+# save comparisons of genotype by micit
+
+
+
+list_of_datasets = list(
+  'non_mito ox consumption' = nmoc_micit,
+  'basal respiration' = bs_resp_micit,
+  'maximal respiration' = mresp_micit,
+  'proton leak' = proton_leak_micit,
+  'ATP production' = atp_prod_micit,
+  'spare respiration' = spare_resp_micit
+)
+
+write.xlsx(list_of_datasets,
+           here('summary','parameter_genotype.xlsx'),
+           overwrite = TRUE)
+ 
