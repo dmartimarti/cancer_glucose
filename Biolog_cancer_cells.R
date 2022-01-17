@@ -588,6 +588,12 @@ ggsave(here('exploration', 'micit_heatmap_conference.pdf'), height = 8, width = 
 
 
 
+# # # # # # # # # #
+# # # # # # # # # #
+# EXPLORATION ####
+# # # # # # # # # #
+# # # # # # # # # #
+
 
 
 # Fingerprints ---------------------------------------------------
@@ -1583,9 +1589,14 @@ ggsave(here('exploration/DrugBank_biolog_drugs', 'boxplot_cluster_ALL.pdf'),
 
 
 # helper function
-adhoc_stats = function(cluster = 1){
+adhoc_stats = function(cluster = 1, mode = "Synergy.score"){
   
   ### Takes the dataset I created, filters it, and calculates the stats
+  
+  form = paste(mode, '~ new_cat')
+  form = formula(form)
+  
+  # print(glue::glue('Mode {mode} activated'))
   
   pair = c(0,cluster)
   
@@ -1593,7 +1604,7 @@ adhoc_stats = function(cluster = 1){
     filter(new_cat %in% pair) %>% 
     # group_by(new_cat) %>% 
     nest(data = everything()) %>% 
-    mutate(model = map(data, lm, formula = 'Synergy.score ~ new_cat'),
+    mutate(model = map(data, lm, formula = form),
            model_tidy = map(model, tidy)) %>% 
     select(model_tidy) %>% 
     unnest(cols = c(model_tidy)) %>% 
@@ -1665,6 +1676,295 @@ for (k in 1:n_clusters){
 }
 
 df_welch
+
+
+
+
+# # # # # # # # # # # # # #
+# # # # # # # # # # # # # #
+# # # # # # # # # # # # # # 
+# Final version ###########
+# # # # # # # # # # # # # #
+# # # # # # # # # # # # # #
+# # # # # # # # # # # # # #
+
+dir.create(here('exploration', 'Multivariate_final'))
+
+
+# the selected strategy is to use the functional groups from drugbank
+# and do a t-SNE, select the optimal number of clusters and then get
+# the stats
+
+# this is a clean version of the exploration part
+
+
+### get data ####
+
+## load the Morgan fingerprints produced by the script: pyMol2FuncGroup.py 
+
+all_compounds = fgroups %>% 
+  mutate(DB = 'Biolog', .before = 'Al_COO') %>% 
+  bind_rows(drugbank_fp %>% 
+              mutate(DB = 'DrugBank', .before = 'Al_COO'))
+
+# remove dactinomycin as it's very different from all the others
+all_compounds = all_compounds %>% 
+  filter(Drug != 'Dactinomycin')
+
+
+
+### t-SNE ####
+
+tsne_fit = all_compounds %>% 
+  select(where(is.numeric)) %>% # retain only numeric columns
+  Rtsne(check_duplicates = FALSE, pca = FALSE, num_threads = 12,
+        normalize = FALSE, max_iter = 2000, 
+        perplexity = 20, theta = 0.5, dims = 3)
+
+# generate data frame from tnse results
+tsne.df = data.frame(tsne_fit$Y)
+colnames(tsne.df) = c('Dim1', 'Dim2', 'Dim3')
+
+tsne.df = tsne.df %>% 
+  mutate(Drug = all_compounds$Drug)
+
+
+tsne.df %>%
+  plot_ly(x = ~Dim1, y = ~Dim2, z = ~Dim3,
+          text = ~Drug) %>% 
+  add_markers()
+
+
+
+
+### k-clust of tSNE_biolog ####
+
+### get biolog compounds from the previous tSNE ####
+
+# explore the distribution
+tsne.df%>%
+  mutate(DB = all_compounds$DB) %>% 
+  as_tibble() %>% 
+  plot_ly(x = ~Dim1, y = ~Dim2, z = ~Dim3,
+          text = ~Drug, color=~DB) %>% 
+  add_markers()
+
+# keep only the compounds from biolog
+tsne.df.biolog = tsne.df %>%
+  mutate(DB = all_compounds$DB) %>% 
+  as_tibble() %>% 
+  filter(DB == 'Biolog') 
+
+
+### silhouette plot ####
+
+tsne_mat_biolog = tsne.df.biolog %>% select(Dim1:Dim3) %>% data.frame
+
+
+# kclusts <- 
+#   tibble(k = 1:40) %>%
+#   mutate(
+#     kclust = map(k, ~kmeans(tsne_mat_biolog, .x)),
+#     tidied = map(kclust, tidy),
+#     glanced = map(kclust, glance)
+#   )
+# 
+# clusterings <- 
+#   kclusts %>%
+#   unnest(cols = c(glanced))
+
+# average of several runs of silhouette plots
+total_clusterings = tibble()
+for (i in 1:30){
+  kclusts <- 
+    tibble(k = 1:40) %>%
+    mutate(
+      kclust = map(k, ~kmeans(tsne_mat_biolog, .x)),
+      tidied = map(kclust, tidy),
+      glanced = map(kclust, glance)
+    )
+  
+  clusterings <- 
+    kclusts %>%
+    unnest(cols = c(glanced)) %>% 
+    mutate(replicate = i)
+  
+  total_clusterings = total_clusterings %>%
+    bind_rows(clusterings)
+
+}
+
+total_clusterings %>% 
+  group_by(k) %>% 
+  summarise(mean.withinss = mean(tot.withinss, na.rm = T),
+            sd.withinss = sd(tot.withinss, na.rm = T)) %>% 
+  ggplot(aes(k, mean.withinss)) +
+  geom_line() +
+  geom_point() +
+  geom_errorbar(aes(ymin = mean.withinss - sd.withinss, 
+                    ymax = mean.withinss + sd.withinss,
+                    width = 0.2)) +
+  geom_text(aes(label = k), nudge_y = 10000, nudge_x = 0.4)
+
+ggsave(here('exploration/Multivariate_final', 'silhouette_plot_30iters.pdf'), 
+       height = 9, width = 10)
+
+
+#### silhouette analysis ####
+
+library(factoextra)
+
+# keep only the compounds from biolog
+tsne_mat_biolog = tsne.df.biolog %>% select(Dim1:Dim3) %>% data.frame
+
+tsne_mat_biolog
+rownames(tsne_mat_biolog) = tsne.df.biolog$Drug
+
+# tsne_mat_biolog = scale(tsne_mat_biolog)
+
+res.km = eclust(tsne_mat_biolog, "kmeans", nstart = 10,
+                k.max = 20, seed = 123)
+
+fviz_gap_stat(res.km$gap_stat)
+
+fviz_silhouette(res.km)
+
+ggsave(here('exploration/Multivariate_final', 'silhouette_analysis.pdf'), 
+       height = 9, width = 10)
+
+# reset the variable
+tsne_mat_biolog = tsne.df.biolog %>% select(Dim1:Dim3) %>% data.frame
+
+
+### k-means ####
+# select the number of clusters
+
+# TODO: apply the analysis from fviz instead of kmeans function
+
+# n_clusters = 8
+# kclust = tsne_mat_biolog %>% 
+#   kmeans(centers = n_clusters)
+
+
+
+tsne.df.biolog = tsne.df.biolog %>%
+  mutate(cluster = res.km$cluster, .before = Drug,
+         cluster = as.factor(cluster))
+
+tsne.df.biolog %>%
+  plot_ly(x = ~Dim1, y = ~Dim2, z = ~Dim3,
+          text = ~Drug, color=~cluster) %>% 
+  add_markers()
+
+
+
+
+### boxplots ####
+
+# a bit of exploration
+
+# n_clusters = max(as.numeric(tsne.df.biolog$cluster))
+# n_clusters = res.km$nbclust
+
+tsne.df.biolog %>% 
+  group_by(cluster) %>% 
+  count() %>% 
+  ggplot(aes(x = cluster, y = n)) +
+  geom_col(aes(fill = cluster), color = 'black') +
+  labs(x = 'Cluster',
+       y = 'Elements in cluster',
+       caption = 'Number of elements in each cluster as calculated in the t-SNE') +
+  guides(fill = 'none')
+
+
+ggsave(here('exploration/Multivariate_final', 'elements_in_cluster.pdf'), 
+       height = 9, width = 10)
+
+
+
+### boxplots vs all measures together ####
+
+results_cluster = result_ZIP %>% 
+  left_join(tsne.df.biolog) %>% 
+  drop_na(cluster)
+
+
+results_cluster = results_cluster %>% 
+  mutate(new_cat = 0,
+         new_cat= factor(new_cat)) %>% # create a dummy category column
+  bind_rows(results_cluster %>% 
+              mutate(new_cat = cluster)) %>% 
+  mutate(new_cat = as.factor(new_cat)) 
+
+
+
+results_cluster %>% 
+  mutate( new_cat = recode(new_cat, `0` = 'ALL')) %>%
+  ggplot(aes(y = Most.synergistic.area.score, x = new_cat, fill = new_cat)) +
+  geom_boxplot() +
+  geom_point(position = position_jitterdodge()) +
+  guides(fill = 'none') +
+  labs(x = 'Cluster',
+       y = 'Synergy score', 
+       caption = 'Boxplots from the synergy scores per cluster')
+
+ggsave(here('exploration/Multivariate_final', 'boxplots.pdf'), 
+       height = 9, width = 10)
+
+
+### STATS ####
+
+n_clusters = res.km$nbclust
+
+
+# stats for synergy score
+df_lm = tibble()
+for (k in 1:n_clusters){
+  
+  res = adhoc_stats(cluster = k)
+  
+  df_lm = df_lm %>% bind_rows(res)
+  
+}
+
+
+df_lm %>% 
+  mutate(p.stars = gtools::stars.pval(p.value))
+
+df_lm %>% 
+  mutate(p.stars = gtools::stars.pval(p.value)) %>% 
+  write_csv(here('exploration/Multivariate_final', 'clusters_synergy_stats.csv'))
+
+
+####
+
+# stats for Most synergy region score
+df_lm = tibble()
+for (k in 1:n_clusters){
+  
+  res = adhoc_stats(cluster = k, mode = 'Most.synergistic.area.score')
+  
+  df_lm = df_lm %>% bind_rows(res)
+  
+}
+
+
+df_lm %>% 
+  mutate(p.stars = gtools::stars.pval(p.value))
+
+df_lm %>% 
+  mutate(p.stars = gtools::stars.pval(p.value)) %>% 
+  write_csv(here('exploration/Multivariate_final', 'clusters_MostSynergy_stats.csv'))
+
+
+
+
+
+# save the original file to see the clusters
+tsne.df.biolog %>% 
+  write_csv(here('exploration/Multivariate_final', 'biolog_with_clusters.csv'))
+
+
 
 
 
