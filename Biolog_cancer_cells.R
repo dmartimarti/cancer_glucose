@@ -41,6 +41,19 @@ drugbank_fp = read_csv("DrugBank_drugs_FP.csv")
 
 
 
+# load metabolites dataset that I created
+metabolites = read_excel("biolog_metabolites_cancer.xlsx")
+
+# keep a unique list of metabolites for enrichment analysis
+metaU = metabolites %>% 
+  distinct(Drug,.keep_all = T) %>% 
+  filter(Drug != 'Negative Control')
+
+
+
+
+
+
 rep1 = left_join(rep1, drugs) %>% 
   mutate(Well = as.factor(Well),
          Drug = as.factor(Drug), 
@@ -1691,6 +1704,9 @@ df_welch
 dir.create(here('exploration', 'Multivariate_final'))
 
 
+
+
+
 # the selected strategy is to use the functional groups from drugbank
 # and do a t-SNE, select the optimal number of clusters and then get
 # the stats
@@ -1905,11 +1921,23 @@ results_cluster %>%
   geom_point(position = position_jitterdodge()) +
   guides(fill = 'none') +
   labs(x = 'Cluster',
-       y = 'Synergy score', 
+       y = 'Most Synergistic area score', 
        caption = 'Boxplots from the synergy scores per cluster')
 
-ggsave(here('exploration/Multivariate_final', 'boxplots.pdf'), 
+ggsave(here('exploration/Multivariate_final', 'boxplots_most_synergistic.pdf'), 
        height = 9, width = 10)
+
+
+
+# ### plot with p vals inside
+# 
+# rstatix::t_test(results_cluster %>% 
+#                   filter(new_cat != 0),
+#                 Most.synergistic.area.score ~ cluster, 
+#                 ref.group = "all",
+#                 p.adjust.method = 'none')
+# 
+# 
 
 
 ### STATS ####
@@ -1964,6 +1992,98 @@ df_lm %>%
 tsne.df.biolog %>% 
   write_csv(here('exploration/Multivariate_final', 'biolog_with_clusters.csv'))
 
+
+
+### mol enrichment cluster ####
+
+
+## helper function (originally from )
+
+enrich = function(gene, db){
+  # initiate variables
+  pval = c()
+  m_total = c()
+  x_total = c()
+  k_total = c()
+  gene_in_cat = c()
+  db = as.data.frame(db)
+  cats = unique(db[,2])
+  
+  for (cat in cats){
+    subcat = db[db[,2] == cat,]
+    N = (db %>% distinct(.[,1]) %>% count())$n
+    m = dim(subcat)[1]
+    n = N - m
+    x = sum(gene %in% subcat[,1])
+    k = sum(gene %in% db[,1]) # genes with at least 1 annotation!
+    p = phyper(q=x-1, m=m, n=n, k=k, lower.tail=FALSE)
+    
+    # save variables
+    m_total = c(m_total, m)
+    x_total = c(x_total, x)
+    k_total = c(k_total, k)
+    gene_in_cat = c(gene_in_cat)
+    pval = c(pval, p)
+  }
+  
+  # build the table
+  table = tibble(categories = cats, N = N, elm_in_cat = m_total, gene_in_cat = x_total, k_tot = k, pval = pval) %>% 
+    mutate(
+      p.stars = gtools::stars.pval(pval),
+      fdr = p.adjust(pval, method = 'fdr'),
+      fdr.stars = gtools::stars.pval(fdr)
+    ) %>% 
+    arrange(pval)
+  
+  return(table)
+  
+}
+
+
+
+meta_type = metaU %>% 
+  separate_rows(Target, sep = ',') %>% 
+  select(Drug, Target) %>% 
+  drop_na(Drug)
+
+
+cl1 = results_cluster %>% filter(cluster == 1) %>% pull(Drug)
+cl1.enrich = enrich(cl1, db = meta_type) %>% 
+  mutate(direction = 'cluster_1')
+
+cl2 = results_cluster %>% filter(cluster == 2) %>% pull(Drug)
+cl2.enrich = enrich(cl2, db = meta_type) %>% 
+  mutate(direction = 'cluster_2')
+
+cl3 = results_cluster %>% filter(cluster == 3) %>% pull(Drug)
+cl3.enrich = enrich(cl3, db = meta_type) %>% 
+  mutate(direction = 'cluster_3')
+
+cl4 = results_cluster %>% filter(cluster == 4) %>% pull(Drug)
+cl4.enrich = enrich(cl4, db = meta_type) %>% 
+  mutate(direction = 'cluster_4')
+
+cl5 = results_cluster %>% filter(cluster == 5) %>% pull(Drug)
+cl5.enrich = enrich(cl5, db = meta_type) %>% 
+  mutate(direction = 'cluster_5')
+
+cl6 = results_cluster %>% filter(cluster == 6) %>% pull(Drug)
+cl6.enrich = enrich(cl6, db = meta_type) %>% 
+  mutate(direction = 'cluster_6')
+
+cl7 = results_cluster %>% filter(cluster == 7) %>% pull(Drug)
+cl7.enrich = enrich(cl7, db = meta_type) %>% 
+  mutate(direction = 'cluster_7')
+
+cl8 = results_cluster %>% filter(cluster == 8) %>% pull(Drug)
+cl8.enrich = enrich(cl8, db = meta_type) %>% 
+  mutate(direction = 'cluster_8')
+
+
+cl1.enrich %>% 
+  bind_rows(cl2.enrich, cl3.enrich, cl4.enrich, cl5.enrich,
+            cl6.enrich, cl7.enrich, cl8.enrich) %>% 
+  filter(pval <= 0.05) %>% view
 
 
 
