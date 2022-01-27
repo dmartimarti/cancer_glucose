@@ -1513,9 +1513,9 @@ data(dorothea_hs, package = "dorothea")
 regulons = dorothea_hs %>%
   filter(confidence %in% c("A", "B"))
 
-tf_activities = run_viper(dset, regulons, 
+tf_activities = dorothea::run_viper(dset, regulons, 
                            options =  list(method = "scale", minsize = 4, 
-                                           eset.filter = FALSE, cores = 4, 
+                                           eset.filter = FALSE, cores = 1, 
                                            verbose = FALSE))
 
 
@@ -1535,3 +1535,43 @@ tf_activities = run_viper(exprs_ds, regulons,
                                           eset.filter = FALSE, cores = 4, 
                                           verbose = FALSE))
 
+
+
+
+
+
+# decoupleR ---------------------------------------------------------------
+
+library(decoupleR)
+
+inputs_dir <- system.file("testdata", "inputs", package = "decoupleR")
+
+mat <- file.path(inputs_dir, "input-expr_matrix.rds") %>%
+  readRDS() %>%
+  dplyr::glimpse()
+
+network <- file.path(inputs_dir, "input-dorothea_genesets.rds") %>%
+  readRDS() %>%
+  dplyr::glimpse()
+
+
+network <- intersect_regulons(mat, network, tf, target, minsize = 5)
+
+
+run_mlm(
+  mat = mat,
+  network = network,
+  .source = "tf",
+  .target = "target",
+  .mor = "mor",
+  .likelihood = "likelihood"
+) %>% 
+  ggplot(aes(y = p_value, x = source)) +
+  geom_point(aes(size = score)) +
+  facet_wrap(~condition) + 
+  geom_hline(yintercept = 0.05)
+  
+  
+  
+  
+  
