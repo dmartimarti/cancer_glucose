@@ -1492,8 +1492,46 @@ e2f_res[match(e2f, e2f_res$gene_name),] %>%
 
 
 
+# Dorothea test -----------------------------------------------------------
 
 
 
+## We load the required packages
+library(dorothea)
+library(bcellViper)
+library(viper)
 
+
+# accessing expression data from bcellViper
+data(bcellViper, package = "bcellViper")
+
+# acessing (human) dorothea regulons
+# for mouse regulons: data(dorothea_mm, package = "dorothea")
+data(dorothea_hs, package = "dorothea")
+
+# Running VIPER with DoRothEA regulons
+regulons = dorothea_hs %>%
+  filter(confidence %in% c("A", "B"))
+
+tf_activities = run_viper(dset, regulons, 
+                           options =  list(method = "scale", minsize = 4, 
+                                           eset.filter = FALSE, cores = 4, 
+                                           verbose = FALSE))
+
+
+
+dset
+
+##
+
+col_names = samples %>% unite(Sample, Sample, Replicate) %>% pull(Sample)
+
+exprs = counts(dds, normalized=T)
+dimnames(exprs) = list(rownames(exprs), col_names)
+exprs_ds = ExpressionSet(assayData = exprs)
+
+tf_activities = run_viper(exprs_ds, regulons, 
+                          options =  list(method = "scale", minsize = 4, 
+                                          eset.filter = FALSE, cores = 4, 
+                                          verbose = FALSE))
 
