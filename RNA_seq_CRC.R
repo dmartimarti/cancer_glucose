@@ -1492,7 +1492,7 @@ e2f_res[match(e2f, e2f_res$gene_name),] %>%
 
 
 
-# Dorothea test -----------------------------------------------------------
+# Dorothea analysis -----------------------------------------------------------
 
 
 
@@ -1502,39 +1502,217 @@ library(bcellViper)
 library(viper)
 
 
-# accessing expression data from bcellViper
-data(bcellViper, package = "bcellViper")
-
-# acessing (human) dorothea regulons
-# for mouse regulons: data(dorothea_mm, package = "dorothea")
-data(dorothea_hs, package = "dorothea")
-
 # Running VIPER with DoRothEA regulons
 regulons = dorothea_hs %>%
-  filter(confidence %in% c("A", "B"))
+  filter(confidence %in% c("A", "B", "C"))
 
-tf_activities = dorothea::run_viper(dset, regulons, 
-                           options =  list(method = "scale", minsize = 4, 
-                                           eset.filter = FALSE, cores = 1, 
-                                           verbose = FALSE))
+# get the gene counts from HCT116 cell line
+hct_counts = gene_counts %>% 
+  filter(Cell_line == 'HCT116') %>% 
+  select(gene_name, Sample, Replicate, counts) %>% 
+  unite(Sample, Sample, Replicate) %>% 
+  pivot_wider(names_from = Sample, values_from = counts,
+              values_fn = {mean}) %>% # there are a few repeated elements
+  data.frame()
+
+# rownames
+row.names(hct_counts) = hct_counts[,1]
+hct_counts[,1] = NULL
+
+# run viper wrapper with dorothea
+tf_hct = run_viper(hct_counts, regulons, tidy = TRUE,
+          options =  list(method = "scale", minsize = 4, 
+                          eset.filter = FALSE, cores = 1, 
+                          verbose = T))
+
+# tidy the results
+tidy_tf = tf_hct %>% 
+  separate(sample , into = c('Cell', 'Condition', 'Replicate'), sep = '_') %>% 
+  as_tibble() %>% 
+  group_by(tf, Cell, Condition, confidence) %>% 
+  summarise(mean_activity = mean(activity, na.rm = TRUE),
+            sd_activity = sd(activity, na.rm = TRUE)) %>% 
+  arrange(desc(abs(mean_activity)))  %>% 
+  ungroup()
+
+
+# calculate the stats: Treatment vs Control
+tf_hct_stats = tf_hct %>% 
+  separate(sample , into = c('Cell', 'Condition', 'Replicate'), sep = '_') %>% 
+  as_tibble() %>% 
+  group_by(tf, Cell, confidence) %>% 
+  rstatix::t_test(activity ~ Condition, 
+                  p.adjust.method = "fdr",
+                  ref.group = 'C') %>% 
+  mutate(p.stars = gtools::stars.pval(p),
+         Direction = case_when(statistic < 0 ~ 'Up',
+                                      statistic > 0 ~ 'Down',
+                                      TRUE ~ 'Neutral'))
+
+# get significant tf
+sig_tf = tf_hct_stats  %>% 
+  filter(p < 0.05) %>% 
+  pull(tf)
 
 
 
-dset
+#### dot plots #####
 
-##
+# print selection of TFs
 
-col_names = samples %>% unite(Sample, Sample, Replicate) %>% pull(Sample)
+tidy_tf %>% 
+  left_join(tf_hct_stats) %>% 
+  filter(tf %in% sig_tf) %>% 
+  arrange(desc(abs(mean_activity))) %>% 
+  mutate(Direction = factor(Direction, levels = c('Up', 'Down'))) %>% 
+  filter(tf %in% unique(head(tidy_tf$tf, 25))) %>%
+  ggplot(aes(x = fct_reorder(tf, p), y = mean_activity)) +
+  geom_errorbar(aes(ymax = mean_activity + sd_activity, 
+                    ymin = mean_activity - sd_activity),
+                width = 0.1, color = 'grey70') +
+  geom_point(aes(color = Condition, shape = Condition), 
+             size = 5) +
+  geom_text(aes(label = p.stars),
+            y = 10.5) +
+  theme_cowplot(15) +
+  labs(x = 'Regulons',
+       y = 'Mean activity (+- std)') +
+  facet_grid(~Direction, scales = 'free_x', space = 'free') +
+  scale_color_manual(values = c('#E6454E', '#1F993D')) +
+  theme(axis.text.x = element_text(angle = 45, vjust = 0.5)) 
 
-exprs = counts(dds, normalized=T)
-dimnames(exprs) = list(rownames(exprs), col_names)
-exprs_ds = ExpressionSet(assayData = exprs)
+ggsave(here('summary', 'tf_activity.pdf'),
+       height = 8, width = 10)
 
-tf_activities = run_viper(exprs_ds, regulons, 
-                          options =  list(method = "scale", minsize = 4, 
-                                          eset.filter = FALSE, cores = 4, 
-                                          verbose = FALSE))
 
+
+# print out the complete set of significant TFs
+tidy_tf %>% 
+  left_join(tf_hct_stats) %>% 
+  filter(tf %in% sig_tf) %>%
+  arrange((abs(p))) %>% 
+  mutate(Direction = factor(Direction, levels = c('Up', 'Down')),
+         tf = factor(tf)) %>% 
+  ggplot(aes(x = fct_reorder(tf, (p)), y = mean_activity)) +
+  geom_errorbar(aes(ymax = mean_activity + sd_activity, 
+                    ymin = mean_activity - sd_activity),
+                width = 0.1, color = 'grey70') +
+  geom_point(aes(color = Condition, shape = Condition), 
+             size = 5) +
+  geom_text(aes(label = p.stars),
+            y = 10, angle = 90) +
+  theme_cowplot(15) +
+  labs(x = 'Transcription factors',
+       y = 'Mean activity (+- std)') +
+  # facet_wrap(~direction) +
+  scale_color_manual(values = c('#E6454E', '#1F993D')) +
+  theme(axis.text.x = element_text(angle = 45, vjust = 0.5))
+
+ggsave(here('summary', 'tf_activity_complete.pdf'),
+       height = 8, width = 30)
+
+
+
+
+
+#### heatmap ####
+
+
+tf_mat = tf_hct %>% 
+  separate(sample , into = c('Cell', 'Condition', 'Replicate'), 
+           sep = '_', remove = FALSE) %>% 
+  as_tibble()  %>% 
+  left_join(tf_hct_stats) %>% 
+  filter(tf %in% sig_tf) %>%
+  arrange(p) %>% 
+  select(tf, sample, activity) %>% 
+  pivot_wider(names_from = sample, values_from = activity) %>% 
+  select(-tf) %>% 
+  as.matrix()
+
+tf_rownames = tf_hct %>% 
+  separate(sample , into = c('Cell', 'Condition', 'Replicate'), 
+           sep = '_', remove = FALSE) %>% 
+  as_tibble()  %>% 
+  left_join(tf_hct_stats) %>% 
+  filter(tf %in% sig_tf) %>%
+  arrange(p) %>% 
+  select(tf, sample, activity) %>% 
+  pivot_wider(names_from = sample, values_from = activity) %>% 
+  pull(tf)
+
+
+rownames(tf_mat) = tf_rownames
+
+colnames(tf_mat) = c('Control 1','Micit 1',
+                     'Control 2','Micit 2',
+                     'Control 3','Micit 3',
+                     'Control 4','Micit 4')
+
+
+
+Heatmap(head(tf_mat, 20),
+        name = 'TF activity',
+        column_title = "Samples",
+        column_title_side = "bottom",
+        show_column_dend = FALSE,
+        row_dend_side = "right",
+        row_dend_width = unit(2, "cm"),
+        row_km = 2,
+        column_km = 2)
+
+dev.copy2pdf(device = cairo_pdf,
+             file = here('summary', 'heatmap_subset.pdf'),
+             height = 8, width = 7, useDingbats = FALSE)
+
+
+
+
+
+Heatmap(tf_mat,
+        name = 'TF activity',
+        column_title = "Samples",
+        column_title_side = "bottom",
+        show_column_dend = FALSE,
+        row_dend_side = "right",
+        row_dend_width = unit(2, "cm"),
+        row_km = 2,
+        column_km = 2)
+
+dev.copy2pdf(device = cairo_pdf,
+             file = here('summary', 'heatmap_complete.pdf'),
+             height = 18, width = 7, useDingbats = FALSE)
+
+
+
+
+
+tf_hct_stats %>% 
+  filter(p < 0.05) %>% 
+  write_csv(here('summary','tf_stats_sig.csv'))
+  
+
+
+#### heatmap with cancer hits ####
+
+# from the enrichment done in String Db, I can read the file and get the genes
+# that are related to the cancer categories in KEGG
+
+library(readxl)
+TF_output = read_excel("summary/TF_enrich/TF/TF_output.xlsx", 
+                        sheet = "KEGG")
+
+# clean a bit this messy file
+TF_output = TF_output %>% 
+  mutate(inputGenes = str_replace_all(inputGenes, pattern = '\\[', ''),
+         inputGenes = str_replace_all(inputGenes, pattern = '\\]', ''),
+         inputGenes = str_replace_all(inputGenes, pattern = '\'', ''),
+         inputGenes = str_replace_all(inputGenes, pattern = ' ', ''))
+
+
+TF_output %>% 
+  filter(str_detect(description,'cancer')) %>% 
+  filter(fdr < 0.55) %>% view
 
 
 
@@ -1570,8 +1748,47 @@ run_mlm(
   geom_point(aes(size = score)) +
   facet_wrap(~condition) + 
   geom_hline(yintercept = 0.05)
+
+
+
+
+
+
+
+
+# multiomics --------------------------------------------------------------
+
+
+
+
+
+gene_counts %>% 
+  unite(Sample, Sample, Replicate, sep = '_', remove=T) %>% 
+  filter(Cell_line == 'HCT116') %>% 
+  arrange(Sample) %>% 
+  select(gene_name, Sample, counts) %>% 
+  # distinct(gene_name, .keep_all = TRUE) %>% 
+  pivot_wider(names_from = Sample, values_from = counts, values_fn = {mean}) %>% 
+  write_csv(here('summary', 'rnaseq_micit_multiomics.csv'))
   
-  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   
   
   
