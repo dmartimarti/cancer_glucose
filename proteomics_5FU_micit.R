@@ -2872,3 +2872,27 @@ e2f_res[match(e2f, e2f_res$Gene_names),] %>%
 
 
 
+
+
+
+# multiomics --------------------------------------------------------------
+
+
+
+names(data_tidy)
+
+data_tidy %>% 
+  select(Gene_names, Control_1, Control_2, Control_3, Control_4,
+         `10mM_Micit_1`, `10mM_Micit_2`, `10mM_Micit_3`, `10mM_Micit_4`) %>% 
+  # replace_na(list(Control_1 = 1, Control_2 = 1, Control_3 = 1, Control_4 = 1,
+  #                 `10mM_Micit_1` = 1, `10mM_Micit_2` = 1, `10mM_Micit_3` = 1, `10mM_Micit_4` = 1)) %>% 
+  write_csv(here('summary', 'prot_micit_multiomics.csv'))
+
+
+
+
+
+
+
+
+
