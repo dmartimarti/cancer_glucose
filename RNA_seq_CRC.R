@@ -16,7 +16,7 @@
 ### libraries ####
 # library(tximport)
 library(tidyverse)
-library(DESeq2)
+# library(DESeq2)
 # notice that DESeq2 library masks 'rename' function from dplyr 
 # library(ensembldb) # use only if you are going to deal with db
 here::set_here()
@@ -29,6 +29,7 @@ library(factoextra) # for PCA
 library(openxlsx)
 library(viridis)
 library(glue)
+library(cowplot)
 
 
 theme_set(theme_classic() +
@@ -1650,8 +1651,10 @@ colnames(tf_mat) = c('Control 1','Micit 1',
                      'Control 4','Micit 4')
 
 
+subset = c(rownames(head(tf_mat, 20)), 'SMAD3')
 
-Heatmap(head(tf_mat, 20),
+
+Heatmap(tf_mat[subset,],
         name = 'TF activity',
         column_title = "Samples",
         column_title_side = "bottom",
@@ -1710,45 +1713,427 @@ TF_output = TF_output %>%
          inputGenes = str_replace_all(inputGenes, pattern = ' ', ''))
 
 
-TF_output %>% 
+cancer_tf = TF_output %>% 
   filter(str_detect(description,'cancer')) %>% 
-  filter(fdr < 0.55) %>% view
+  filter(fdr < 0.05) %>% 
+  filter(direction == 'UP') %>% 
+  separate_rows(inputGenes, sep = ',') %>% 
+  distinct(inputGenes) %>% pull(inputGenes)
+  
+
+Heatmap(tf_mat[cancer_tf,],
+        name = 'TF activity',
+        column_title = "Samples",
+        column_title_side = "bottom",
+        show_column_dend = FALSE,
+        row_dend_side = "right",
+        row_dend_width = unit(2, "cm"),
+        # row_km = 2,
+        column_km = 2)
 
 
 
 
 
-# decoupleR ---------------------------------------------------------------
 
-library(decoupleR)
-
-inputs_dir <- system.file("testdata", "inputs", package = "decoupleR")
-
-mat <- file.path(inputs_dir, "input-expr_matrix.rds") %>%
-  readRDS() %>%
-  dplyr::glimpse()
-
-network <- file.path(inputs_dir, "input-dorothea_genesets.rds") %>%
-  readRDS() %>%
-  dplyr::glimpse()
+# dorothea - others -------------------------------------------------------
 
 
-network <- intersect_regulons(mat, network, tf, target, minsize = 5)
+#### DLD1 ####
+
+# ad hoc function to get summary stuff
+
+get_tf = function(cell_line = 'HCT116') {
+  cat('Formating the data \n')
+  # get the gene counts from HCT116 cell line
+  hct_counts = gene_counts %>% 
+    filter(Cell_line == cell_line) %>% 
+    select(gene_name, Sample, Replicate, counts) %>% 
+    unite(Sample, Sample, Replicate) %>% 
+    pivot_wider(names_from = Sample, values_from = counts,
+                values_fn = {mean}) %>% # there are a few repeated elements
+    data.frame()
+  
+  # rownames
+  row.names(hct_counts) = hct_counts[,1]
+  hct_counts[,1] = NULL
+  
+  cat('Running viper with the regulons \n')
+  # run viper wrapper with dorothea
+  tf_hct = run_viper(hct_counts, regulons, tidy = TRUE,
+                     options =  list(method = "scale", minsize = 4, 
+                                     eset.filter = FALSE, cores = 1, 
+                                     verbose = T))
+  
+  # tidy the results
+  tidy_tf = tf_hct %>% 
+    separate(sample , into = c('Cell', 'Condition', 'Replicate'), sep = '_') %>% 
+    as_tibble() %>% 
+    group_by(tf, Cell, Condition, confidence) %>% 
+    summarise(mean_activity = mean(activity, na.rm = TRUE),
+              sd_activity = sd(activity, na.rm = TRUE)) %>% 
+    arrange(desc(abs(mean_activity)))  %>% 
+    ungroup()
+  
+  cat('Computing the stats \n')
+  # calculate the stats: Treatment vs Control
+  tf_hct_stats = tf_hct %>% 
+    separate(sample , into = c('Cell', 'Condition', 'Replicate'), sep = '_') %>% 
+    as_tibble() %>% 
+    group_by(tf, Cell, confidence) %>% 
+    rstatix::t_test(activity ~ Condition, 
+                    p.adjust.method = "fdr",
+                    ref.group = 'C') %>% 
+    mutate(p.stars = gtools::stars.pval(p),
+           Direction = case_when(statistic < 0 ~ 'Up',
+                                 statistic > 0 ~ 'Down',
+                                 TRUE ~ 'Neutral'))
+  
+  res_list = list(tf_hct, tidy_tf, tf_hct_stats)
+  
+  return(res_list)
+  
+}
 
 
-run_mlm(
-  mat = mat,
-  network = network,
-  .source = "tf",
-  .target = "target",
-  .mor = "mor",
-  .likelihood = "likelihood"
-) %>% 
-  ggplot(aes(y = p_value, x = source)) +
-  geom_point(aes(size = score)) +
-  facet_wrap(~condition) + 
-  geom_hline(yintercept = 0.05)
 
+#### calculate stuff ####
+
+dld_tf_res = get_tf(cell_line = 'DLD1')
+
+dld_tf = dld_tf_res[[1]]
+dld_tf_tidy = dld_tf_res[[2]]
+dld_tf_stats = dld_tf_res[[3]]
+
+
+
+# get significant tf
+sig_tf = dld_tf_stats  %>% 
+  filter(p < 0.05) %>% 
+  pull(tf)
+
+
+
+##### plots ####
+
+# print selection of TFs
+
+dld_tf_tidy %>% 
+  left_join(dld_tf_stats) %>% 
+  filter(tf %in% sig_tf) %>% 
+  arrange(desc(abs(mean_activity))) %>% 
+  mutate(Direction = factor(Direction, levels = c('Up', 'Down'))) %>% 
+  filter(tf %in% unique(head(tidy_tf$tf, 25))) %>%
+  ggplot(aes(x = fct_reorder(tf, p), y = mean_activity)) +
+  geom_errorbar(aes(ymax = mean_activity + sd_activity, 
+                    ymin = mean_activity - sd_activity),
+                width = 0.1, color = 'grey70') +
+  geom_point(aes(color = Condition, shape = Condition), 
+             size = 5) +
+  geom_text(aes(label = p.stars),
+            y = 10.5) +
+  theme_cowplot(15) +
+  labs(x = 'Regulons',
+       y = 'Mean activity (+- std)') +
+  facet_grid(~Direction, scales = 'free_x', space = 'free') +
+  scale_color_manual(values = c('#E6454E', '#1F993D')) +
+  theme(axis.text.x = element_text(angle = 45, vjust = 0.5)) 
+
+ggsave(here('summary', 'tf_activity_DLD1.pdf'),
+       height = 8, width = 10)
+
+
+
+# print out the complete set of significant TFs
+dld_tf_tidy %>% 
+  left_join(dld_tf_stats) %>% 
+  filter(tf %in% sig_tf) %>%
+  arrange((abs(p))) %>% 
+  mutate(Direction = factor(Direction, levels = c('Up', 'Down')),
+         tf = factor(tf)) %>% 
+  ggplot(aes(x = fct_reorder(tf, (p)), y = mean_activity)) +
+  geom_errorbar(aes(ymax = mean_activity + sd_activity, 
+                    ymin = mean_activity - sd_activity),
+                width = 0.1, color = 'grey70') +
+  geom_point(aes(color = Condition, shape = Condition), 
+             size = 5) +
+  geom_text(aes(label = p.stars),
+            y =7, angle = 90) +
+  theme_cowplot(15) +
+  labs(x = 'Transcription factors',
+       y = 'Mean activity (+- std)') +
+  facet_grid(~Direction, scales = 'free_x', space = 'free') +
+  scale_color_manual(values = c('#E6454E', '#1F993D')) +
+  theme(axis.text.x = element_text(angle = 45, vjust = 0.5))
+
+ggsave(here('summary', 'tf_activity_complete_DLD1.pdf'),
+       height = 8, width = 30)
+
+
+
+#### LoVo ####
+# "LoVo"   "SW948" 
+
+lovo_tf_res = get_tf(cell_line = 'LoVo')
+lovo_tf = lovo_tf_res[[1]]
+lovo_tf_tidy = lovo_tf_res[[2]]
+lovo_tf_stats = lovo_tf_res[[3]]
+
+
+# get significant tf
+sig_tf = lovo_tf_stats  %>% 
+  filter(p < 0.05) %>% 
+  pull(tf)
+
+
+##### plots ####
+
+# print selection of TFs
+
+lovo_tf_tidy %>% 
+  left_join(lovo_tf_stats) %>% 
+  filter(tf %in% sig_tf) %>% 
+  arrange(desc(abs(mean_activity))) %>% 
+  mutate(Direction = factor(Direction, levels = c('Up', 'Down'))) %>% 
+  filter(tf %in% unique(head(tidy_tf$tf, 25))) %>%
+  ggplot(aes(x = fct_reorder(tf, p), y = mean_activity)) +
+  geom_errorbar(aes(ymax = mean_activity + sd_activity, 
+                    ymin = mean_activity - sd_activity),
+                width = 0.1, color = 'grey70') +
+  geom_point(aes(color = Condition, shape = Condition), 
+             size = 5) +
+  geom_text(aes(label = p.stars),
+            y = 10.5) +
+  theme_cowplot(15) +
+  labs(x = 'Regulons',
+       y = 'Mean activity (+- std)') +
+  facet_grid(~Direction, scales = 'free_x', space = 'free') +
+  scale_color_manual(values = c('#E6454E', '#1F993D')) +
+  theme(axis.text.x = element_text(angle = 45, vjust = 0.5)) 
+
+ggsave(here('summary', 'tf_activity_LoVo.pdf'),
+       height = 8, width = 10)
+
+
+
+# print out the complete set of significant TFs
+lovo_tf_tidy %>% 
+  left_join(lovo_tf_stats) %>% 
+  filter(tf %in% sig_tf) %>%
+  arrange((abs(p))) %>% 
+  mutate(Direction = factor(Direction, levels = c('Up', 'Down')),
+         tf = factor(tf)) %>% 
+  ggplot(aes(x = fct_reorder(tf, (p)), y = mean_activity)) +
+  geom_errorbar(aes(ymax = mean_activity + sd_activity, 
+                    ymin = mean_activity - sd_activity),
+                width = 0.1, color = 'grey70') +
+  geom_point(aes(color = Condition, shape = Condition), 
+             size = 5) +
+  geom_text(aes(label = p.stars),
+            y =7, angle = 90) +
+  theme_cowplot(15) +
+  labs(x = 'Transcription factors',
+       y = 'Mean activity (+- std)') +
+  facet_grid(~Direction, scales = 'free_x', space = 'free') +
+  scale_color_manual(values = c('#E6454E', '#1F993D')) +
+  theme(axis.text.x = element_text(angle = 45, vjust = 0.5))
+
+ggsave(here('summary', 'tf_activity_complete_LoVo.pdf'),
+       height = 8, width = 30)
+
+
+
+#### SW948 ####
+# "LoVo"   "SW948" 
+
+sw_tf_res = get_tf(cell_line = 'SW948')
+sw_tf = sw_tf_res[[1]]
+sw_tf_tidy = sw_tf_res[[2]]
+sw_tf_stats = sw_tf_res[[3]]
+
+
+# get significant tf
+sig_tf = sw_tf_stats  %>% 
+  filter(p < 0.05) %>% 
+  pull(tf)
+
+
+##### plots #####
+
+# print selection of TFs
+
+sw_tf_tidy %>% 
+  left_join(sw_tf_stats) %>% 
+  filter(tf %in% sig_tf) %>% 
+  arrange(desc(abs(mean_activity))) %>% 
+  mutate(Direction = factor(Direction, levels = c('Up', 'Down'))) %>% 
+  filter(tf %in% unique(head(tidy_tf$tf, 25))) %>%
+  ggplot(aes(x = fct_reorder(tf, p), y = mean_activity)) +
+  geom_errorbar(aes(ymax = mean_activity + sd_activity, 
+                    ymin = mean_activity - sd_activity),
+                width = 0.1, color = 'grey70') +
+  geom_point(aes(color = Condition, shape = Condition), 
+             size = 5) +
+  geom_text(aes(label = p.stars),
+            y = 10.5) +
+  theme_cowplot(15) +
+  labs(x = 'Regulons',
+       y = 'Mean activity (+- std)') +
+  facet_grid(~Direction, scales = 'free_x', space = 'free') +
+  scale_color_manual(values = c('#E6454E', '#1F993D')) +
+  theme(axis.text.x = element_text(angle = 45, vjust = 0.5)) 
+
+ggsave(here('summary', 'tf_activity_SW948.pdf'),
+       height = 8, width = 10)
+
+
+
+# print out the complete set of significant TFs
+sw_tf_tidy %>% 
+  left_join(sw_tf_stats) %>% 
+  filter(tf %in% sig_tf) %>%
+  arrange((abs(p))) %>% 
+  mutate(Direction = factor(Direction, levels = c('Up', 'Down')),
+         tf = factor(tf)) %>% 
+  ggplot(aes(x = fct_reorder(tf, (p)), y = mean_activity)) +
+  geom_errorbar(aes(ymax = mean_activity + sd_activity, 
+                    ymin = mean_activity - sd_activity),
+                width = 0.1, color = 'grey70') +
+  geom_point(aes(color = Condition, shape = Condition), 
+             size = 5) +
+  geom_text(aes(label = p.stars),
+            y =7, angle = 90) +
+  theme_cowplot(15) +
+  labs(x = 'Transcription factors',
+       y = 'Mean activity (+- std)') +
+  facet_grid(~Direction, scales = 'free_x', space = 'free') +
+  scale_color_manual(values = c('#E6454E', '#1F993D')) +
+  theme(axis.text.x = element_text(angle = 45, vjust = 0.5))
+
+ggsave(here('summary', 'tf_activity_complete_SW948.pdf'),
+       height = 8, width = 30)
+
+
+
+
+#### all together ####
+
+
+# Running VIPER with DoRothEA regulons
+regulons = dorothea_hs %>%
+  filter(confidence %in% c("A", "B", "C"))
+
+# get the gene counts from HCT116 cell line
+total_counts = gene_counts %>% 
+  # filter(Cell_line == 'HCT116') %>% 
+  select(gene_name, Sample, Replicate, counts) %>% 
+  unite(Sample, Sample, Replicate) %>% 
+  drop_na(counts) %>% 
+  pivot_wider(names_from = Sample, values_from = counts,
+              values_fn = {mean}) %>% # there are a few repeated elements
+  data.frame()
+
+# rownames
+row.names(total_counts) = total_counts[,1]
+total_counts[,1] = NULL
+
+# total_counts['source'] = rowMeans(total_counts)
+
+
+# run viper wrapper with dorothea
+tf_total = run_viper(total_counts, regulons, tidy = TRUE,
+                   options = list(method = "scale", minsize = 4, 
+                                  eset.filter = TRUE, cores = 1, 
+                                  verbose = F))
+
+# tidy the results
+tidy_tf = tf_total %>% 
+  separate(sample , into = c('Cell', 'Condition', 'Replicate'), sep = '_') %>% 
+  as_tibble() %>% 
+  group_by(tf, Cell, Condition, confidence) %>% 
+  summarise(mean_activity = mean(activity, na.rm = TRUE),
+            sd_activity = sd(activity, na.rm = TRUE)) %>% 
+  arrange(desc(abs(mean_activity)))  %>% 
+  ungroup()
+
+
+# calculate the stats: Treatment vs Control
+tf_stats = tf_total %>% 
+  separate(sample , into = c('Cell', 'Condition', 'Replicate'), sep = '_') %>% 
+  as_tibble() %>% 
+  group_by(tf, Cell, confidence) %>% 
+  rstatix::t_test(activity ~ Condition, 
+                  p.adjust.method = "fdr",
+                  ref.group = 'C') %>% 
+  mutate(p.stars = gtools::stars.pval(p),
+         Direction = case_when(statistic < 0 ~ 'Up',
+                               statistic > 0 ~ 'Down',
+                               TRUE ~ 'Neutral'))
+
+# get significant tf
+sig_tf = tf_stats  %>% 
+  filter(p < 0.05) %>% 
+  pull(tf)
+
+
+
+
+
+#### dot plots #####
+
+# print selection of TFs
+
+tidy_tf %>% 
+  left_join(tf_stats) %>% 
+  filter(tf %in% sig_tf) %>% 
+  arrange(desc(abs(mean_activity))) %>% 
+  mutate(Direction = factor(Direction, levels = c('Up', 'Down'))) %>% 
+  filter(tf %in% unique(head(tidy_tf$tf, 35))) %>%
+  ggplot(aes(x = fct_reorder(tf, p), y = mean_activity)) +
+  geom_errorbar(aes(ymax = mean_activity + sd_activity, 
+                    ymin = mean_activity - sd_activity),
+                width = 0.1, color = 'grey70') +
+  geom_point(aes(color = Condition, shape = Condition), 
+             size = 5) +
+  geom_text(aes(label = p.stars),
+            y = 5, angle = 90) +
+  theme_cowplot(15) +
+  labs(x = 'Regulons',
+       y = 'Mean activity (+- std)') +
+  # facet_grid(~Direction*Cell, scales = 'free_x', space = 'free') +
+  facet_wrap(~Direction*Cell, scales='free_x', ncol = 4) +
+  scale_color_manual(values = c('#E6454E', '#1F993D')) +
+  theme(axis.text.x = element_text(angle = 45, vjust = 0.5)) 
+
+ggsave(here('summary', 'tf_activity.pdf'),
+       height = 8, width = 10)
+
+
+
+# print out the complete set of significant TFs
+tidy_tf %>% 
+  left_join(tf_hct_stats) %>% 
+  filter(tf %in% sig_tf) %>%
+  arrange((abs(p))) %>% 
+  mutate(Direction = factor(Direction, levels = c('Up', 'Down')),
+         tf = factor(tf)) %>% 
+  ggplot(aes(x = fct_reorder(tf, (p)), y = mean_activity)) +
+  geom_errorbar(aes(ymax = mean_activity + sd_activity, 
+                    ymin = mean_activity - sd_activity),
+                width = 0.1, color = 'grey70') +
+  geom_point(aes(color = Condition, shape = Condition), 
+             size = 5) +
+  geom_text(aes(label = p.stars),
+            y = 10, angle = 90) +
+  theme_cowplot(15) +
+  labs(x = 'Transcription factors',
+       y = 'Mean activity (+- std)') +
+  # facet_wrap(~direction) +
+  scale_color_manual(values = c('#E6454E', '#1F993D')) +
+  theme(axis.text.x = element_text(angle = 45, vjust = 0.5))
+
+ggsave(here('summary', 'tf_activity_complete.pdf'),
+       height = 8, width = 30)
 
 
 
