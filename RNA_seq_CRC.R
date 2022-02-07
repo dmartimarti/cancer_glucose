@@ -1693,7 +1693,31 @@ dev.copy2pdf(device = cairo_pdf,
 tf_hct_stats %>% 
   filter(p < 0.05) %>% 
   write_csv(here('summary','tf_stats_sig.csv'))
-  
+
+
+
+# save the tables to be analysed with String DB
+# down TFs
+down_tf = c('genes', tf_hct_stats %>% 
+            filter(statistic < 0, p <= 0.05) %>% 
+            pull(tf)
+)
+
+# up TFs
+up_tf = c('genes', tf_hct_stats %>% 
+              filter(statistic > 0, p <= 0.05) %>% 
+              pull(tf)
+)
+
+tf_list = list(
+  'TF_UP' = up_tf,
+  'TF_DOWN' = down_tf
+)
+
+
+write.xlsx(tf_list, 
+           here('summary', 'tf_updown.xlsx'),
+           overwrite = TRUE)
 
 
 #### heatmap with cancer hits ####
@@ -1831,7 +1855,7 @@ dld_tf_tidy %>%
   geom_point(aes(color = Condition, shape = Condition), 
              size = 5) +
   geom_text(aes(label = p.stars),
-            y = 10.5) +
+            y = 7.5) +
   theme_cowplot(15) +
   labs(x = 'Regulons',
        y = 'Mean activity (+- std)') +
@@ -1858,7 +1882,7 @@ dld_tf_tidy %>%
   geom_point(aes(color = Condition, shape = Condition), 
              size = 5) +
   geom_text(aes(label = p.stars),
-            y =7, angle = 90) +
+            y = 8, angle = 90) +
   theme_cowplot(15) +
   labs(x = 'Transcription factors',
        y = 'Mean activity (+- std)') +
@@ -1930,7 +1954,7 @@ lovo_tf_tidy %>%
   geom_point(aes(color = Condition, shape = Condition), 
              size = 5) +
   geom_text(aes(label = p.stars),
-            y =7, angle = 90) +
+            y = 10.5, angle = 90) +
   theme_cowplot(15) +
   labs(x = 'Transcription factors',
        y = 'Mean activity (+- std)') +
@@ -1975,7 +1999,7 @@ sw_tf_tidy %>%
   geom_point(aes(color = Condition, shape = Condition), 
              size = 5) +
   geom_text(aes(label = p.stars),
-            y = 10.5) +
+            y = 4.4) +
   theme_cowplot(15) +
   labs(x = 'Regulons',
        y = 'Mean activity (+- std)') +
@@ -2002,7 +2026,7 @@ sw_tf_tidy %>%
   geom_point(aes(color = Condition, shape = Condition), 
              size = 5) +
   geom_text(aes(label = p.stars),
-            y =7, angle = 90) +
+            y =6, angle = 90) +
   theme_cowplot(15) +
   labs(x = 'Transcription factors',
        y = 'Mean activity (+- std)') +
@@ -2105,18 +2129,17 @@ tidy_tf %>%
   scale_color_manual(values = c('#E6454E', '#1F993D')) +
   theme(axis.text.x = element_text(angle = 45, vjust = 0.5)) 
 
-ggsave(here('summary', 'tf_activity.pdf'),
+ggsave(here('summary', 'tf_activity_ALL.pdf'),
        height = 8, width = 10)
 
 
 
 # print out the complete set of significant TFs
 tidy_tf %>% 
-  left_join(tf_hct_stats) %>% 
-  filter(tf %in% sig_tf) %>%
-  arrange((abs(p))) %>% 
-  mutate(Direction = factor(Direction, levels = c('Up', 'Down')),
-         tf = factor(tf)) %>% 
+  left_join(tf_stats) %>% 
+  filter(tf %in% sig_tf) %>% 
+  arrange(desc(abs(mean_activity))) %>% 
+  mutate(Direction = factor(Direction, levels = c('Up', 'Down'))) %>% 
   ggplot(aes(x = fct_reorder(tf, (p)), y = mean_activity)) +
   geom_errorbar(aes(ymax = mean_activity + sd_activity, 
                     ymin = mean_activity - sd_activity),
@@ -2128,11 +2151,11 @@ tidy_tf %>%
   theme_cowplot(15) +
   labs(x = 'Transcription factors',
        y = 'Mean activity (+- std)') +
-  # facet_wrap(~direction) +
+  facet_wrap(~Direction*Cell, scales='free_x', ncol = 4) +
   scale_color_manual(values = c('#E6454E', '#1F993D')) +
   theme(axis.text.x = element_text(angle = 45, vjust = 0.5))
 
-ggsave(here('summary', 'tf_activity_complete.pdf'),
+ggsave(here('summary', 'tf_activity_complete_ALL.pdf'),
        height = 8, width = 30)
 
 
