@@ -1,3 +1,8 @@
+
+# libraries ---------------------------------------------------------------
+
+
+
 library(readr)
 library(multcomp)
 library(tidyverse)
@@ -10,10 +15,12 @@ library(broom)
 library(tau)
 library(fmsb)
 library(readxl)
+library(cowplot)
 
 
+# theme_set(theme_classic())
 
-theme_set(theme_classic())
+theme_set(theme_cowplot(15))
 
 # load the data -----------------------------------------------------------
 
@@ -1252,6 +1259,210 @@ dev.copy2pdf(device = cairo_pdf,
              width = 5, height = 20, useDingbats = FALSE)
 
 
+
+
+
+
+
+
+### Pyr genes (log2FC) ####
+
+prots = data %>% 
+  filter(str_detect(KEGG_name,'Pyrimidine')) %>% 
+  distinct(Gene_names) %>% pull(Gene_names)
+
+
+prots = statsR %>% 
+  filter(!(Gene_names %in% removals)) %>% 
+  filter(Gene_names %in% prots, contrast %in% contr_groups) %>% 
+  filter(FDR <= 0.05) %>% 
+  distinct(Gene_names) %>%  pull(Gene_names)
+
+# a further step of filtering (optional)
+prots = statsR %>% 
+  filter(!(Gene_names %in% removals)) %>% 
+  filter(Gene_names %in% prots, contrast %in% contr_groups) %>% 
+  filter(FDR <= 0.05) %>% 
+  mutate(selected = case_when(Target == '10mM_Micit' & estimate < 0 ~ 'selected',
+                              Target == '5FU' & estimate < 0 ~ 'selected',
+                              TRUE ~ 'remove')) %>% 
+  distinct(Gene_names) %>% pull(Gene_names)
+
+
+
+
+heat = statsR %>% 
+  filter(!(Gene_names %in% removals)) %>% 
+  filter(Gene_names %in% prots, contrast %in% contr_groups[2:6]) %>% 
+  select(Gene_names, Target, estimate) %>% 
+  pivot_wider(names_from = Target, values_from = estimate)
+
+
+pval_mtor = statsR %>% 
+  filter(!(Gene_names %in% removals)) %>% 
+  filter(Gene_names %in% prots, contrast %in% contr_groups) %>% 
+  # create dummy variable for Control
+  mutate(FDR_stars = case_when(contrast == '5FU - 1mM_Micit' ~ '',
+                               TRUE ~ FDR_stars),
+         Target = case_when(contrast == '5FU - 1mM_Micit' ~ 'Control',
+                            TRUE ~ Target)) %>% 
+  select(Gene_names,Target,FDR_stars) %>% 
+  pivot_wider(names_from = Target, values_from = FDR_stars)
+
+# generate matrices
+heat_mat = as.matrix(heat[,2:6])
+row.names(heat_mat) = heat$Gene_names
+
+pval_mat = as.matrix(pval_mtor[,2:7])
+row.names(pval_mat) = pval_mtor$Gene_names
+
+pval_mat = pval_mat[,1:5]
+
+Heatmap(heat_mat, 
+        name = "log2FC",
+        # column_km = 3,
+        # row_km = 3,
+        cluster_columns = FALSE,
+        row_names_gp = gpar(fontsize = 10),
+        column_names_rot =30, 
+        column_names_side = "top",
+        column_names_gp = gpar(fontsize = 10),
+        cell_fun = function(j, i, x, y, width, height, fill) {
+          grid.text(sprintf("%s", pval_mat[i, j]), x, y, gp = gpar(fontsize = 7))
+        }
+        )
+
+dev.copy2pdf(device = cairo_pdf,
+             file = here('summary/heatmaps', 'heatmap_pyrimidine_log2FC.pdf'),
+             width = 5, height = 10, useDingbats = FALSE)
+
+
+
+
+
+### Pur genes (log2FC) ####
+
+prots = data %>% 
+  filter(str_detect(KEGG_name,'Purine')) %>% 
+  distinct(Gene_names) %>% pull(Gene_names)
+
+
+prots = statsR %>% 
+  filter(!(Gene_names %in% removals)) %>% 
+  filter(Gene_names %in% prots, contrast %in% contr_groups) %>% 
+  filter(FDR <= 0.05) %>% 
+  distinct(Gene_names) %>%  pull(Gene_names)
+
+
+
+heat = statsR %>% 
+  filter(!(Gene_names %in% removals)) %>% 
+  filter(Gene_names %in% prots, contrast %in% contr_groups[2:6]) %>% 
+  select(Gene_names, Target, estimate) %>% 
+  pivot_wider(names_from = Target, values_from = estimate)
+
+
+pval_mtor = statsR %>% 
+  filter(!(Gene_names %in% removals)) %>% 
+  filter(Gene_names %in% prots, contrast %in% contr_groups) %>% 
+  # create dummy variable for Control
+  mutate(FDR_stars = case_when(contrast == '5FU - 1mM_Micit' ~ '',
+                               TRUE ~ FDR_stars),
+         Target = case_when(contrast == '5FU - 1mM_Micit' ~ 'Control',
+                            TRUE ~ Target)) %>% 
+  select(Gene_names,Target,FDR_stars) %>% 
+  pivot_wider(names_from = Target, values_from = FDR_stars)
+
+# generate matrices
+heat_mat = as.matrix(heat[,2:6])
+row.names(heat_mat) = heat$Gene_names
+
+pval_mat = as.matrix(pval_mtor[,2:7])
+row.names(pval_mat) = pval_mtor$Gene_names
+
+pval_mat = pval_mat[,1:5]
+
+Heatmap(heat_mat, 
+        name = "log2FC",
+        # column_km = 3,
+        # row_km = 3,
+        cluster_columns = FALSE,
+        row_names_gp = gpar(fontsize = 10),
+        column_names_rot =30, 
+        column_names_side = "top",
+        column_names_gp = gpar(fontsize = 10),
+        cell_fun = function(j, i, x, y, width, height, fill) {
+          grid.text(sprintf("%s", pval_mat[i, j]), x, y, gp = gpar(fontsize = 7))
+        }
+)
+
+dev.copy2pdf(device = cairo_pdf,
+             file = here('summary/heatmaps', 'heatmap_purine_log2FC.pdf'),
+             width = 5, height = 12, useDingbats = FALSE)
+
+
+
+### mitochondrion genes (log2FC) ####
+
+
+prots = data %>% 
+  filter(str_detect(KEGG_name,'mitochondrion') | str_detect(GOBP_name, 'mitochondrion') |  
+           str_detect(GOMF_name, 'mitochondrion'))  %>% 
+  distinct(Gene_names) %>% pull(Gene_names)
+
+
+prots = statsR %>% 
+  filter(!(Gene_names %in% removals)) %>% 
+  filter(Gene_names %in% prots, contrast %in% contr_groups[2:6]) %>% 
+  filter(FDR <= 0.05) %>% 
+  distinct(Gene_names) %>%  pull(Gene_names)
+
+
+
+heat = statsR %>% 
+  filter(!(Gene_names %in% removals)) %>% 
+  filter(Gene_names %in% prots, contrast %in% contr_groups[2:6]) %>% 
+  select(Gene_names, Target, estimate) %>% 
+  pivot_wider(names_from = Target, values_from = estimate)
+
+
+pval_mtor = statsR %>% 
+  filter(!(Gene_names %in% removals)) %>% 
+  filter(Gene_names %in% prots, contrast %in% contr_groups) %>% 
+  # create dummy variable for Control
+  mutate(FDR_stars = case_when(contrast == '5FU - 1mM_Micit' ~ '',
+                               TRUE ~ FDR_stars),
+         Target = case_when(contrast == '5FU - 1mM_Micit' ~ 'Control',
+                            TRUE ~ Target)) %>% 
+  select(Gene_names,Target,FDR_stars) %>% 
+  pivot_wider(names_from = Target, values_from = FDR_stars)
+
+# generate matrices
+heat_mat = as.matrix(heat[,2:6])
+row.names(heat_mat) = heat$Gene_names
+
+pval_mat = as.matrix(pval_mtor[,2:7])
+row.names(pval_mat) = pval_mtor$Gene_names
+
+pval_mat = pval_mat[,1:5]
+
+Heatmap(heat_mat, 
+        name = "log2FC",
+        # column_km = 3,
+        # row_km = 3,
+        cluster_columns = FALSE,
+        row_names_gp = gpar(fontsize = 10),
+        column_names_rot =30, 
+        column_names_side = "top",
+        column_names_gp = gpar(fontsize = 10),
+        cell_fun = function(j, i, x, y, width, height, fill) {
+          grid.text(sprintf("%s", pval_mat[i, j]), x, y, gp = gpar(fontsize = 7))
+        }
+)
+
+dev.copy2pdf(device = cairo_pdf,
+             file = here('summary/heatmaps', 'heatmap_mitochondrion_log2FC.pdf'),
+             width = 5, height = 17, useDingbats = FALSE)
 
 
 
