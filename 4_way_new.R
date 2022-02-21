@@ -28,7 +28,6 @@ library(patchwork)
 # 4-way plot --------------------------------------------------------------
 
 library(gridExtra)
-
 adjustments = as_tibble(read.csv('Contrast_adjustments.csv'))
 
 ###
@@ -93,11 +92,14 @@ adjs = paste(strain, '_5FU_adj', sep = '')
 # for example, to mimic Pov's code
 worm.sum %>% filter(Experiment == experiment, Strain == strain)
 
+worm.sum %>% 
+  write_csv(here('Summary', 'worm_dev_scores.csv'))
+
 worm.old = worm.sum %>%
   filter(Experiment == experiment & Strain == strain) %>% 
   ungroup %>%
   mutate(Description = 'C. elegans development at 5uM 5-FU',
-         Contrast = 'Ce_Dev5',   # C. elegans developement with 5FU
+         Contrast = 'Ce_Dev5',   # C. elegans development with 5FU
          Contrast_type = 'Treatment',
          FDR = NA) %>%
   select(Description, Contrast, Contrast_type, Plate, Well, logFC = Median, SE = SD, FDR)
@@ -175,6 +177,9 @@ BW.scores = total %>%
 
 ### BW plot ####
 BW.plot = total %>% 
+  select(-x_Description:-x_FDR,
+         -y_Description:-y_FDR,
+         -z_Description:-z_Contrast_type) %>% 
   ggplot(aes(x = reorder(MetaboliteU, score), y = score)) +
   geom_point(aes(fill = z_logFC, size = z_logFC),pch=21) +
   geom_hline(aes(yintercept = 1), alpha = 0.9, color = 'grey') +
@@ -199,7 +204,7 @@ BW.plot = total %>%
        title = 'BW25113 - Wild type') +
   coord_cartesian(xlim = c(0,400)) +
   # ylim(0, 15) +
-  scale_size(guide=FALSE) +
+  scale_size(guide='none') +
   theme_classic() +
   theme(axis.title.x=element_blank(),
         axis.title.y=element_blank(),
@@ -208,10 +213,18 @@ BW.plot = total %>%
         plot.title = element_text(size=18),
         legend.text = element_text(size=18)
         ) +
-  guides(color = FALSE,fill = guide_legend(override.aes = list(size=8)))
+  guides(color = 'none',fill = guide_legend(override.aes = list(size=8)))
 
 
+names(total)
 
+total %>% 
+  select(-x_Description:-x_FDR,
+         -y_Description:-y_FDR,
+         -z_Description:-z_Contrast_type, 
+         -z_SE, -z_FDR) %>% 
+  rename(worm_score = z_logFC) %>% 
+  write_csv(here('Summary', '4way_BW.csv'))
 
 
 
@@ -344,7 +357,7 @@ pyrE.plot = total %>%
        title = bquote(~Delta*pyrE ~ "mutant")) +
   coord_cartesian(xlim = c(0,400)) +
   # ylim(0, 15) +
-  scale_size(guide=FALSE) +
+  scale_size(guide='none') +
   theme_classic() +
   theme(axis.title.x=element_blank(),
         axis.title.y = element_text(size=16, face="bold", color ='black'),
@@ -352,11 +365,17 @@ pyrE.plot = total %>%
         axis.ticks.x=element_blank(),
         plot.title = element_text(size=18),
         legend.text = element_text(size=18)) +
-  guides(color = FALSE,
+  guides(color = 'none',
          fill = guide_legend(override.aes = list(size=8)))
 
 
-
+total %>% 
+  select(-x_Description:-x_FDR,
+         -y_Description:-y_FDR,
+         -z_Description:-z_Contrast_type, 
+         -z_SE, -z_FDR) %>% 
+  rename(worm_score = z_logFC) %>% 
+  write_csv(here('Summary', '4way_pyrE.csv'))
 
 
 
@@ -491,7 +510,7 @@ TM.plot = total %>%
        title = bquote(~Delta*upp*Delta*udp*Delta*udk ~ "mutant")) +
   coord_cartesian(xlim = c(0,400)) +
   # ylim(0, 15) +
-  scale_size(guide=FALSE) +
+  scale_size(guide='none') +
   theme_classic() +
   theme(axis.title.y=element_blank(),
         axis.text.x=element_blank(),
@@ -500,8 +519,18 @@ TM.plot = total %>%
         plot.title = element_text(size=18),
         legend.text = element_text(size=18)
         ) +
-  guides(color = FALSE,
+  guides(color = 'none',
          fill = guide_legend(override.aes = list(size=8)))
+
+
+
+total %>% 
+  select(-x_Description:-x_FDR,
+         -y_Description:-y_FDR,
+         -z_Description:-z_Contrast_type, 
+         -z_SE, -z_FDR) %>% 
+  rename(worm_score = z_logFC) %>% 
+  write_csv(here('Summary', '4way_TM.csv'))
 
 
 # 
