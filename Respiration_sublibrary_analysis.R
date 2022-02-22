@@ -17,10 +17,11 @@ library(RVAideMemoire)
 library(colorspace)
 library(plotly)
 library(ggpubr)
+library(cowplot)
 
 # options(width = 150)
 
-theme_set(theme_classic())
+theme_set(theme_cowplot(15))
 
 
 # Read data ##################
@@ -89,7 +90,7 @@ resp.sum %>%
   guides(colour = guide_legend(override.aes = list(size = 4))) 
 
 
-ggsave(file = here('Summary', 'Scatter_sub_lib_RESP_5uM.pdf'),
+ggsave(file = here('Summary/resp_sublibrary', 'Scatter_sub_lib_RESP_5uM.pdf'),
        height = 10, width = 12)
 
 
@@ -176,7 +177,7 @@ respT.sum %>%
   guides(colour = guide_legend(override.aes = list(size = 4))) 
 
 
-ggsave(file = here('Summary', 'Scatter_sub_lib_RESP_Tanara_5uM.pdf'),
+ggsave(file = here('Summary/resp_sublibrary', 'Scatter_sub_lib_RESP_Tanara_5uM.pdf'),
        height = 10, width = 12)
 
 
@@ -261,7 +262,7 @@ respTnew.sum %>%
   guides(colour = guide_legend(override.aes = list(size = 4))) 
 
 
-ggsave(file = here('Summary', 'Scatter_sub_lib_RESP_Tanara_6thDec2021_5uM.pdf'),
+ggsave(file = here('Summary/resp_sublibrary', 'Scatter_sub_lib_RESP_Tanara_6thDec2021_5uM.pdf'),
        height = 10, width = 12)
 
 
@@ -322,7 +323,7 @@ joint_resp.sum %>%
   guides(colour = guide_legend(override.aes = list(size = 4))) 
 
 
-ggsave(file = here('Summary', 'Scatter_sub_lib_RESP_Tanara_5uM_JOINED.pdf'),
+ggsave(file = here('Summary/resp_sublibrary', 'Scatter_sub_lib_RESP_Tanara_5uM_JOINED.pdf'),
        height = 10, width = 12)
 
 
@@ -371,7 +372,7 @@ respT.short %>% left_join(glu.short) %>%
        y = 'Tanara scores') +
   theme_cowplot(14)
   
-ggsave(file = here('Summary', glue::glue('Correlation_Glucose_{gluc}_Tanara_Leo.pdf')),
+ggsave(file = here('Summary/resp_sublibrary', glue::glue('Correlation_Glucose_{gluc}_Tanara_Leo.pdf')),
        height = 10, width = 12)
 
 
@@ -450,7 +451,7 @@ old = glu.sum %>%
 
 new + old
 
-ggsave(file = here('Summary', 'Scatter_sub_COMPARISON.pdf'),
+ggsave(file = here('Summary/resp_sublibrary', 'Scatter_sub_COMPARISON.pdf'),
        height = 10, width = 24)
 
 
@@ -511,7 +512,7 @@ glu_res.sum %>%
 
 
 
-ggsave(file = here('Summary', 'Scatter_sub_lib_RESP_5uM_MERGED.pdf'),
+ggsave(file = here('Summary/resp_sublibrary', 'Scatter_sub_lib_RESP_5uM_MERGED.pdf'),
        height = 10, width = 12)
 
 
@@ -535,6 +536,12 @@ glu_res.wide = glu_res.sum %>%
   select(Supplement, Supplement_mM, Genes, BW_norm) %>%
   unite(Supp, Supplement, Supplement_mM) %>%
   spread(Supp, BW_norm)
+
+# glu_res.wide = respTnew.sum %>% 
+#   filter(Drug == drug) %>% 
+#   select(Supplement, Supplement_mM, Genes, BW_norm) %>%
+#   unite(Supp, Supplement, Supplement_mM) %>%
+#   spread(Supp, BW_norm)
 
 # get gene groups, modify thresholds if necessary
 group_1 = glu_res.wide %>% 
@@ -634,7 +641,7 @@ merge_enrich = g1.enrich %>%
 list_of_datasets = list('Enrichment respiration sublibrary' = merge_enrich)
 
 write.xlsx(list_of_datasets, 
-           here('summary','Ecocyc_enrichment_Resp_sublibrary.xlsx'), 
+           here('summary/resp_sublibrary','Ecocyc_enrichment_Resp_sublibrary.xlsx'), 
            colNames = T, rowNames = T) 
 
 
@@ -692,7 +699,7 @@ expanded %>%
   theme_classic() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
-ggsave(here('summary', 'EcoCyc_enrich_resp_sublib.pdf'), height =  7, width = 13)
+ggsave(here('summary/resp_sublibrary', 'EcoCyc_enrich_resp_sublib.pdf'), height =  7, width = 13)
 
 
 ### clean pathways to include them in the scatterplot
@@ -794,7 +801,7 @@ glu_res.wide %>%
   guides(colour = guide_legend(override.aes = list(size = 4)))
 
 
-ggsave(file = here('Summary', 'Scatter_sub_lib_with_Enrichment.pdf'),
+ggsave(file = here('Summary/resp_sublibrary', 'Scatter_sub_lib_with_Enrichment.pdf'),
        height = 10, width = 12)
 
 
@@ -855,7 +862,7 @@ glu_res.wide %>%
   guides(colour = guide_legend(override.aes = list(size = 4)))
 
 
-ggsave(file = here('Summary', 'Scatter_sub_lib_with_Enrichment_conference.pdf'),
+ggsave(file = here('Summary/resp_sublibrary', 'Scatter_sub_lib_with_Enrichment_conference.pdf'),
        height = 10, width = 12)
 
 
