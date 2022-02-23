@@ -247,12 +247,12 @@ paths_scores = sig_paths %>%
   mutate(
     Glucose_10 = case_when(
       direction %in% c('group_4','group_5',
-                       'group_6') ~ -1,
+                       'group_6') ~ sig_factor * -1,
       direction %in% c('group_1','group_2',
-                       'group_7') ~ 1,
+                       'group_7') ~ sig_factor * 1,
       TRUE ~ 0),
     Glucose_0 = case_when(
-      direction %in% c('group_3','group_4','group_2') ~ 1,
+      direction %in% c('group_3','group_4','group_2') ~ sig_factor * 1,
       TRUE ~ 0
     )
     ) %>% 
@@ -262,11 +262,162 @@ paths_scores = sig_paths %>%
   
 
 
-# test plot
+# Plot pathways -----------------------------------------------------------
+
+
+
+# test plot with all pathways
 paths_scores %>% 
-  filter(str_detect(categories,'TCA|pyrimidine')) %>% 
-  mutate(categories = str_wrap(categories, width = 15)) %>% 
+  # filter(str_detect(categories,'TCA|pyrimidine')) %>% 
+  mutate(categories = str_wrap(categories, width = 25)) %>% 
   ggplot(aes(x = Glucose_10, y = Glucose_0)) +
   geom_text(aes(label = categories), position = position_jitter(width = 0.2, height = 0.4)) 
+
+
+select_paths = c('superpathway of histidine, purine, and pyrimidine biosynthesis',
+                 'superpathway of pyrimidine deoxyribonucleotides de novo biosynthesis',
+                 # 'superpathway of pyrimidine ribonucleotides de novo biosynthesis',
+                 'superpathway of histidine, purine, and pyrimidine biosynthesis',
+                 'UMP biosynthesis I',
+                 'superpathway of glycolysis, pyruvate dehydrogenase, TCA, and glyoxylate bypass',
+                 'TCA cycle I (prokaryotic)',
+                 'superpathway of purine nucleotides de novo biosynthesis II',
+                 'NADH to cytochrome bo oxidase electron transfer I',
+                 'NADH to cytochrome bd oxidase electron transfer I',
+                 'pentose phosphate pathway',
+                 'pentose phosphate pathway (non-oxidative branch)')
+
+
+# getting there
+paths_scores %>% 
+  filter(categories %in% select_paths) %>% 
+  # filter(str_detect(categories,'TCA|pyrimidine')) %>% 
+  mutate(categories = str_wrap(categories, width = 20)) %>% 
+  ggplot(aes(x = Glucose_10, y = Glucose_0)) +
+  # geom_label(aes(label = categories), 
+  #            position = position_jitter(width = 0.2, height = 0.4)) +
+  geom_label_repel(aes(label = categories), 
+                   min.segment.length = Inf,
+                   arrow = NULL)
+
+paths_scores_tidy = paths_scores %>% 
+  filter(categories %in% select_paths) %>% 
+  # filter(str_detect(categories,'TCA|pyrimidine')) %>% 
+  mutate(categories = str_wrap(categories, width = 20))
+
+
+expand_grid(Glucose_0 = seq(from = 0, by = 0.01, to = 3),
+            Glucose_10 = seq(from = -6, by = 0.01, to = 2)) %>% 
+  mutate(fill = Glucose_0 * Glucose_10 + (Glucose_10)) %>% 
+  ggplot(aes(y = Glucose_0,
+             x = Glucose_10)) +
+  geom_tile(aes(fill = fill),
+            width=1) +
+  scale_fill_gradient2() +
+  geom_label_repel(
+    data = paths_scores_tidy,
+    aes(x = Glucose_10, 
+        y = Glucose_0,
+        label = categories),
+    min.segment.length = Inf,
+    alpha = 0.3,
+    seed = 1234) +
+  geom_label_repel(
+    data = paths_scores_tidy,
+    aes(x = Glucose_10, 
+        y = Glucose_0,
+        label = categories),
+    min.segment.length = Inf,
+    label.size = NA,
+    fill = NA,
+    seed = 1234) +
+  guides(fill = 'none') +
+  labs(
+    x = 'Sensitivity to 5FU + Glucose',
+    y = 'Sensitivity to 5FU'
+  ) +
+  scale_x_continuous(expand = c(0, 0)) +
+  scale_y_continuous(expand = c(0, 0))
+
+ggsave(here('summary/resp_sublibrary', 'Pathways_sensitivity.pdf'),
+       height = 9, width = 11)
+
+
+
+# Fixing the background colors --------------------------------------------
+
+
+background = expand_grid(Glucose_0 = seq(from = 0, by = 0.01, to = 3),
+            Glucose_10 = seq(from = -6, by = 0.01, to = 2)) %>% 
+  mutate(fill = Glucose_0 * Glucose_10 + (Glucose_10)) 
+
+
+
+min_max_norm <- function(x) {
+  (x - min(x)) / (max(x) - min(x))
+}
+
+
+
+# this code will do a modified version of min/max norm
+vect = background$Glucose_10
+new_vect = c()
+for (i in vect){
+  if (i < 0){
+    x = (-(abs(i)/abs(min(vect))))
+    new_vect = c(new_vect,x)
+  } else if(i > 0) {
+    x = (i/max(vect))
+    new_vect = c(new_vect,x)
+  } else if(i == 0){
+    x = 0
+    new_vect = c(new_vect,x)
+  }
+}
+
+background['Glucose_10_fill'] = new_vect
+
+background = background %>% 
+  mutate(Glucose_0_fill = min_max_norm(Glucose_0))
+
+
+background %>% 
+  mutate(new_fill = (Glucose_0_fill * Glucose_10_fill) + Glucose_10_fill) %>% 
+  ggplot(aes(y = Glucose_0,
+             x = Glucose_10)) +
+  geom_tile(aes(fill = new_fill),
+            alpha = 1,
+            width = 1) +
+  scale_fill_gradient2() +
+  geom_label_repel(
+    data = paths_scores_tidy,
+    aes(x = Glucose_10, 
+        y = Glucose_0,
+        label = categories),
+    min.segment.length = Inf,
+    alpha = 0.3,
+    seed = 1234) +
+  geom_label_repel(
+    data = paths_scores_tidy,
+    aes(x = Glucose_10, 
+        y = Glucose_0,
+        label = categories),
+    min.segment.length = Inf,
+    label.size = NA,
+    fill = NA,
+    seed = 1234) +
+  guides(fill = 'none') +
+  labs(
+    x = 'Sensitivity to 5FU + Glucose',
+    y = 'Sensitivity to 5FU'
+  ) +
+  scale_x_continuous(expand = c(0, 0)) +
+  scale_y_continuous(expand = c(0, 0))
+
+
+ggsave(here('summary/resp_sublibrary', 'Pathways_sensitivity_v2.pdf'),
+       height = 9, width = 11)
+
+
 
 
