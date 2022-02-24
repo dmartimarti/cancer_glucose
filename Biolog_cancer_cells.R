@@ -1703,7 +1703,11 @@ df_welch
 
 dir.create(here('exploration', 'Multivariate_final'))
 
-
+library(broom)
+library(plotly)
+library(cluster)
+library(factoextra)
+library(Rtsne)
 
 
 
@@ -1733,7 +1737,7 @@ all_compounds = all_compounds %>%
 
 tsne_fit = all_compounds %>% 
   select(where(is.numeric)) %>% # retain only numeric columns
-  Rtsne(check_duplicates = FALSE, pca = FALSE, num_threads = 12,
+  Rtsne(check_duplicates = FALSE, pca = FALSE, num_threads = 8,
         normalize = FALSE, max_iter = 2000, 
         perplexity = 20, theta = 0.5, dims = 3)
 
@@ -1838,8 +1842,8 @@ rownames(tsne_mat_biolog) = tsne.df.biolog$Drug
 
 # tsne_mat_biolog = scale(tsne_mat_biolog)
 
-res.km = eclust(tsne_mat_biolog, "kmeans", nstart = 10,
-                k.max = 20, seed = 123)
+res.km = eclust(tsne_mat_biolog, "kmeans", nstart = 5,
+                k.max = 12, seed = 123)
 
 fviz_gap_stat(res.km$gap_stat)
 
