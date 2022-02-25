@@ -298,6 +298,9 @@ gene_counts = gene_counts %>%
          Replicate = as.factor(Replicate)) %>% 
   left_join(info) 
 
+gene_counts %>% 
+  write_csv(here('summary','gene_counts_norm.csv'))
+
 # TYMS, CDKN1A, TP53
 
 gene = 'TYMS'
