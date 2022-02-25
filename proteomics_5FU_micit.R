@@ -805,6 +805,128 @@ for (gen in gene){
 
 
 
+
+
+# unique protein plots ----------------------------------------------------
+
+
+stats_control = statsR %>% 
+  filter(Contrast_type %in% c('Treatment', 
+                              'Interaction'), 
+         Reference %in% c('Control', 
+                          '1mM_Micit,Control')) %>% 
+  mutate(FDR_stars = case_when(Contrast_type == 'Interaction' ~ '',
+                               TRUE ~ FDR_stars),
+         estimate = case_when(Contrast_type == 'Interaction' ~ 0,
+                            TRUE ~ estimate),
+         Target = case_when(Contrast_type == 'Interaction' ~ 'Control',
+                            TRUE ~ Target))
+
+gene_plotter = function(gene) {
+  
+  data = data_long %>% 
+    filter(Gene_names %in%  gene) %>% 
+    left_join(stats_control %>% 
+                filter(Gene_names %in% gene) %>% 
+                rename(Sample = Target)) %>% 
+    mutate(Sample = case_when(
+      Sample == '1mM_Micit' ~ 'Micit\n(1mM)',
+      Sample == '10mM_Micit' ~ 'Micit\n(10mM)',
+      Sample == '5FU_1mM_Micit' ~ '5FU \n+\n Micit\n(1mM)',
+      Sample == '5FU_10mM_Micit' ~ '5FU \n+\n Micit\n(10mM)',
+      TRUE ~ Sample)) %>%
+    mutate(Sample = factor(Sample, levels = c('Control',
+                                              '5FU',
+                                              'Micit\n(1mM)',
+                                              'Micit\n(10mM)',
+                                              '5FU \n+\n Micit\n(1mM)', 
+                                              '5FU \n+\n Micit\n(10mM)'))) 
+  
+  minval = data %>% 
+    drop_na(Intensity) %>% 
+    mutate(minval = min(Intensity)) %>% 
+    distinct(minval) %>% 
+    pull(minval)
+  
+  maxval = data %>% 
+    drop_na(Intensity) %>% 
+    mutate(maxval = min(Intensity)) %>% 
+    distinct(maxval) %>% 
+    pull(maxval)
+  
+  
+  data %>%
+    ggplot(aes(x = Sample, y = Intensity, fill = Sample)) +
+    geom_boxplot() +
+    geom_text(aes(label = FDR_stars), y = maxval * 1.11) +
+    geom_text(aes(label = paste0('log2FC:\n ',round(estimate,2)), 
+                  y = maxval * 1.095)) +
+    ylim(minval * 0.98, maxval * 1.12) +
+    geom_point(position = position_jitterdodge()) +
+    facet_wrap(~Gene_names) 
+  
+  ggsave(here('summary/protein_individual_plots', 
+              glue::glue('{gene}_plot.pdf')),
+         height = 8, width = 10)
+  
+}
+
+gene_plotter('TYMS')
+
+
+
+gene_list = stats_control %>% 
+  arrange(estimate) %>% 
+  # head(50) %>% 
+  distinct(Gene_names) %>%  pull(Gene_names)
+  
+
+for (gene in gene_list){
+  gene_plotter(gene)
+}
+
+#loading packages
+
+list.of.packages <- c(
+  "foreach",
+  "doParallel",
+  "ranger",
+  "tidyverse",
+  "kableExtra"
+)
+
+for(package.i in list.of.packages){
+  suppressPackageStartupMessages(
+    library(
+      package.i, 
+      character.only = TRUE
+    )
+  )
+}
+
+n.cores = parallel::detectCores() - 2
+
+#create the cluster
+my.cluster <- parallel::makeCluster(
+  n.cores, 
+  type = "PSOCK"
+)
+
+#register it to be used by %dopar%
+doParallel::registerDoParallel(cl = my.cluster)
+
+clusterEvalQ(cl,  library(tidyverse))
+
+#check if it is registered (optional)
+foreach::getDoParRegistered()
+
+foreach(gene %in% gene_list) %dopar% {
+  gene_plotter(gene)
+}
+
+parallel::stopCluster(cl = my.cluster)
+
+
 # enrichment exploration --------------------------------------------------
 
 library(readxl)
