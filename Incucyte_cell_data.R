@@ -5,7 +5,7 @@ library(here)
 library(broom)
 library(cowplot)
 
-theme_set(theme_classic())
+theme_set(theme_cowplot(15))
 
 # read data ---------------------------------------------------------------
 
@@ -482,8 +482,16 @@ ggsave(here('summary/growth_curves_selected/', 'selected_paper.pdf'),
 # normalise AUC -----------------------------------------------------------
 
 
+data_auc %>% 
+  filter(cell == 'CCD841_CoN') %>% 
+  filter(!(IC == 500 & biorep == 1)) %>% 
+  group_by(cell, IC, biorep) %>% 
+  mutate(Viability = auc/auc[Micit_mM == 0]) 
+
+
 auc_viab = data_auc %>% 
   # filter(Micit_mM == 0) %>% 
+  filter(!(cell == 'CCD841_CoN' & IC == 500 & biorep == 1)) %>% 
   group_by(cell, IC, biorep) %>% 
   mutate(Viability = auc/auc[Micit_mM == 0]) %>% 
   ungroup
@@ -560,6 +568,39 @@ auc_viab %>%
 
 
 
+stats4plot = statsR_viab_NOBIOREPS %>% 
+  filter(contrast %in% c('5-1', '1-0','5-0','10-0')) %>%
+  mutate(estimate = case_when(contrast == '5-1' ~ 0,
+                              TRUE ~ estimate),
+         p.stars = case_when(contrast == '5-1' ~ '',
+                             TRUE ~ p.stars)) %>% 
+  mutate(Micit_mM = case_when(contrast == '1-0' ~ 1,
+                              contrast == '5-0' ~ 5,
+                              contrast == '10-0' ~ 10,
+                              contrast == '5-1' ~ 0)) %>% 
+  mutate(Micit_mM = factor(Micit_mM, levels = c(0,1,5,10)))
+
+
+auc_viab %>% 
+  left_join(stats4plot) %>% 
+  filter(cell == 'HCT116') %>% 
+  ggplot(aes(x = Micit_mM, y =  Viability, color = Micit_mM, fill = Micit_mM)) +
+  geom_point(position = position_jitterdodge()) +
+  stat_summary(fun.data = "mean_cl_boot", size = 1)  +
+  geom_text(aes(label = p.stars), 
+            y = 1.2,
+            color = 'black',
+            size = 6) +
+  ylim(0,1.3) +
+  labs(y = 'Normalized confluence',
+       x = '2-methylisocitrate (mM)',
+       color = '2-methylisocitrate (mM)',
+       fill = '2-methylisocitrate (mM)') +
+  scale_fill_viridis_d() +
+  scale_color_viridis_d() +
+  facet_wrap(~IC) 
+
+
 
 
 cells = unique(auc_viab$cell)
@@ -567,11 +608,17 @@ for (line in cells){
   
   
   auc_viab %>% 
+    left_join(stats4plot) %>% 
     filter(cell == line) %>% 
     ggplot(aes(x = Micit_mM, y =  Viability, color = Micit_mM, fill = Micit_mM)) +
     # geom_boxplot() +
     geom_point(position = position_jitterdodge()) +
     stat_summary(fun.data = "mean_cl_boot", size = 1)  +
+    geom_text(aes(label = p.stars), 
+              y = 1.2,
+              color = 'black',
+              size = 6) +
+    ylim(0,1.3) +
     labs(y = 'Normalized confluence',
          x = '2-methylisocitrate (mM)',
          color = '2-methylisocitrate (mM)',
@@ -621,6 +668,7 @@ for (line in cells){
 
 
 auc_viab %>% 
+  left_join(stats4plot) %>%
   mutate(selected = case_when(cell == 'HCT116' & IC == 500 ~ 'Yes',
                               cell == 'DLD-1' ~ 'Yes',
                               cell == 'LoVo' & IC == 1000 ~ 'Yes',
@@ -628,9 +676,14 @@ auc_viab %>%
   filter(selected == 'Yes') %>% 
   # filter(Micit_mM != 0) %>% 
   ggplot(aes(x = Micit_mM, y =  Viability,  fill = Micit_mM)) +
-  geom_boxplot() +
+  geom_boxplot(outlier.shape = NA) +
   geom_point(position = position_jitterdodge()) +
   stat_summary(fun.data = "mean_cl_boot", size = 1)  +
+  geom_text(aes(label = p.stars), 
+            y = 1.25,
+            color = 'red',
+            size = 7) +
+  ylim(0.4,1.4) +
   labs(y = 'Normalized confluence',
        x = '2-methylisocitrate (mM)',
        color = '2-methylisocitrate (mM)',
@@ -638,6 +691,7 @@ auc_viab %>%
   scale_fill_viridis_d() +
   scale_color_viridis_d() +
   facet_wrap(~cell) +
+  guides(fill = 'none') +
   theme_cowplot(18) +
   theme(legend.position="top")
 
