@@ -16,6 +16,7 @@ final_hits = read_csv("final_hits.csv")
 seqs_hits_extended = read_csv("seqs_hits_extended.csv")
 
 
+# histogram of number of strains per species
 seqs_hits_extended %>% 
   count(Species) %>%
   ggplot(aes(x = n)) +
@@ -28,6 +29,7 @@ seqs_hits_extended %>%
   count(Species) %>% view
 
 
+# save a file with a unique set of species 
 seqs_hits_extended %>%
   distinct(Species, .keep_all = TRUE) %>% 
   write_csv('unique_seq_hits.csv')
@@ -40,19 +42,23 @@ seqs_hits_extended %>%
 
 # read freq table ---------------------------------------------------------
 
+# this table contains the species frequencies in the ~1500 samples tested 
+# in the paper
 full_df = read_excel("species_freqs.xlsx", 
                             sheet = "FULL") %>% 
   select(-(`...1`:`Prevalence in Paraf. Controls`)) %>% 
   unite(ID, phylum,class,order,family,genus,species, sep='_', remove = F) %>% 
   rename(index = `Unnamed: 2`)
 
-
+# this is a table with the hits of the species extracted in the 
+# object: seqs_hits_extended
 hits_df = read_excel("species_freqs.xlsx", 
                      sheet = "Hits") %>% 
   select(-(`...1`:`Prevalence in Paraf. Controls`)) %>% 
   unite(ID, phylum,class,order,family,genus,species, sep='_', remove = F) %>% 
   rename(index = `Unnamed: 2`)
 
+# table with counts collapsed per tissue/sample (dereplicated?)
 hits_matrix = read_excel("aay9189_TableS4.xlsx", 
                               sheet = "Hits", skip = 2) %>% 
   rename(index = `...1`)
@@ -61,21 +67,33 @@ hits_matrix = read_excel("aay9189_TableS4.xlsx",
 full_df
 hits_df
 
-# name of samples
-samples = unique(str_split(names(full_df),pattern = '[.]',simplify = T)[,1])[10:24]
- 
+# # name of samples
+# samples = unique(str_split(names(full_df),pattern = '[.]',simplify = T)[,1])[10:24]
+#  
+# 
+# # test sum
+# var = str_replace(samples[1],pattern = ' ',replacement = '_')
+# 
+# full_df %>% 
+#   select(index,ID, starts_with(samples[1])) %>% 
+#   rowwise(index,ID) %>% 
+#   mutate(cosa = sum(
+#     c_across(starts_with(samples[1]))),
+#     .before = samples[1])
 
-# test sum
-var = str_replace(samples[1],pattern = ' ',replacement = '_')
-
-full_df %>% 
-  select(index,ID, starts_with(samples[1])) %>% 
-  rowwise(index,ID) %>% 
-  mutate(cosa = sum(c_across(starts_with(samples[1]))),.before = samples[1])
 
 
+# quality control correction ----------------------------------------------
 
-# helper function
+# this part is important as it calculates the relative counts of each bacteria
+# per sample tissue so we can correct our micit metabolism prediction by it
+# The correction is made by multiplying the matrix of hits (bugs that passed
+# the quality filter) by their relative abundance in each sample
+
+
+### step 1. calculate the relative abundance per sample ####
+
+# helper function that sums the relative values per sample in a rowwise manner
 sum_by = function(data, by, var) {
   suffix = var
   data %>%
@@ -102,6 +120,9 @@ for (sample in samples){
 end_df = end_df %>%
   drop_na(`Breast (NAT)_sum`)
 
+
+### step 2 ####
+
 ### correct by hits ####
 ## VERY IMPORTANT
 # now we need to multiply the values by the "hit" matrix from
@@ -121,6 +142,7 @@ n_hits = t(n_hits)
 
 colnames(n_hits) = c('hits', 'tissue')
 
+# plot of the number of hits of our collection of 320 bacteria in the samples
 n_hits %>% 
   as_tibble %>%
   mutate(hits=as.numeric(hits)) %>% 
@@ -128,17 +150,14 @@ n_hits %>%
   geom_point() +
   theme_light()
 
-
 n_hits['tissue'] = rownames(n_hits)
-
-
-
 
 fix_end_df = end_df %>% 
   left_join(hits_matrix)
 
 names(hits_matrix)
 
+# step 3. multiply the matrices of hits and relative abundance 
 # multiply by hits
 fix_end_df = fix_end_df %>% 
   mutate(`Breast (NAT)_sum` = `Breast (NAT)_sum`*`Breast (NAT)`,
@@ -176,7 +195,7 @@ total_freqs = fix_end_df
 # helping function
 scale2 = function(x, na.rm = TRUE) (x) / sum(x)
 
-# 
+# calculate
 total_freqs = total_freqs %>% 
   mutate(across(contains('('),scale2))
 
@@ -186,6 +205,7 @@ global_freqs = total_freqs %>% filter(index %in% hits_df$index)
 colSums(global_freqs[,3:17]) %>% 
   tibble(sample = names(colSums(global_freqs[,3:17]))) %>% 
   ggplot(aes(x = ., y = sample)) + geom_point() +
+  xlim(0, 0.13) +
   labs(y = 'Sample',
        x = 'Total frequency of hits') +
   theme_light()
@@ -208,7 +228,6 @@ hits_freqs = hits_df %>% select(index:species) %>%
 
 list_of_datasets = list(
   raw_values = end_df,
-  total_freqs = total_freqs,
   hits_global_freqs = global_freqs,
   hits_freqs = hits_freqs
 )
@@ -227,7 +246,9 @@ micit = read_excel("MICIT2_selected_strains.xlsx",
 names(micit)
 
 micit = micit %>% 
-  select(species = Species, NGM = NGM_MicitOptimization, serum = serum_MicitOptimization)
+  select(species = Species, 
+         NGM = NGM_MicitOptimization, 
+         serum = serum_MicitOptimization)
 
 micit_sp = micit$species
 
@@ -241,7 +262,7 @@ hits_freqs_micit = hits_freqs %>%
 
 A = as.matrix(hits_freqs_micit[,2:16])
 
-# B = as.matrix(micit[,2:3])
+B = as.matrix(micit[,2:3])
 
 micit_prod = t(A) %*% B
 
@@ -253,25 +274,34 @@ micit_prod = micit_prod %>%
 
 micit_prod %>% 
   pivot_longer(NGM:serum, names_to = 'Media', values_to = 'Micit_prod') %>% 
-  ggplot(aes(x = Micit_prod, y = reorder(tissue, Micit_prod, mean), fill=Media, group=Media)) +
+  mutate(tissue = str_sub(tissue, 1,  -5)) %>% 
+  ggplot(aes(x = Micit_prod, y = reorder(tissue, Micit_prod, mean), 
+             fill=Media, group=Media)) +
   geom_bar(stat = 'identity') + 
-  labs(x = 'Micit production',
+  labs(x = 'Micit production (a.u.)',
        y = 'Tissue') +
   facet_wrap(~Media, scales = 'free_x') +
-  theme_light() 
+  scale_fill_manual(values = c('#9A1DE0','#F54B1D')) + 
+  theme_cowplot(15) +
+  panel_border()
 
 ggsave('Micit_prod_byTissue.pdf', height = 8, width = 10)
+
+
 
 micit_prod %>% 
   filter(str_detect(tissue, '\\(T\\)')) %>% 
   pivot_longer(NGM:serum, names_to = 'Media', values_to = 'Micit_prod') %>% 
-  ggplot(aes(x = Micit_prod, y = reorder(tissue, Micit_prod, mean), fill=Media, group=Media)) +
+  mutate(tissue = str_sub(tissue, 1,  -9)) %>% 
+  ggplot(aes(x = Micit_prod, y = reorder(tissue, Micit_prod, mean),
+             fill=Media, group=Media)) +
   geom_bar(stat = 'identity') + 
-  labs(x = 'Micit production',
+  labs(x = 'Micit production (a.u.)',
        y = 'Tissue') +
   facet_wrap(~Media, scales = 'free_x') +
   scale_fill_manual(values = c('#9A1DE0','#F54B1D')) + 
-  theme_light() 
+  theme_cowplot(15) +
+  panel_border()
 
 ggsave('Micit_prod_byTissue_cancer.pdf', height = 7, width = 9)
 
@@ -279,13 +309,15 @@ ggsave('Micit_prod_byTissue_cancer.pdf', height = 7, width = 9)
 micit_prod %>% 
   filter(str_detect(tissue, '\\(T\\)')) %>% 
   pivot_longer(NGM:serum, names_to = 'Media', values_to = 'Micit_prod') %>% 
+  mutate(tissue = str_sub(tissue, 1,  -9)) %>% 
   filter(Media == 'serum') %>% 
-  ggplot(aes(x = Micit_prod, y = reorder(tissue, Micit_prod, mean), fill=Media, group=Media)) +
+  ggplot(aes(x = Micit_prod, y = reorder(tissue, Micit_prod, mean), 
+             fill=Media, group=Media)) +
   geom_bar(stat = 'identity') + 
   scale_fill_manual(values = c('#F54B1D')) +
-  labs(x = 'Micit production',
+  labs(x = 'Micit production (a.u.)',
        y = 'Tissue') +
-  theme_light() 
+  theme_cowplot(15) 
 
 ggsave('Micit_prod_byTissue_SERUM.pdf', height = 7, width = 5)
 
@@ -293,17 +325,24 @@ ggsave('Micit_prod_byTissue_SERUM.pdf', height = 7, width = 5)
 
 # correlation 
 # plot
+
 library(broom)
 micit %>% 
   filter(!(NGM == 0 & serum == 0)) %>% 
   ggplot(aes(NGM, serum)) +
   geom_smooth(method = 'lm') +
   geom_point() +
-  theme_light()
+  ggpubr::stat_cor(method = "pearson", 
+                   label.x = 0.1, label.y = 12,
+                   size = 5) +
+  theme_cowplot(15) 
+
+ggsave('correlation_serum_NGM.pdf',
+       height = 8, width = 9)
 
 model = micit %>% 
   filter(!(NGM == 0 & serum == 0)) %>% 
-  nest(everything()) %>% 
+  nest(data = everything()) %>% 
   mutate(model = map(data, lm, formula = 'NGM ~ serum'))  %>% 
   select(model)
 
@@ -353,11 +392,15 @@ hits_freqs_recalc_micit %>%
                            values_to = 'Micit_prod')) %>% 
   mutate(Prod_by_genus = Abundance * Micit_prod) %>% 
   filter(str_detect(tissue, '\\(T\\)')) %>% 
-  ggplot(aes(x = Prod_by_genus, y = fct_reorder(tissue,Micit_prod) , fill = genus)) +
+  mutate(tissue = str_sub(tissue, 1,  -9)) %>% 
+  ggplot(aes(x = Prod_by_genus, y = fct_reorder(tissue,Micit_prod), 
+             fill = genus)) +
   geom_bar(position="stack", stat="identity") +
+  labs(x = 'Micit production (a.u.)',
+       y = 'Tissue') +
   facet_wrap(~Media, scales = 'free_x') +
   scale_fill_hue(l=40) +
-  theme_light()
+  theme_cowplot(15)
 
 
 ggsave('Micit_prod_byTissue_Genus.pdf', height = 7, width = 18)
@@ -401,11 +444,15 @@ hits_freqs_recalc_micit %>%
                            values_to = 'Micit_prod')) %>% 
   mutate(Prod_by_family = Abundance * Micit_prod) %>% 
   filter(str_detect(tissue, '\\(T\\)')) %>% 
-  ggplot(aes(x = Prod_by_family, y = fct_reorder(tissue,Micit_prod) , fill = family)) +
+  mutate(tissue = str_sub(tissue, 1,  -9)) %>% 
+  ggplot(aes(x = Prod_by_family, y = fct_reorder(tissue,Micit_prod), 
+             fill = family)) +
+  labs(x = 'Micit production (a.u.)',
+       y = 'Tissue') +
   geom_bar(position="stack", stat="identity") +
   facet_wrap(~Media, scales = 'free_x') +
   scale_fill_hue(l=40) +
-  theme_light()
+  theme_cowplot(15)
 
 ggsave('Micit_prod_byTissue_family.pdf', height = 7, width = 18)
 
@@ -447,13 +494,21 @@ hits_freqs_recalc_micit %>%
                            values_to = 'Micit_prod')) %>% 
   mutate(Prod_by_order = Abundance * Micit_prod) %>% 
   filter(str_detect(tissue, '\\(T\\)')) %>% 
-  ggplot(aes(x = Prod_by_order, y = fct_reorder(tissue,Micit_prod) , fill = order)) +
+  mutate(tissue = str_sub(tissue, 1,  -9)) %>% 
+  ggplot(aes(x = Prod_by_order, y = fct_reorder(tissue,Micit_prod), 
+             fill = order)) +
+  labs(x = 'Micit production (a.u.)',
+       y = 'Tissue') +
   geom_bar(position="stack", stat="identity") +
   facet_wrap(~Media, scales = 'free_x') +
-  scale_fill_hue(l=40) +
-  theme_light()
+  scale_fill_hue(l=50) +
+  theme_cowplot(15)
 
-ggsave('Micit_prod_byTissue_order.pdf', height = 7, width = 18)
+ 
+ggsave('Micit_prod_byTissue_order.pdf', height = 7, width = 14)
+
+
+
 
 ### class ####
 
@@ -492,11 +547,15 @@ hits_freqs_recalc_micit %>%
                            values_to = 'Micit_prod')) %>% 
   mutate(Prod_by_class = Abundance * Micit_prod) %>% 
   filter(str_detect(tissue, '\\(T\\)')) %>% 
-  ggplot(aes(x = Prod_by_class, y = fct_reorder(tissue,Micit_prod) , fill = class)) +
+  mutate(tissue = str_sub(tissue, 1,  -9)) %>% 
+  ggplot(aes(x = Prod_by_class, y = fct_reorder(tissue,Micit_prod), 
+             fill = class)) +
   geom_bar(position="stack", stat="identity") +
   facet_wrap(~Media, scales = 'free_x') +
-  scale_fill_hue(l=40) +
-  theme_light()
+  labs(x = 'Micit production (a.u.)',
+       y = 'Tissue') +
+  scale_fill_hue(l=50) +
+  theme_cowplot(15)
 
 ggsave('Micit_prod_byTissue_class.pdf', height = 7, width = 15)
 
@@ -538,9 +597,10 @@ hits_freqs_recalc_micit %>%
                            values_to = 'Micit_prod')) %>% 
   mutate(Prod_by_phylum = Abundance * Micit_prod) %>% 
   filter(str_detect(tissue, '\\(T\\)')) %>% 
-  mutate(tissue = str_sub(tissue, 1, -5)) %>% 
+  mutate(tissue = str_sub(tissue, 1, -9)) %>% 
   filter(Media == 'serum') %>% 
-  ggplot(aes(x = Prod_by_phylum, y = fct_reorder(tissue,Micit_prod) , fill = phylum)) +
+  ggplot(aes(x = Prod_by_phylum, y = fct_reorder(tissue,Micit_prod), 
+             fill = phylum)) +
   geom_bar(position="stack", stat="identity") +
   # facet_wrap(~Media, scales = 'free_x') +
   # scale_fill_hue(l=40) +
