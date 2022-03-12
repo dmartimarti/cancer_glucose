@@ -420,4 +420,68 @@ ggsave(here('summary/resp_sublibrary', 'Pathways_sensitivity_v2.pdf'),
 
 
 
+#### version 3 ####
 
+glu_targets = c('TCA cycle I\n(prokaryotic)',
+'superpathway of\nglycolysis, pyruvate\ndehydrogenase,\nTCA, and glyoxylate\nbypass')
+
+pyr_targets = c('superpathway\nof pyrimidine\ndeoxyribonucleotides\nde novo biosynthesis')
+
+paths_scores_tidy_filter = paths_scores_tidy %>% 
+  mutate(color = case_when(categories %in% glu_targets ~ 'blue',
+                           categories %in% pyr_targets ~ 'red',
+                           TRUE ~ 'grey30'),
+         size = case_when(categories %in% glu_targets | categories %in% pyr_targets ~ 5,
+                          TRUE ~ 3)) %>% 
+  filter(!(categories %in% c('superpathway of\nhistidine, purine,\nand pyrimidine\nbiosynthesis',
+                           'UMP biosynthesis I')))
+
+
+background %>% 
+  # mutate(new_fill = (Glucose_0 * Glucose_10) ) %>% 
+  mutate(new_fill = (Glucose_0_fill * Glucose_10_fill) + Glucose_10_fill) %>% 
+  ggplot(aes(y = Glucose_0,
+             x = Glucose_10)) +
+  geom_tile(aes(fill = new_fill),
+            alpha = 1,
+            width = 1) +
+  scale_fill_gradient2(
+    high = 'red',
+    mid = 'grey90',
+    low = 'blue') +
+  geom_label_repel(
+    data = paths_scores_tidy_filter,
+    aes(x = Glucose_10, 
+        y = Glucose_0,
+        label = categories,
+        size = size),
+    min.segment.length = Inf,
+    alpha = 0.3,
+    seed = 1234) +
+  geom_label_repel(
+    data = paths_scores_tidy_filter,
+    aes(x = Glucose_10, 
+        y = Glucose_0,
+        label = categories,
+        size = size,
+        color = color),
+    min.segment.length = Inf,
+    label.size = NA,
+    fill = NA,
+    seed = 1234) +
+  guides(fill = 'none',
+         size = 'none',
+         color = 'none') +
+  labs(
+    x = 'Sensitivity to 5FU + Glucose',
+    y = 'Sensitivity to 5FU'
+  ) +
+  scale_size(range = c(3,6)) +
+  scale_color_manual(values = c('darkred', 'grey50', 'darkblue')) +
+  scale_x_continuous(expand = c(0, 0)) +
+  scale_y_continuous(expand = c(0, 0))
+
+
+
+ggsave(here('summary/resp_sublibrary', 'Pathways_sensitivity_v3.pdf'),
+       height = 9, width = 11)
