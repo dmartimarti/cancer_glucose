@@ -312,7 +312,7 @@ expand_grid(Glucose_0 = seq(from = 0, by = 0.01, to = 3),
   ggplot(aes(y = Glucose_0,
              x = Glucose_10)) +
   geom_tile(aes(fill = fill),
-            width=1) +
+            width=0.05) +
   scale_fill_gradient2() +
   geom_label_repel(
     data = paths_scores_tidy,
@@ -333,8 +333,8 @@ expand_grid(Glucose_0 = seq(from = 0, by = 0.01, to = 3),
     seed = 1234) +
   guides(fill = 'none') +
   labs(
-    x = 'Sensitivity to 5FU + Glucose',
-    y = 'Sensitivity to 5FU'
+    x = 'Sensitivity to 5FU + Glucose score',
+    y = 'Sensitivity to 5FU score'
   ) +
   scale_x_continuous(expand = c(0, 0)) +
   scale_y_continuous(expand = c(0, 0))
@@ -387,7 +387,7 @@ background %>%
              x = Glucose_10)) +
   geom_tile(aes(fill = new_fill),
             alpha = 1,
-            width = 1) +
+            width = 0.05) +
   scale_fill_gradient2() +
   geom_label_repel(
     data = paths_scores_tidy,
@@ -408,8 +408,8 @@ background %>%
     seed = 1234) +
   guides(fill = 'none') +
   labs(
-    x = 'Sensitivity to 5FU + Glucose',
-    y = 'Sensitivity to 5FU'
+    x = 'Sensitivity to 5FU + Glucose score',
+    y = 'Sensitivity to 5FU score'
   ) +
   scale_x_continuous(expand = c(0, 0)) +
   scale_y_continuous(expand = c(0, 0))
@@ -439,15 +439,15 @@ paths_scores_tidy_filter = paths_scores_tidy %>%
 
 background %>% 
   # mutate(new_fill = (Glucose_0 * Glucose_10) ) %>% 
-  mutate(new_fill = (Glucose_0_fill * Glucose_10_fill) + Glucose_10_fill) %>% 
+  mutate(new_fill = (Glucose_0_fill * Glucose_10_fill) ) %>% 
   ggplot(aes(y = Glucose_0,
              x = Glucose_10)) +
   geom_tile(aes(fill = new_fill),
             alpha = 1,
-            width = 1) +
+            width = .05) +
   scale_fill_gradient2(
     high = 'red',
-    mid = 'grey90',
+    mid = 'grey95',
     low = 'blue') +
   geom_label_repel(
     data = paths_scores_tidy_filter,
@@ -473,15 +473,34 @@ background %>%
          size = 'none',
          color = 'none') +
   labs(
-    x = 'Sensitivity to 5FU + Glucose',
-    y = 'Sensitivity to 5FU'
+    x = 'Sensitivity to 5FU + Glucose score',
+    y = 'Sensitivity to 5FU score'
   ) +
   scale_size(range = c(3,6)) +
   scale_color_manual(values = c('darkred', 'grey50', 'darkblue')) +
   scale_x_continuous(expand = c(0, 0)) +
-  scale_y_continuous(expand = c(0, 0))
+  scale_y_continuous(expand = c(0, 0)) +
+  theme_cowplot(20)
 
 
 
 ggsave(here('summary/resp_sublibrary', 'Pathways_sensitivity_v3.pdf'),
        height = 9, width = 11)
+
+
+
+
+
+background %>% 
+  mutate(new_fill = (Glucose_0_fill * Glucose_10_fill) ) %>% 
+  filter(Glucose_10 >= 0) %>% 
+  ggplot(aes(y = Glucose_0,
+             x = Glucose_10)) +
+  geom_tile(aes(fill = new_fill),
+            alpha = 1) +
+  scale_fill_gradient2(
+    high = 'red',
+    mid = 'grey95',
+    low = 'blue')
+
+

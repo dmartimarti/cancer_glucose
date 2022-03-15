@@ -3702,32 +3702,58 @@ gltA_pyr.sum = gltA_pyr %>%
 
 # scatter plot
 
-drug = 0
+
+  
+
+drug = 5
 pos = position_jitter(width = 0.05, height = 0.05, seed = 1) # to plot names in jitter positions
 gltA_pyr.sum %>% 
     filter(Drug == drug) %>% 
-    select(Supplement, Supplement_mM, Genes, BW_norm) %>%
+    mutate(names = str_split(Genes, ' ')) %>% 
+    group_by(Genes, Supplement_mM) %>% 
+    mutate(n_genes = lengths(names),
+           n_genes = case_when(n_genes == 1 ~ 'Single\nmutant',
+                               n_genes == 2 ~ 'Double\nmutant')) %>% 
+    select(Supplement, Supplement_mM, Genes, BW_norm, n_genes) %>%
     unite(Supp, Supplement, Supplement_mM) %>%
     spread(Supp, BW_norm) %>%
     ggplot(aes(x = Glucose_0, y = Glucose_10)) + 
     geom_hline(yintercept = 0, colour = 'grey30') +
     geom_vline(xintercept = 0, colour = 'grey30') +
-    geom_point(position = pos, size = 2) + 
+    geom_point(aes(color = n_genes), position = pos, 
+               size = 3, alpha = 0.7 ) + 
     coord_cartesian(ylim = c(-1,1)) + # for drug == 0
     # geom_text_repel(aes(label = Genes), position = pos) +
-    geom_text_repel(aes(label = ifelse(!Genes %in% c('Δglta ΔprpB::K','ΔgltA::K'), as.character(Genes), '')), position = pos, colour = 'black', size = 2.5) +
-    geom_text_repel(aes(label = ifelse(Genes %in% c('Δglta ΔprpB::K','ΔgltA::K'), as.character(Genes), '')), position = pos, colour = 'red', size = 5, box.padding = 3.5) +
-    labs(title = expression(paste("5FU + Pyruvate effect on ", italic('C. elegans'), " N2 phenotype", sep = '')),
-         x = expression(paste('Normalised median scores of ', italic('C. elegans'), ' N2 phenotype', sep = ' ')),
-         y = expression(paste('Normalised median scores of ', italic('C. elegans'), ' N2 phenotype ' , bold('(Pyruvate)'), sep = ' '))) +
+    # geom_text_repel(aes(label = ifelse(!Genes %in% c('Δglta ΔprpB::K','ΔgltA::K'), 
+    #                                    as.character(Genes), '')), 
+    #                 position = pos, 
+    #                 max.overlaps = Inf,
+    #                 colour = 'black', size = 2.5) +
+    geom_text_repel(aes(label = ifelse(Genes %in% c('Δglta ΔprpB::K','ΔgltA::K'), 
+                                       as.character(Genes), '')), 
+                    position = pos, colour = 'red', 
+                    max.overlaps = Inf,
+                    size = 7, box.padding = 3.5) +
+    scale_color_manual(values = c('#B2108B', '#1C8F01')) +
+    # labs(
+    #      x = expression(paste('Normalised median scores of ', italic('C. elegans'), ' N2 phenotype', sep = ' ')),
+    #      y = expression(paste('Normalised median scores of ', italic('C. elegans'), ' N2 phenotype ' , bold('(Pyruvate)'), sep = ' '))) +
+  labs(
+    x = 'C. elegans phenotype scores',
+    y = 'C. elegans phenotype scores (with pyruvate)'
+  ) +
     theme(plot.title = element_text(size = 15, hjust = 0.5, face = "bold"),
             panel.grid.major = element_line(colour = "grey90"),
             panel.background = element_rect(fill = "white", colour = "grey50"),
             legend.text = element_text(size = 6)) + 
-    guides(colour = guide_legend(override.aes = list(size = 4))) # make lengend points larger
+  theme_cowplot(22) +
+  ylim(-0.6, 1) +
+    guides(colour = guide_legend(
+      title = 'Mutant type',
+      override.aes = list(size = 4))) # make lengend points larger
 
 quartz.save(file = here('Summary', paste0('Scatter_pyruvate_DMs_lib_glucose_',as.character(drug),'uM.pdf')),
-    type = 'pdf', dpi = 300, height = 10, width = 12)
+    type = 'pdf', dpi = 300, height = 8, width = 10)
 
 
 
