@@ -38,6 +38,67 @@ metab_clean = metab %>%
   select(-ID,-Sample,-Time, Genotype, Condition, experiment, Metabolite, value)
 
 
+### metaboanalyst csv ####
+# create a version to be used in metaboanalyst
+metab %>% 
+  separate(Code, into = c('ID','Name','experiment'), sep = '_') %>% 
+  mutate(experiment = case_when(is.na(experiment) ~ 1,
+                                TRUE ~ 2)) %>% 
+  separate(Sample, into = c('Genotype', 'Condition', 'Time'), sep = '_') %>% 
+  filter(experiment == 1) %>% 
+  select(-ID:-Name, -experiment,-Time) %>% 
+  unite(Sample, Genotype:Condition, remove=F) %>% 
+  filter(Genotype == 'WT') %>% 
+  group_by(Genotype, Condition) %>% 
+  mutate(ID = seq(1,n(),1), .before=Genotype) %>% 
+  arrange(Genotype, Condition) %>% 
+  select(-Sample) %>% 
+  unite(Sample, Condition,ID, sep = '_', remove=F) %>% 
+  ungroup %>% 
+  select(-ID, -Genotype) %>% 
+  write_csv(here('metaboanalyst_WT.csv'))
+
+metab %>% 
+  separate(Code, into = c('ID','Name','experiment'), sep = '_') %>% 
+  mutate(experiment = case_when(is.na(experiment) ~ 1,
+                                TRUE ~ 2)) %>% 
+  separate(Sample, into = c('Genotype', 'Condition', 'Time'), sep = '_') %>% 
+  filter(experiment == 1) %>% 
+  select(-ID:-Name, -experiment,-Time) %>% 
+  unite(Sample, Genotype:Condition, remove=F) %>% 
+  filter(Genotype == 'p53') %>% 
+  group_by(Genotype, Condition) %>% 
+  mutate(ID = seq(1,n(),1), .before=Genotype) %>% 
+  arrange(Genotype, Condition) %>% 
+  select(-Sample) %>% 
+  unite(Sample, Condition:ID, sep = '_', remove=F) %>% 
+  write_csv(here('metaboanalyst_p53.csv'))
+
+
+
+### multiomics ####
+
+metab %>% 
+  separate(Code, into = c('ID','Name','experiment'), sep = '_') %>% 
+  mutate(experiment = case_when(is.na(experiment) ~ 1,
+                                TRUE ~ 2)) %>% 
+  separate(Sample, into = c('Genotype', 'Condition', 'Time'), sep = '_') %>% 
+  filter(experiment == 1) %>% 
+  select(-ID:-Name, -experiment,-Time) %>% 
+  unite(Sample, Genotype:Condition, remove=F) %>% 
+  filter(Genotype == 'WT') %>% 
+  group_by(Genotype, Condition) %>% 
+  mutate(ID = seq(1,n(),1), .before=Genotype) %>% 
+  arrange(Genotype, Condition) %>% 
+  select(-Sample) %>% 
+  unite(Sample, Condition,ID, sep = '_', remove=F) %>% 
+  ungroup %>% 
+  select(-ID, -Genotype) %>% 
+  pivot_longer(cols = `(R)C(S)S-alliin`:xanthosine,
+               names_to = 'Metabolite', values_to = 'value') %>% 
+  select(-Condition) %>% 
+  pivot_wider(names_from = 'Sample', values_from = value) %>% 
+  write_csv('metab_multiomics.csv')
 
 # the original tubes were split into two different tubes, so I will separate 
 # the data into two different experiments as well. I'll do the stats per 
