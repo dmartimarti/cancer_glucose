@@ -12,7 +12,7 @@ import pandas as pd
 from rdkit.Chem import Fragments
 import re
 from optparse import OptionParser 
-
+from tqdm import tqdm
 
 # create a OptionParser 
 # class object 
@@ -20,12 +20,12 @@ parser = OptionParser()
 
 parser.add_option("-i", "--inp", 
                   dest = "input", 
-                  help = "input file",  
+                  help = "input file in form of an Excel file with two columns: 'Drugs' and 'smiles'",  
                   metavar = "INPUT")
 
 parser.add_option("-o", "--out", 
                   dest = "output", 
-                  help = "output file",  
+                  help = "name of the output file that will store the chemical groups in a csv",  
                   metavar = "OUTPUT") 
 
 (options, args) = parser.parse_args()
@@ -77,10 +77,12 @@ col_names = [i.replace('fr_','') for i in frag_functions]
 
 
 def main():
-    print(f'Reading file {options.input} and saving the output in {options.output}.csv')
+    print(f'\n\nReading file {options.input} and saving the output in {options.output}.csv\n\n')
+
+    drug_list = drug_db.Drug.to_list()
 
     drug_groups_total = []
-    for drug in drug_db.Drug.to_list():
+    for drug in tqdm(drug_list, total = len(drug_list)):
         drug_groups = get_func_gr(drug_db.loc[drug].mol)
         drug_groups_total.append(drug_groups)
 
@@ -89,6 +91,10 @@ def main():
     df_drug = pd.DataFrame(drug_groups_total, index = drug_db.Drug, columns=col_names)
 
     df_drug.to_csv(f'{options.output}.csv', index=True)
+
+    print('\n\nAnalysis done!\n\n')
+
+
 
 
 if __name__ == "__main__":
