@@ -139,7 +139,7 @@ ggsave(here('exploration', 'controls_barplots.pdf'), height = 10, width = 11)
 
 #### calculate viability ####
 ### only use as a control the one of micit = 0, as we want a global control for all the treatments. 
-data = data %>% 
+data_viability = data %>% 
   left_join(controls %>% filter(Micit == 0) %>% select(Plate, Replicate, Mean_control)) %>% 
   mutate(Viability = (Value / Mean_control) * 100,
          Drug_conc = str_sub(DrugU, -1),
@@ -147,19 +147,17 @@ data = data %>%
   select(Plate, Well, Replicate, Micit, Drug, Drug_conc, Value, Viability, Mean_control) 
 
 
-drug_list = unique(as.character(data$Drug))
+drug_list = unique(as.character(data_viability$Drug))
 
 
 
 #### data summary ####
 
-data_sum = data %>%  
+data_sum = data_viability %>%  
   group_by(Drug, Drug_conc, Micit) %>% 
   summarise(Mean = mean(Viability),
             SD = sd(Viability))
 
-
-drug_list = unique(as.character(data$Drug))
 
 
 # plot mean of drug viability
@@ -182,7 +180,7 @@ data_sum %>%
 # Synnergy finder ---------------------------------------------------------
 
 
-sfinder = data %>% 
+sfinder = data_viability %>% 
   rename(Response = Viability,
          Drug2 = Drug,
          Conc1 = Micit,
@@ -351,7 +349,7 @@ result_ZIP = read_excel("exploration/zip_results/result_ZIP_2021-07-30.xlsx") %>
 #   mutate(Drug = str_sub(Drug, 1,-9))
 
 
-data.zip = data %>% left_join(result_ZIP)  %>% 
+data.zip = data_viability %>% left_join(result_ZIP)  %>% 
   mutate(Syn.direction = case_when(Synergy.score < 0 ~ 'Antagonic',
                                    Synergy.score >= 0 ~ 'Synergic'))
 
