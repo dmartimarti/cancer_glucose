@@ -486,6 +486,63 @@ res_ZIP.sum %>%
 
 
 
+
+# NEW results -------------------------------------------------------------
+
+sf_plus = read_excel("exploration/synergyfinder_plus/SynergyFinder_summary_table_2022-04-11.xlsx")
+
+sf_plus = sf_plus %>% 
+  mutate(Category = case_when(drug2 %in% nucl ~ 'Nucleotides',
+                              TRUE ~ 'Other')) 
+
+sf_plus = sf_plus %>% 
+  mutate(across(.cols = c('ZIP_synergy_p_value', 'HSA_synergy_p_value',
+                          'Loewe_synergy_p_value', 'Bliss_synergy_p_value'),
+                as.numeric))
+
+
+
+sf_plus %>% 
+  filter(Bliss_synergy_p_value < 0.05) %>% 
+  group_by(Category) %>% 
+  summarise(Mean = mean(Bliss_synergy))
+
+sf_plus %>% 
+  filter(Bliss_synergy_p_value < 0.05) %>% 
+  ggplot(aes(x = Category, y = Bliss_synergy, fill = Category)) +
+  geom_violin() +
+  geom_jitter(size = 0.5,height = 0, width = 0.1) +
+  geom_point(data = sf_plus,
+             size = 3.5,
+             color = 'black',
+             aes(x = Category, y = Mean)) +
+  geom_errorbar(data = res_ZIP.sum,
+                aes(x = Category, y = Mean,
+                    ymin = Mean - SEM, ymax = Mean + SEM),
+                width = 0.03) +
+  geom_segment(aes(x = 0, y = res_ZIP.sum$Mean[1], xend = 1, yend = res_ZIP.sum$Mean[1]),
+               linetype="dashed", colour = 'grey50') +
+  geom_segment(aes(x = 0, y = res_ZIP.sum$Mean[2], xend = 2, yend = res_ZIP.sum$Mean[2]),
+               linetype="dashed", colour = 'grey50') +
+  # pval annotation
+  geom_segment(aes(x = 1, xend = 2, y = 16.5, yend = 16.5)) +
+  annotate("text", x = 1.5, y = 18, label = paste('P-value: ',round(pval, 5))) +
+  # annotate("text", x = 1.5, y = 18, label = paste('P-value < ','0.0001')) +
+  scale_fill_manual(values = c('#F5EC49',
+                               '#3D9CE6'),
+                    labels = c('DNA Damage Drugs',
+                               'Other')) + 
+  labs(x = 'Drug category',
+       y = 'Most synergistic ZIP score') +
+  scale_x_discrete(name = '',
+                   labels = c("Nucleotides" = "DNA Damage Drugs","Other" = "Other")) +
+  theme(axis.text.x = element_text(face = "bold", size = 13, color = 'black'),
+        axis.text.y = element_text(face = "bold", size = 13, color = 'black'))
+  
+
+
+
+
 #### stats ####
 library(rstatix)
 
@@ -1691,6 +1748,28 @@ df_welch
 
 
 
+
+
+# with metab classification -----------------------------------------------
+
+# generate one-hot encoding of molecule type
+onehot_type = metaU %>% 
+  separate_rows(Type, sep = ', ') %>% 
+  mutate(val=1) %>% 
+  select(DrugU, Type, val) %>% 
+  pivot_wider(names_from = Type, values_from = val, values_fill = 0)
+
+
+# generate one-hot encoding of process
+onehot_proc = metaU %>% 
+  separate_rows(Process, sep = ', ') %>% 
+  mutate(val=1) %>% 
+  select(DrugU, Process, val) %>% 
+  pivot_wider(names_from = Process, values_from = val, values_fill = 0)
+
+
+
+
 # # # # # # # # # # # # # #
 # # # # # # # # # # # # # #
 # # # # # # # # # # # # # # 
@@ -1840,8 +1919,12 @@ rownames(tsne_mat_biolog) = tsne.df.biolog$Drug
 
 # tsne_mat_biolog = scale(tsne_mat_biolog)
 
-res.km = eclust(tsne_mat_biolog, "kmeans", nstart = 5,
-                k.max = 12, seed = 123)
+res.km = eclust(tsne_mat_biolog, 
+                "kmeans", 
+                stand = F,
+                nstart = 5,
+                k.max = 12, 
+                seed = 123)
 
 fviz_gap_stat(res.km$gap_stat)
 
@@ -2085,7 +2168,8 @@ cl8.enrich = enrich(cl8, db = meta_type) %>%
 cl1.enrich %>% 
   bind_rows(cl2.enrich, cl3.enrich, cl4.enrich, cl5.enrich,
             cl6.enrich, cl7.enrich, cl8.enrich) %>% 
-  filter(pval <= 0.05) %>% view
+  # filter(pval <= 0.05) %>% 
+  view
 
 
 
