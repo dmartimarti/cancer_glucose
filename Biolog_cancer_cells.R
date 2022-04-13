@@ -1,4 +1,4 @@
-# libraries
+# libraries -------------------
 
 library(tidyverse)
 library(readxl)
@@ -1753,10 +1753,18 @@ df_welch
 # with metab classification -----------------------------------------------
 
 # generate one-hot encoding of molecule type
+onehot_mol = metaU %>% 
+  separate_rows(Molecule, sep = ', ') %>% 
+  mutate(val=1) %>% 
+  select(Drug, Molecule, val) %>% 
+  pivot_wider(names_from = Molecule, values_from = val, values_fill = 0)
+
+
+# generate one-hot encoding of molecule type
 onehot_type = metaU %>% 
   separate_rows(Type, sep = ', ') %>% 
   mutate(val=1) %>% 
-  select(DrugU, Type, val) %>% 
+  select(Drug, Type, val) %>% 
   pivot_wider(names_from = Type, values_from = val, values_fill = 0)
 
 
@@ -1764,10 +1772,247 @@ onehot_type = metaU %>%
 onehot_proc = metaU %>% 
   separate_rows(Process, sep = ', ') %>% 
   mutate(val=1) %>% 
-  select(DrugU, Process, val) %>% 
+  select(Drug, Process, val) %>% 
   pivot_wider(names_from = Process, values_from = val, values_fill = 0)
 
 
+# generate one-hot encoding of process
+onehot_target = metaU %>% 
+  separate_rows(Target, sep = ', ') %>% 
+  mutate(val=1) %>% 
+  select(Drug, Target, val) %>% 
+  pivot_wider(names_from = Target, values_from = val, values_fill = 0)
+
+
+
+### t-SNE ####
+
+tsne_fit = onehot_type %>% 
+  bind_cols(onehot_proc) %>%
+  # bind_cols(onehot_mol, onehot_target) %>%
+  rename(Drug = `Drug...1`) %>%
+  # filter(Drug != 'Dactinomycin') %>%
+  # bind_cols(fgroups) %>%
+  select(where(is.numeric)) %>% # retain only numeric columns
+  Rtsne(check_duplicates = FALSE, pca = FALSE, num_threads = 8,
+        normalize = FALSE, max_iter = 2000, 
+        perplexity = 15, theta = 0.001, dims = 3)
+
+# generate data frame from tnse results
+tsne.df = data.frame(tsne_fit$Y)
+colnames(tsne.df) = c('Dim1', 'Dim2', 'Dim3')
+
+tsne.df = tsne.df %>% 
+  mutate(Drug = onehot_type$Drug) %>% 
+  mutate(Category = case_when(Drug %in% nucl ~ 'Nucleotide',
+                              TRUE ~ 'Other'))
+
+
+tsne.df %>%
+  plot_ly(x = ~Dim1, y = ~Dim2, z = ~Dim3,
+          text = ~Drug, color = ~Category) %>% 
+  add_markers()
+
+
+
+### k-means #####
+
+# tsne_mat_biolog = scale(tsne_mat_biolog)
+
+
+tsne_mat_biolog = tsne.df[,1:3] %>% as.data.frame
+
+rownames(tsne_mat_biolog) = onehot_proc$Drug
+
+res.km = eclust(tsne_mat_biolog, 
+                "kmeans", 
+                stand = F,
+                nstart = 5,
+                k.max = 12, 
+                seed = 123)
+
+fviz_gap_stat(res.km$gap_stat)
+
+fviz_silhouette(res.km)
+# 
+# ggsave(here('exploration/Multivariate_final', 'silhouette_analysis.pdf'), 
+#        height = 9, width = 10)
+
+### exploration clusters ####
+
+tsne.df.biolog  = tsne_mat_biolog %>% as_tibble(rownames = 'Drug')
+
+
+tsne.df.biolog = tsne.df.biolog %>%
+  mutate(cluster = res.km$cluster, .before = Drug,
+         cluster = as.factor(cluster))
+
+tsne.df.biolog %>%
+  plot_ly(x = ~Dim1, y = ~Dim2, z = ~Dim3,
+          text = ~Drug, color=~cluster) %>% 
+  add_markers()
+
+
+
+
+### boxplots ####
+
+# a bit of exploration
+
+# n_clusters = max(as.numeric(tsne.df.biolog$cluster))
+# n_clusters = res.km$nbclust
+
+tsne.df.biolog %>% 
+  group_by(cluster) %>% 
+  count() %>% 
+  ggplot(aes(x = cluster, y = n)) +
+  geom_col(aes(fill = cluster), color = 'black') +
+  labs(x = 'Cluster',
+       y = 'Elements in cluster',
+       caption = 'Number of elements in each cluster as calculated in the t-SNE') +
+  guides(fill = 'none')
+
+
+# ggsave(here('exploration/Multivariate_final', 'elements_in_cluster.pdf'), 
+       # height = 9, width = 10)
+
+
+
+### boxplots vs all measures together ####
+
+results_cluster = result_ZIP %>% 
+  left_join(tsne.df.biolog) %>% 
+  drop_na(cluster)
+
+
+results_cluster = results_cluster %>% 
+  mutate(new_cat = 0,
+         new_cat= factor(new_cat)) %>% # create a dummy category column
+  bind_rows(results_cluster %>% 
+              mutate(new_cat = cluster)) %>% 
+  mutate(new_cat = as.factor(new_cat)) 
+
+
+
+results_cluster %>% 
+  mutate( new_cat = recode(new_cat, `0` = 'ALL')) %>%
+  ggplot(aes(y = Most.synergistic.area.score, x = new_cat, fill = new_cat)) +
+  geom_boxplot() +
+  geom_point(position = position_jitterdodge()) +
+  guides(fill = 'none') +
+  labs(x = 'Cluster',
+       y = 'Most Synergistic area score', 
+       caption = 'Boxplots from the synergy scores per cluster')
+
+ggsave(here('exploration/Multivariate_final', 'boxplots_most_synergistic.pdf'), 
+       height = 9, width = 10)
+
+
+
+
+### STATS ####
+
+n_clusters = res.km$nbclust
+
+
+# stats for synergy score
+df_lm = tibble()
+for (k in 1:n_clusters){
+  
+  res = adhoc_stats(cluster = k)
+  
+  df_lm = df_lm %>% bind_rows(res)
+  
+}
+
+
+df_lm %>% 
+  mutate(p.stars = gtools::stars.pval(p.value))
+
+df_lm %>% 
+  mutate(p.stars = gtools::stars.pval(p.value)) %>% 
+  write_csv(here('exploration/Multivariate_final', 'clusters_synergy_stats.csv'))
+
+
+####
+
+# stats for Most synergy region score
+df_lm = tibble()
+for (k in 1:n_clusters){
+  
+  res = adhoc_stats(cluster = k, mode = 'Most.synergistic.area.score')
+  
+  df_lm = df_lm %>% bind_rows(res)
+  
+}
+
+
+df_lm %>% 
+  mutate(p.stars = gtools::stars.pval(p.value))
+
+df_lm %>% 
+  mutate(p.stars = gtools::stars.pval(p.value)) %>% 
+  write_csv(here('exploration/Multivariate_final', 'clusters_MostSynergy_stats.csv'))
+
+
+
+
+
+# save the original file to see the clusters
+# tsne.df.biolog %>% 
+#   write_csv(here('exploration/Multivariate_final', 'biolog_with_clusters.csv'))
+
+
+
+### mol enrichment cluster ####
+
+
+## helper function (originally from )
+
+meta_type = metaU %>% 
+  separate_rows(Type, sep = ',') %>% 
+  select(Drug, Type) %>% 
+  drop_na(Drug)
+
+
+cl1 = results_cluster %>% filter(cluster == 1) %>% pull(Drug)
+cl1.enrich = enrich(cl1, db = meta_type) %>% 
+  mutate(direction = 'cluster_1')
+
+cl2 = results_cluster %>% filter(cluster == 2) %>% pull(Drug)
+cl2.enrich = enrich(cl2, db = meta_type) %>% 
+  mutate(direction = 'cluster_2')
+
+cl3 = results_cluster %>% filter(cluster == 3) %>% pull(Drug)
+cl3.enrich = enrich(cl3, db = meta_type) %>% 
+  mutate(direction = 'cluster_3')
+
+cl4 = results_cluster %>% filter(cluster == 4) %>% pull(Drug)
+cl4.enrich = enrich(cl4, db = meta_type) %>% 
+  mutate(direction = 'cluster_4')
+
+cl5 = results_cluster %>% filter(cluster == 5) %>% pull(Drug)
+cl5.enrich = enrich(cl5, db = meta_type) %>% 
+  mutate(direction = 'cluster_5')
+
+cl6 = results_cluster %>% filter(cluster == 6) %>% pull(Drug)
+cl6.enrich = enrich(cl6, db = meta_type) %>% 
+  mutate(direction = 'cluster_6')
+
+cl7 = results_cluster %>% filter(cluster == 7) %>% pull(Drug)
+cl7.enrich = enrich(cl7, db = meta_type) %>% 
+  mutate(direction = 'cluster_7')
+
+cl8 = results_cluster %>% filter(cluster == 8) %>% pull(Drug)
+cl8.enrich = enrich(cl8, db = meta_type) %>% 
+  mutate(direction = 'cluster_8')
+
+
+cl1.enrich %>% 
+  bind_rows(cl2.enrich, cl3.enrich, cl4.enrich, cl5.enrich,
+            cl6.enrich, cl7.enrich, cl8.enrich) %>% 
+  # filter(pval <= 0.05) %>% 
+  view
 
 
 # # # # # # # # # # # # # #
