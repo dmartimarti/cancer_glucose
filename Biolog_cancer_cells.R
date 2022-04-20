@@ -1801,7 +1801,7 @@ onehot_target = metaU %>%
 tsne_fit = onehot_type %>% 
   bind_cols(onehot_proc) %>%
   # bind_cols(onehot_mol) %>%
-  # bind_cols(onehot_target) %>%
+  bind_cols(onehot_target) %>%
   rename(Drug = `Drug...1`) %>%
   # filter(Drug != 'Dactinomycin') %>%
   # bind_cols(fgroups) %>%
