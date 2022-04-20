@@ -5,6 +5,12 @@ library(readxl)
 library(here)
 library(openxlsx)
 library(cowplot)
+library(broom)
+library(plotly)
+library(cluster)
+library(factoextra)
+library(Rtsne)
+
 
 theme_set(theme_cowplot(14))
 
@@ -51,7 +57,9 @@ metaU = metabolites %>%
 
 
 
-
+# metaU %>% 
+#   separate_rows(Type, sep = ', ') %>% 
+#   distinct(Type) %>% write_csv('mol_types.csv')
 
 
 rep1 = left_join(rep1, drugs) %>% 
@@ -414,8 +422,7 @@ nucl = c('Azathioprine', 'Fluorouracil',
          'Mercaptopurine', 'Thioguanine',
          "5-Fluoro-5'- DeoxyurIdine", 'Zidovudine',
          'Azacytidine', 'Carmofur',
-         'Floxuridine', "Cytosine-Beta-DArabinofuranoside",
-         'Methotrexate')
+         'Floxuridine', "Cytosine-Beta-DArabinofuranoside")
 
 res_ZIP_cats = result_ZIP %>% 
   mutate(Category = case_when(Drug %in% nucl ~ 'Nucleotides',
@@ -1752,6 +1759,10 @@ df_welch
 
 # with metab classification -----------------------------------------------
 
+library(Rtsne)
+library(plotly)
+
+
 # generate one-hot encoding of molecule type
 onehot_mol = metaU %>% 
   separate_rows(Molecule, sep = ', ') %>% 
@@ -1789,7 +1800,8 @@ onehot_target = metaU %>%
 
 tsne_fit = onehot_type %>% 
   bind_cols(onehot_proc) %>%
-  # bind_cols(onehot_mol, onehot_target) %>%
+  # bind_cols(onehot_mol) %>%
+  # bind_cols(onehot_target) %>%
   rename(Drug = `Drug...1`) %>%
   # filter(Drug != 'Dactinomycin') %>%
   # bind_cols(fgroups) %>%
