@@ -112,6 +112,14 @@ euclidean(micit, acal)
 
 
 
+
+
+
+# initialise variables
+
+thres = 50
+
+
 ## B1 distances  ####
 # computing the distances for all compounds in the table
 
@@ -133,15 +141,20 @@ B1_dist %>% filter(Drug == 'Acalabrutinib')
 
 closest_B1 = B1_dist %>% 
   arrange(dist) %>% 
-  head(30)
+  head(thres)
 
 B1_dist %>% 
   filter(Drug != 'Micit') %>% 
   ggplot(aes(x = fct_reorder(Drug, dist), y = dist)) + 
   geom_point(alpha = 0.2) +
+  labs(
+    y = 'Euclidean Distance to micit',
+    x = 'Drugs'
+  ) +
   theme(axis.text.x = element_blank(),
         axis.ticks.length.x = NULL)
 
+ggsave('B1_distances.pdf', width = 6, height = 5)
 
 
 ## C4 distances  ####
@@ -163,15 +176,20 @@ C4_dist = C4 %>%
 
 closest_C4 = C4_dist %>% 
   arrange(dist) %>% 
-  head(30)
+  head(thres)
 
 C4_dist %>% 
   filter(Drug != 'Micit') %>% 
   ggplot(aes(x = fct_reorder(Drug, dist), y = dist)) + 
   geom_point(alpha = 0.2) +
+  labs(
+    y = 'Euclidean Distance to micit',
+    x = 'Drugs'
+  ) +
   theme(axis.text.x = element_blank(),
         axis.ticks.length.x = NULL)
 
+ggsave('C4_distances.pdf', width = 6, height = 5)
 
 
 ## D1 distances  ####
@@ -193,15 +211,20 @@ D1_dist = D1 %>%
 
 closest_D1 = D1_dist %>% 
   arrange(dist) %>% 
-  head(30)
+  head(thres)
 
 D1_dist %>% 
   filter(Drug != 'Micit') %>% 
   ggplot(aes(x = fct_reorder(Drug, dist), y = dist)) + 
   geom_point(alpha = 0.2) +
+  labs(
+    y = 'Euclidean Distance to micit',
+    x = 'Drugs'
+  ) +
   theme(axis.text.x = element_blank(),
         axis.ticks.length.x = NULL)
 
+ggsave('D1_distances.pdf', width = 6, height = 5)
 
 ## D2 distances  ####
 # computing the distances for all compounds in the table
@@ -222,12 +245,56 @@ D2_dist = D2 %>%
 
 closest_D2 = D2_dist %>% 
   arrange(dist) %>% 
-  head(30)
+  head(thres)
 
 D2_dist %>% 
   filter(Drug != 'Micit') %>% 
   ggplot(aes(x = fct_reorder(Drug, dist), y = dist)) + 
   geom_point(alpha = 0.2) +
+  labs(
+    y = 'Euclidean Distance to micit',
+    x = 'Drugs'
+  ) +
   theme(axis.text.x = element_blank(),
         axis.ticks.length.x = NULL)
+
+ggsave('D2_distances.pdf', width = 6, height = 5)
+
+
+
+
+## D2 distances  ####
+# computing the distances for all compounds in the table
+
+micit_global = glob_cc %>% 
+  filter(Drug == 'Micit') %>% 
+  select(tsne_1:tsne_3) %>% 
+  pivot_longer(cols = tsne_1:tsne_3,
+               names_to = 'dims', values_to = 'vals') %>% 
+  pull(vals)
+
+global_dist = glob_cc %>% 
+  select(-tsne_2d_1, -tsne_2d_2) %>% 
+  group_by(Drug, smiles, origin) %>% 
+  nest() %>% 
+  mutate(dist = map(.x= data, .f = euclidean, b = micit_C4)) %>% 
+  unnest(cols = c(data,dist))
+
+closest_global = global_dist %>% 
+  arrange(dist) %>% 
+  head(thres)
+
+global_dist %>% 
+  filter(Drug != 'Micit') %>% 
+  ggplot(aes(x = fct_reorder(Drug, dist), y = dist)) + 
+  geom_point(alpha = 0.2) +
+  labs(
+    y = 'Euclidean Distance to micit',
+    x = 'Drugs'
+  ) +
+  theme(axis.text.x = element_blank(),
+        axis.ticks.length.x = NULL)
+
+ggsave('global_distances.pdf', width = 6, height = 5)
+
 
