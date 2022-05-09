@@ -143,6 +143,11 @@ closest_B1 = B1_dist %>%
   arrange(dist) %>% 
   head(thres)
 
+# save distances in a file
+B1_dist %>% 
+  arrange(dist) %>% 
+  write_csv('B1_distances.csv')
+
 B1_dist %>% 
   filter(Drug != 'Micit') %>% 
   ggplot(aes(x = fct_reorder(Drug, dist), y = dist)) + 
@@ -177,6 +182,13 @@ C4_dist = C4 %>%
 closest_C4 = C4_dist %>% 
   arrange(dist) %>% 
   head(thres)
+
+
+# save distances in a file
+C4_dist %>% 
+  arrange(dist) %>% 
+  write_csv('C4_distances.csv')
+
 
 C4_dist %>% 
   filter(Drug != 'Micit') %>% 
@@ -213,6 +225,12 @@ closest_D1 = D1_dist %>%
   arrange(dist) %>% 
   head(thres)
 
+# save distances in a file
+D1_dist %>% 
+  arrange(dist) %>% 
+  write_csv('D1_distances.csv')
+
+
 D1_dist %>% 
   filter(Drug != 'Micit') %>% 
   ggplot(aes(x = fct_reorder(Drug, dist), y = dist)) + 
@@ -247,6 +265,12 @@ closest_D2 = D2_dist %>%
   arrange(dist) %>% 
   head(thres)
 
+# save distances in a file
+D2_dist %>% 
+  arrange(dist) %>% 
+  write_csv('D2_distances.csv')
+
+
 D2_dist %>% 
   filter(Drug != 'Micit') %>% 
   ggplot(aes(x = fct_reorder(Drug, dist), y = dist)) + 
@@ -263,7 +287,7 @@ ggsave('D2_distances.pdf', width = 6, height = 5)
 
 
 
-## D2 distances  ####
+## global distances  ####
 # computing the distances for all compounds in the table
 
 micit_global = glob_cc %>% 
@@ -283,6 +307,11 @@ global_dist = glob_cc %>%
 closest_global = global_dist %>% 
   arrange(dist) %>% 
   head(thres)
+
+# save distances in a file
+global_dist %>% 
+  arrange(dist) %>% 
+  write_csv('global_distances.csv')
 
 global_dist %>% 
   filter(Drug != 'Micit') %>% 
