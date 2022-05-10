@@ -218,7 +218,7 @@ D1_dist = D1 %>%
   select(-tsne_2d_1, -tsne_2d_2) %>% 
   group_by(Drug, smiles, origin) %>% 
   nest() %>% 
-  mutate(dist = map(.x= data, .f = euclidean, b = micit_C4)) %>% 
+  mutate(dist = map(.x= data, .f = euclidean, b = micit_D1)) %>% 
   unnest(cols = c(data,dist))
 
 closest_D1 = D1_dist %>% 
@@ -258,7 +258,7 @@ D2_dist = D2 %>%
   select(-tsne_2d_1, -tsne_2d_2) %>% 
   group_by(Drug, smiles, origin) %>% 
   nest() %>% 
-  mutate(dist = map(.x= data, .f = euclidean, b = micit_C4)) %>% 
+  mutate(dist = map(.x= data, .f = euclidean, b = micit_D2)) %>% 
   unnest(cols = c(data,dist))
 
 closest_D2 = D2_dist %>% 
@@ -301,7 +301,7 @@ global_dist = glob_cc %>%
   select(-tsne_2d_1, -tsne_2d_2) %>% 
   group_by(Drug, smiles, origin) %>% 
   nest() %>% 
-  mutate(dist = map(.x= data, .f = euclidean, b = micit_C4)) %>% 
+  mutate(dist = map(.x= data, .f = euclidean, b = micit_global)) %>% 
   unnest(cols = c(data,dist))
 
 closest_global = global_dist %>% 
