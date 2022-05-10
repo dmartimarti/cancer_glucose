@@ -11,7 +11,7 @@ library(glue)
 theme_set(theme_cowplot(15))
 
 
-# read teh data ------------------------------------------------------------
+# read the data ------------------------------------------------------------
 
 # B1. Mechanism of action
 # C4. Biological processes
@@ -22,6 +22,8 @@ B1 = read_csv("drugbank_B1_CC.csv")
 C4 = read_csv("drugbank_C4_CC.csv")
 D1 = read_csv("drugbank_D1_CC.csv")
 D2 = read_csv("drugbank_D2_CC.csv")
+E1 = read_csv("drugbank_E1_CC.csv")
+E5 = read_csv("drugbank_E5_CC.csv")
 glob_cc = read_csv("drugbank_GLOBAL_CC.csv")
 
 
@@ -64,6 +66,27 @@ D2 %>%
   add_markers()
 
 
+
+
+E1 %>%
+  plot_ly(x = ~tsne_1, y = ~tsne_2, z = ~tsne_3,
+          text = ~Drug, color = ~origin,
+          colors = c("#E6B324", "#2550E6"),
+          alpha = 0.8
+  ) %>% 
+  add_markers()
+
+
+
+
+
+E5 %>%
+  plot_ly(x = ~tsne_1, y = ~tsne_2, z = ~tsne_3,
+          text = ~Drug, color = ~origin,
+          colors = c("#E6B324", "#2550E6"),
+          alpha = 0.8
+  ) %>% 
+  add_markers()
 
 glob_cc %>%
   plot_ly(x = ~tsne_1, y = ~tsne_2, z = ~tsne_3,
@@ -283,6 +306,92 @@ D2_dist %>%
         axis.ticks.length.x = NULL)
 
 ggsave('D2_distances.pdf', width = 6, height = 5)
+
+
+
+
+## E1 distances  ####
+# computing the distances for all compounds in the table
+
+micit_E1 = E1 %>% 
+  filter(Drug == 'Micit') %>% 
+  select(tsne_1:tsne_3) %>% 
+  pivot_longer(cols = tsne_1:tsne_3,
+               names_to = 'dims', values_to = 'vals') %>% 
+  pull(vals)
+
+E1_dist = E1 %>% 
+  select(-tsne_2d_1, -tsne_2d_2) %>% 
+  group_by(Drug, smiles, origin) %>% 
+  nest() %>% 
+  mutate(dist = map(.x= data, .f = euclidean, b = micit_E1)) %>% 
+  unnest(cols = c(data,dist))
+
+closest_D2 = D2_dist %>% 
+  arrange(dist) %>% 
+  head(thres)
+
+# save distances in a file
+E1_dist %>% 
+  arrange(dist) %>% 
+  write_csv('E1_distances.csv')
+
+
+E1_dist %>% 
+  filter(Drug != 'Micit') %>% 
+  ggplot(aes(x = fct_reorder(Drug, dist), y = dist)) + 
+  geom_point(alpha = 0.2) +
+  labs(
+    y = 'Euclidean Distance to micit',
+    x = 'Drugs'
+  ) +
+  theme(axis.text.x = element_blank(),
+        axis.ticks.length.x = NULL)
+
+ggsave('E1_distances.pdf', width = 6, height = 5)
+
+
+
+
+## E5 distances  ####
+# computing the distances for all compounds in the table
+
+micit_E5 = E5 %>% 
+  filter(Drug == 'Micit') %>% 
+  select(tsne_1:tsne_3) %>% 
+  pivot_longer(cols = tsne_1:tsne_3,
+               names_to = 'dims', values_to = 'vals') %>% 
+  pull(vals)
+
+E5_dist = E5 %>% 
+  select(-tsne_2d_1, -tsne_2d_2) %>% 
+  group_by(Drug, smiles, origin) %>% 
+  nest() %>% 
+  mutate(dist = map(.x= data, .f = euclidean, b = micit_E5)) %>% 
+  unnest(cols = c(data,dist))
+
+closest_E5 = E5_dist %>% 
+  arrange(dist) %>% 
+  head(thres)
+
+# save distances in a file
+E5_dist %>% 
+  arrange(dist) %>% 
+  write_csv('E5_distances.csv')
+
+
+E5_dist %>% 
+  filter(Drug != 'Micit') %>% 
+  ggplot(aes(x = fct_reorder(Drug, dist), y = dist)) + 
+  geom_point(alpha = 0.2) +
+  labs(
+    y = 'Euclidean Distance to micit',
+    x = 'Drugs'
+  ) +
+  theme(axis.text.x = element_blank(),
+        axis.ticks.length.x = NULL)
+
+ggsave('E5_distances.pdf', width = 6, height = 5)
 
 
 
