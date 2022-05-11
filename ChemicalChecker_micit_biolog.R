@@ -27,6 +27,9 @@ E5 = read_csv("drugbank_E5_CC.csv")
 glob_cc = read_csv("drugbank_GLOBAL_CC.csv")
 
 
+bio_A1 = read_csv("biolog_A1_CC.csv")
+bio_A2 = read_csv("biolog_A2_CC.csv")
+
 # plot some samples -------------------------------------------------------
 
 B1 %>%
@@ -96,6 +99,31 @@ glob_cc %>%
   ) %>% 
   add_markers()
 
+
+## biolog
+# They are not working very well, perhaps because of the t-SNE parameters? 
+
+bio_A1 %>% 
+  mutate(origin = case_when(Drug == 'Micit' ~ 'Micit',
+                            TRUE ~ 'DrugBank')) %>% 
+  plot_ly(x = ~tsne_1, y = ~tsne_2, z = ~tsne_3,
+          text = ~Drug, color = ~origin,
+          colors = c("#E6B324", "#2550E6"),
+          alpha = 0.8
+  ) %>% 
+  add_markers()
+
+
+
+bio_A2 %>% 
+  mutate(origin = case_when(Drug == 'Micit' ~ 'Micit',
+                            TRUE ~ 'DrugBank')) %>% 
+  plot_ly(x = ~tsne_1, y = ~tsne_2, z = ~tsne_3,
+          text = ~Drug, color = ~origin,
+          colors = c("#E6B324", "#2550E6"),
+          alpha = 0.8
+  ) %>% 
+  add_markers()
 
 
 # euclidean distances --------------------------------------
