@@ -93,15 +93,19 @@ rep3 = left_join(rep3, drugs) %>%
 
 # exploration -------------------------------------------------------------
 
-data = bind_rows(rep1,rep2,rep3)
+data = bind_rows(rep1,rep2,rep3) %>% 
+  mutate(Micit = factor(Micit, 
+                        levels = c(0,1,5,10)))
 
+data %>% 
+  write_csv('raw_data_biolog.csv')
 
 # how are the Neg Controls behaving?
 data %>%
   filter(DrugU %in% c('Negative Control|1','Negative Control|2',
                      'Negative Control|3','Negative Control|4')) %>%
   ggplot(aes(y = Value, x = Micit, fill = Micit)) +
-    geom_boxplot()+
+  geom_boxplot(outlier.shape = NA)+
   geom_point(position = position_jitterdodge())
 
 ggsave(here('exploration', 'controls_boxplots.pdf'), height = 10, width = 11)
@@ -130,6 +134,7 @@ ggsave(here('exploration', 'controls_barplots_replicates.pdf'), height = 10, wid
 
 
 data %>% 
+  mutate(Micit = as.factor(Micit)) %>% 
   filter(DrugU %in% c('Negative Control|1','Negative Control|2',
                       'Negative Control|3','Negative Control|4')) %>% 
   group_by(Plate, Micit) %>% 
@@ -146,17 +151,19 @@ ggsave(here('exploration', 'controls_barplots.pdf'), height = 10, width = 11)
 
 
 #### calculate viability ####
-### only use as a control the one of micit = 0, as we want a global control for all the treatments. 
+### only use as a control the one of micit = 0, 
+### as we want a global control for all the treatments. 
 data_viability = data %>% 
-  left_join(controls %>% filter(Micit == 0) %>% select(Plate, Replicate, Mean_control)) %>% 
+  left_join(controls %>% filter(Micit == 0) %>% 
+              select(Plate, Replicate, Mean_control)) %>% 
   mutate(Viability = (Value / Mean_control) * 100,
          Drug_conc = str_sub(DrugU, -1),
          Drug_conc = as.factor(Drug_conc)) %>% 
-  select(Plate, Well, Replicate, Micit, Drug, Drug_conc, Value, Viability, Mean_control) 
+  select(Plate, Well, Replicate, Micit, Drug, Drug_conc, 
+         Value, Viability, Mean_control) 
 
 
 drug_list = unique(as.character(data_viability$Drug))
-
 
 
 #### data summary ####
@@ -164,7 +171,9 @@ drug_list = unique(as.character(data_viability$Drug))
 data_sum = data_viability %>%  
   group_by(Drug, Drug_conc, Micit) %>% 
   summarise(Mean = mean(Viability),
-            SD = sd(Viability))
+            SD = sd(Viability)) %>% 
+  mutate(Micit = factor(Micit, 
+                        levels = c(0,1,5,10)))
 
 
 
