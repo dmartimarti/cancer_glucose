@@ -289,9 +289,11 @@ drug_list = unique(as.character(sfinder_sum$Drug2))
 
 
 # plot mean of drug viability
-drug = 'Rapamycin'
+drug = 'Azaserine'
 sfinder_sum %>% 
   filter(Drug2 == drug) %>% 
+  mutate(Conc1 = factor(Conc1, levels = c(0,1,5,10)),
+         Conc2 = factor(Conc2, levels = c(0,1,2,3,4))) %>% 
   ggplot(aes(x = Conc1, y = Conc2, fill = Mean)) +
   geom_tile() +
   scale_fill_gradient(name = "Viability",
@@ -366,6 +368,12 @@ result_ZIP = read_excel("exploration/zip_results/result_ZIP_2021-07-30.xlsx") %>
 #   mutate(Drug = str_sub(Drug, 1,-9))
 
 
+result_ZIP %>% 
+  mutate(S_left = Synergy.score - `95% CI`,
+         S_right = Synergy.score + `95% CI`) %>% 
+  ggplot(aes(y = fct_reorder(Drug, Synergy.score), x = Synergy.score)) + 
+  geom_point()
+
 data.zip = data_viability %>% left_join(result_ZIP)  %>% 
   mutate(Syn.direction = case_when(Synergy.score < 0 ~ 'Antagonic',
                                    Synergy.score >= 0 ~ 'Synergic'))
@@ -421,6 +429,7 @@ ggsave(here('exploration',filename = 'Complete_heatmap_ZIP.pdf') ,device = 'pdf'
 # nucleotide stats --------------------------------------------------------
 
 
+
 result_ZIP = read_excel("exploration/zip_results/result_ZIP_2021-07-30.xlsx") %>% 
   rename(Drug = Drug.combination) %>% 
   mutate(Drug = str_sub(Drug, 1,-9))
@@ -429,8 +438,9 @@ result_ZIP = read_excel("exploration/zip_results/result_ZIP_2021-07-30.xlsx") %>
 
 nucl = c('Azathioprine', 'Fluorouracil',
          'Mercaptopurine', 'Thioguanine',
-         "5-Fluoro-5'- DeoxyurIdine", 'Zidovudine',
+         "5-Fluoro-5'- DeoxyurIdine", 'Zidovudine', 
          'Azacytidine', 'Carmofur',
+         'Zidovudine',
          'Floxuridine', "Cytosine-Beta-DArabinofuranoside")
 
 res_ZIP_cats = result_ZIP %>% 
@@ -450,7 +460,7 @@ TG = subset(res_ZIP_cats, Category != "Nucleotides")$Most.synergistic.area.score
 tidy(var.test(CG, TG))
 
 # as they suffer from heterocedasticity, var.equal to FALSE
-nucl_stats = t.test(CG, TG, var.equal = T)
+nucl_stats = t.test(CG, TG, var.equal = F)
 library(broom)
 pval = tidy(nucl_stats)$p.value
 
@@ -462,7 +472,8 @@ res_ZIP.sum = res_ZIP_cats %>%
 
 ## MAIN PLOT
 res_ZIP_cats %>%
-  ggplot(aes(x = Category, y = Most.synergistic.area.score, fill = Category)) +
+  ggplot(aes(x = Category, y = Most.synergistic.area.score, 
+             fill = Category)) +
   geom_violin() +
   geom_jitter(size = 0.5,height = 0, width = 0.1) +
   geom_point(data = res_ZIP.sum,
@@ -473,13 +484,16 @@ res_ZIP_cats %>%
                 aes(x = Category, y = Mean,
                     ymin = Mean - SEM, ymax = Mean + SEM),
                 width = 0.03) +
-  geom_segment(aes(x = 0, y = res_ZIP.sum$Mean[1], xend = 1, yend = res_ZIP.sum$Mean[1]),
+  geom_segment(aes(x = 0, y = res_ZIP.sum$Mean[1], xend = 1, 
+                   yend = res_ZIP.sum$Mean[1]),
                linetype="dashed", colour = 'grey50') +
-  geom_segment(aes(x = 0, y = res_ZIP.sum$Mean[2], xend = 2, yend = res_ZIP.sum$Mean[2]),
+  geom_segment(aes(x = 0, y = res_ZIP.sum$Mean[2], xend = 2, 
+                   yend = res_ZIP.sum$Mean[2]),
                linetype="dashed", colour = 'grey50') +
   # pval annotation
   geom_segment(aes(x = 1, xend = 2, y = 16.5, yend = 16.5)) +
-  annotate("text", x = 1.5, y = 18, label = paste('P-value: ',round(pval, 5))) +
+  annotate("text", x = 1.5, y = 18, 
+           label = paste('P-value: ',round(pval, 5))) +
   # annotate("text", x = 1.5, y = 18, label = paste('P-value < ','0.0001')) +
   scale_fill_manual(values = c('#F5EC49',
                                 '#3D9CE6'),
@@ -488,11 +502,13 @@ res_ZIP_cats %>%
   labs(x = 'Drug category',
        y = 'Most synergistic ZIP score') +
   scale_x_discrete(name = '',
-                   labels = c("Nucleotides" = "DNA Damage Drugs","Other" = "Other")) +
+                   labels = c("Nucleotides" = "DNA Damage Drugs",
+                              "Other" = "Other")) +
   theme(axis.text.x = element_text(face = "bold", size = 13, color = 'black'),
         axis.text.y = element_text(face = "bold", size = 13, color = 'black'))
 
-ggsave(here('exploration', 'violin_nucleotides_biolog_MostSynergyScore.pdf'), height = 8, width = 9)
+ggsave(here('exploration', 'violin_nucleotides_biolog_MostSynergyScore.pdf'), 
+       height = 8, width = 9)
 
 
 res_ZIP.sum %>%
@@ -504,57 +520,59 @@ res_ZIP.sum %>%
 
 
 # NEW results -------------------------------------------------------------
-
-sf_plus = read_excel("exploration/synergyfinder_plus/SynergyFinder_summary_table_2022-04-11.xlsx")
-
-sf_plus = sf_plus %>% 
-  mutate(Category = case_when(drug2 %in% nucl ~ 'Nucleotides',
-                              TRUE ~ 'Other')) 
-
-sf_plus = sf_plus %>% 
-  mutate(across(.cols = c('ZIP_synergy_p_value', 'HSA_synergy_p_value',
-                          'Loewe_synergy_p_value', 'Bliss_synergy_p_value'),
-                as.numeric))
-
-
-
-sf_plus %>% 
-  filter(Bliss_synergy_p_value < 0.05) %>% 
-  group_by(Category) %>% 
-  summarise(Mean = mean(Bliss_synergy))
-
-sf_plus %>% 
-  filter(Bliss_synergy_p_value < 0.05) %>% 
-  ggplot(aes(x = Category, y = Bliss_synergy, fill = Category)) +
-  geom_violin() +
-  geom_jitter(size = 0.5,height = 0, width = 0.1) +
-  geom_point(data = sf_plus,
-             size = 3.5,
-             color = 'black',
-             aes(x = Category, y = Mean)) +
-  geom_errorbar(data = res_ZIP.sum,
-                aes(x = Category, y = Mean,
-                    ymin = Mean - SEM, ymax = Mean + SEM),
-                width = 0.03) +
-  geom_segment(aes(x = 0, y = res_ZIP.sum$Mean[1], xend = 1, yend = res_ZIP.sum$Mean[1]),
-               linetype="dashed", colour = 'grey50') +
-  geom_segment(aes(x = 0, y = res_ZIP.sum$Mean[2], xend = 2, yend = res_ZIP.sum$Mean[2]),
-               linetype="dashed", colour = 'grey50') +
-  # pval annotation
-  geom_segment(aes(x = 1, xend = 2, y = 16.5, yend = 16.5)) +
-  annotate("text", x = 1.5, y = 18, label = paste('P-value: ',round(pval, 5))) +
-  # annotate("text", x = 1.5, y = 18, label = paste('P-value < ','0.0001')) +
-  scale_fill_manual(values = c('#F5EC49',
-                               '#3D9CE6'),
-                    labels = c('DNA Damage Drugs',
-                               'Other')) + 
-  labs(x = 'Drug category',
-       y = 'Most synergistic ZIP score') +
-  scale_x_discrete(name = '',
-                   labels = c("Nucleotides" = "DNA Damage Drugs","Other" = "Other")) +
-  theme(axis.text.x = element_text(face = "bold", size = 13, color = 'black'),
-        axis.text.y = element_text(face = "bold", size = 13, color = 'black'))
-  
+# 
+# sf_plus = read_excel("exploration/synergyfinder_plus/SynergyFinder_summary_table_2022-04-11.xlsx")
+# 
+# sf_plus = sf_plus %>% 
+#   mutate(Category = case_when(drug2 %in% nucl ~ 'Nucleotides',
+#                               TRUE ~ 'Other')) 
+# 
+# sf_plus = sf_plus %>% 
+#   mutate(across(.cols = c('ZIP_synergy_p_value', 'HSA_synergy_p_value',
+#                           'Loewe_synergy_p_value', 'Bliss_synergy_p_value'),
+#                 as.numeric))
+# 
+# 
+# 
+# sf_plus %>% 
+#   filter(ZIP_synergy_p_value < 0.05) %>% 
+#   group_by(Category) %>% 
+#   summarise(Mean = mean(ZIP_synergy))
+# 
+# sf_plus %>% 
+#   # filter(ZIP_synergy_p_value < 0.05) %>% 
+#   ggplot(aes(x = Category, y = ZIP_synergy, fill = Category)) +
+#   geom_violin() +
+#   geom_jitter(size = 0.5,height = 0, width = 0.1) +
+#   geom_point(data = sf_plus,
+#              size = 3.5,
+#              color = 'black',
+#              aes(x = Category, y = ZIP_synergy)) +
+#   geom_errorbar(data = res_ZIP.sum,
+#                 aes(x = Category, y = Mean,
+#                     ymin = Mean - SEM, ymax = Mean + SEM),
+#                 width = 0.03) +
+#   geom_segment(aes(x = 0, y = res_ZIP.sum$Mean[1], xend = 1, 
+#                    yend = res_ZIP.sum$Mean[1]),
+#                linetype="dashed", colour = 'grey50') +
+#   geom_segment(aes(x = 0, y = res_ZIP.sum$Mean[2], xend = 2, 
+#                    yend = res_ZIP.sum$Mean[2]),
+#                linetype="dashed", colour = 'grey50') +
+#   # pval annotation
+#   geom_segment(aes(x = 1, xend = 2, y = 16.5, yend = 16.5)) +
+#   annotate("text", x = 1.5, y = 18, label = paste('P-value: ',round(pval, 5))) +
+#   # annotate("text", x = 1.5, y = 18, label = paste('P-value < ','0.0001')) +
+#   scale_fill_manual(values = c('#F5EC49',
+#                                '#3D9CE6'),
+#                     labels = c('DNA Damage Drugs',
+#                                'Other')) + 
+#   labs(x = 'Drug category',
+#        y = 'Most synergistic ZIP score') +
+#   scale_x_discrete(name = '',
+#                    labels = c("Nucleotides" = "DNA Damage Drugs","Other" = "Other")) +
+#   theme(axis.text.x = element_text(face = "bold", size = 13, color = 'black'),
+#         axis.text.y = element_text(face = "bold", size = 13, color = 'black'))
+#   
 
 
 
