@@ -312,6 +312,8 @@ sfinder_sum %>%
 # this represents the MEAN Viability
 for (drug in drug_list){
     p = sfinder_sum %>% 
+      mutate(Conc1 = factor(Conc1, levels = c(0,1,5,10)),
+             Conc2 = factor(Conc2, levels = c(0,1,2,3,4))) %>% 
       filter(Drug2 == drug) %>% 
       ggplot(aes(x = Conc1, y = Conc2, fill = Mean)) +
       geom_tile() +
@@ -330,6 +332,8 @@ for (drug in drug_list){
   
   
   sfinder_sum %>% 
+    mutate(Conc1 = factor(Conc1, levels = c(0,1,5,10)),
+           Conc2 = factor(Conc2, levels = c(0,1,2,3,4))) %>% 
     ggplot(aes(x = Conc1, y = Conc2, fill = Mean)) +
     geom_tile()  +
     scale_fill_gradient(name = "Viability",
@@ -451,7 +455,7 @@ res_ZIP_cats = result_ZIP %>%
 res_ZIP_cats %>% filter(Category == 'Nucleotides')
 
 
-#### stats ####
+#### Most syn stats ####
 library(rstatix)
 
 # homoscedasticity test
@@ -497,12 +501,12 @@ res_ZIP_cats %>%
   # annotate("text", x = 1.5, y = 18, label = paste('P-value < ','0.0001')) +
   scale_fill_manual(values = c('#F5EC49',
                                 '#3D9CE6'),
-                    labels = c('DNA Damage Drugs',
+                    labels = c('Nucleotide \n antimetabolite',
                                'Other')) + 
   labs(x = 'Drug category',
        y = 'Most synergistic ZIP score') +
   scale_x_discrete(name = '',
-                   labels = c("Nucleotides" = "DNA Damage Drugs",
+                   labels = c("Nucleotides" = "Nucleotide \n antimetabolite",
                               "Other" = "Other")) +
   theme(axis.text.x = element_text(face = "bold", size = 13, color = 'black'),
         axis.text.y = element_text(face = "bold", size = 13, color = 'black'))
@@ -519,66 +523,7 @@ res_ZIP.sum %>%
 
 
 
-# NEW results -------------------------------------------------------------
-# 
-# sf_plus = read_excel("exploration/synergyfinder_plus/SynergyFinder_summary_table_2022-04-11.xlsx")
-# 
-# sf_plus = sf_plus %>% 
-#   mutate(Category = case_when(drug2 %in% nucl ~ 'Nucleotides',
-#                               TRUE ~ 'Other')) 
-# 
-# sf_plus = sf_plus %>% 
-#   mutate(across(.cols = c('ZIP_synergy_p_value', 'HSA_synergy_p_value',
-#                           'Loewe_synergy_p_value', 'Bliss_synergy_p_value'),
-#                 as.numeric))
-# 
-# 
-# 
-# sf_plus %>% 
-#   filter(ZIP_synergy_p_value < 0.05) %>% 
-#   group_by(Category) %>% 
-#   summarise(Mean = mean(ZIP_synergy))
-# 
-# sf_plus %>% 
-#   # filter(ZIP_synergy_p_value < 0.05) %>% 
-#   ggplot(aes(x = Category, y = ZIP_synergy, fill = Category)) +
-#   geom_violin() +
-#   geom_jitter(size = 0.5,height = 0, width = 0.1) +
-#   geom_point(data = sf_plus,
-#              size = 3.5,
-#              color = 'black',
-#              aes(x = Category, y = ZIP_synergy)) +
-#   geom_errorbar(data = res_ZIP.sum,
-#                 aes(x = Category, y = Mean,
-#                     ymin = Mean - SEM, ymax = Mean + SEM),
-#                 width = 0.03) +
-#   geom_segment(aes(x = 0, y = res_ZIP.sum$Mean[1], xend = 1, 
-#                    yend = res_ZIP.sum$Mean[1]),
-#                linetype="dashed", colour = 'grey50') +
-#   geom_segment(aes(x = 0, y = res_ZIP.sum$Mean[2], xend = 2, 
-#                    yend = res_ZIP.sum$Mean[2]),
-#                linetype="dashed", colour = 'grey50') +
-#   # pval annotation
-#   geom_segment(aes(x = 1, xend = 2, y = 16.5, yend = 16.5)) +
-#   annotate("text", x = 1.5, y = 18, label = paste('P-value: ',round(pval, 5))) +
-#   # annotate("text", x = 1.5, y = 18, label = paste('P-value < ','0.0001')) +
-#   scale_fill_manual(values = c('#F5EC49',
-#                                '#3D9CE6'),
-#                     labels = c('DNA Damage Drugs',
-#                                'Other')) + 
-#   labs(x = 'Drug category',
-#        y = 'Most synergistic ZIP score') +
-#   scale_x_discrete(name = '',
-#                    labels = c("Nucleotides" = "DNA Damage Drugs","Other" = "Other")) +
-#   theme(axis.text.x = element_text(face = "bold", size = 13, color = 'black'),
-#         axis.text.y = element_text(face = "bold", size = 13, color = 'black'))
-#   
-
-
-
-
-#### stats ####
-library(rstatix)
+#### Syn scores stats ####
 
 # homoscedasticity test
 CG = subset(res_ZIP_cats, Category == "Nucleotides")$Synergy.score
@@ -586,7 +531,7 @@ TG = subset(res_ZIP_cats, Category != "Nucleotides")$Synergy.score
 tidy(var.test(CG, TG))
 
 # as they suffer from heterocedasticity, var.equal to FALSE
-nucl_stats = t.test(CG, TG, var.equal = T)
+nucl_stats = t.test(CG, TG, var.equal = F)
 library(broom)
 pval = tidy(nucl_stats)$p.value
 
@@ -619,12 +564,12 @@ res_ZIP_cats %>%
   # annotate("text", x = 1.5, y = 18, label = paste('P-value < ','0.0001')) +
   scale_fill_manual(values = c('#F5EC49',
                                '#3D9CE6'),
-                    labels = c('DNA Damage Drugs',
+                    labels = c('Nucleotide \n antimetabolite',
                                'Other')) + 
   labs(x = 'Drug category',
        y = 'ZIP score') +
   scale_x_discrete(name = '',
-                   labels = c("Nucleotides" = "DNA Damage Drugs","Other" = "Other")) +
+                   labels = c("Nucleotides" = "Nucleotide \n antimetabolite","Other" = "Other")) +
   theme(axis.text.x = element_text(face = "bold", size = 13, color = 'black'),
         axis.text.y = element_text(face = "bold", size = 13, color = 'black'))
 
@@ -633,39 +578,7 @@ ggsave(here('exploration', 'violin_nucleotides_biolog.pdf'), height = 8, width =
 
 
 
-# Weighted means and standard deviations
-# see my paper from 2017 for the equations to calculate these values
-weigted_stuff = res_ZIP_cats %>% 
-  group_by(Drug) %>% 
-  mutate(SD = ( sqrt(3) * ((abs(Synergy.score) + `95% CI`) - (abs(Synergy.score) - `95% CI`))/3.92),
-         Var = SD**2) %>% 
-  group_by(Category) %>% 
-  mutate(w = (1/Var)/(sum(1/Var)),
-         Wmean = sum(Synergy.score * w),
-         Wsd = sqrt((1/(1-sum(w**2))) * sum(w * ((Synergy.score - Wmean)**2)) )) 
-
-weigted_stuff.sum = weigted_stuff %>% distinct(Category, .keep_all = T) %>% 
-  select(Wmean, Wsd, Category)
-
-res_ZIP_cats %>% 
-  group_by(Category) %>% 
-  count()
-
-
-
-x = weigted_stuff %>% filter(Category == 'Other') %>% pull(Synergy.score)
-y = weigted_stuff %>% filter(Category == 'Nucleotides') %>% pull(Synergy.score)
-
-wx = weigted_stuff %>% filter(Category == 'Other') %>% pull(w)
-wy = weigted_stuff %>% filter(Category == 'Nucleotides') %>% pull(w)
-
-weights::wtd.t.test(x=x, y=y, weight=wx, weighty=wy, samedata=F)
-
-
-
 # Heatmap for Tanara ------------------------------------------------------
-
-
 
 
 
@@ -687,6 +600,14 @@ data %>% filter(Drug == drug) %>%
         axis.title.y = element_text(face = "bold", size = 13, color = 'black'))
 
 ggsave(here('exploration', 'micit_heatmap_conference.pdf'), height = 8, width = 9)
+
+
+
+
+
+
+
+
 
 
 
@@ -1034,7 +955,6 @@ ggsave(here('exploration/Fingerprints_results', 'silhouette_plot_kmeans_tSNE.pdf
 dir.create(here('exploration', 'Functional_groups_results'))
 
 ## load the Morgan fingerprints produced by the script: pyMol2FuncGroup.py 
-
 fgroups = read_csv("func_groups_biolog.csv")
 
 # remove dactinomycin as it's very different from all the others
@@ -2138,7 +2058,6 @@ tsne.df.biolog = tsne.df %>%
 
 
 ### silhouette plot ####
-
 tsne_mat_biolog = tsne.df.biolog %>% select(Dim1:Dim3) %>% data.frame
 
 
@@ -2206,9 +2125,9 @@ rownames(tsne_mat_biolog) = tsne.df.biolog$Drug
 res.km = eclust(tsne_mat_biolog, 
                 "kmeans", 
                 stand = F,
-                nstart = 5,
-                k.max = 12, 
-                seed = 123)
+                nstart = 6,
+                k.max = 10, 
+                seed = 1234567)
 
 fviz_gap_stat(res.km$gap_stat)
 
@@ -2319,7 +2238,6 @@ df_lm = tibble()
 for (k in 1:n_clusters){
   
   res = adhoc_stats(cluster = k)
-  
   df_lm = df_lm %>% bind_rows(res)
   
 }
@@ -2365,6 +2283,7 @@ tsne.df.biolog %>%
 
 ### mol enrichment cluster ####
 
+# TODO: review the enrichment calculations!
 
 ## helper function (originally from )
 
@@ -2409,51 +2328,47 @@ enrich = function(gene, db){
 }
 
 
-
-meta_type = metaU %>% 
-  separate_rows(Target, sep = ',') %>% 
-  select(Drug, Target) %>% 
-  drop_na(Drug)
-
-
-cl1 = results_cluster %>% filter(cluster == 1) %>% pull(Drug)
-cl1.enrich = enrich(cl1, db = meta_type) %>% 
-  mutate(direction = 'cluster_1')
-
-cl2 = results_cluster %>% filter(cluster == 2) %>% pull(Drug)
-cl2.enrich = enrich(cl2, db = meta_type) %>% 
-  mutate(direction = 'cluster_2')
-
-cl3 = results_cluster %>% filter(cluster == 3) %>% pull(Drug)
-cl3.enrich = enrich(cl3, db = meta_type) %>% 
-  mutate(direction = 'cluster_3')
-
-cl4 = results_cluster %>% filter(cluster == 4) %>% pull(Drug)
-cl4.enrich = enrich(cl4, db = meta_type) %>% 
-  mutate(direction = 'cluster_4')
-
-cl5 = results_cluster %>% filter(cluster == 5) %>% pull(Drug)
-cl5.enrich = enrich(cl5, db = meta_type) %>% 
-  mutate(direction = 'cluster_5')
-
-cl6 = results_cluster %>% filter(cluster == 6) %>% pull(Drug)
-cl6.enrich = enrich(cl6, db = meta_type) %>% 
-  mutate(direction = 'cluster_6')
-
-cl7 = results_cluster %>% filter(cluster == 7) %>% pull(Drug)
-cl7.enrich = enrich(cl7, db = meta_type) %>% 
-  mutate(direction = 'cluster_7')
-
-cl8 = results_cluster %>% filter(cluster == 8) %>% pull(Drug)
-cl8.enrich = enrich(cl8, db = meta_type) %>% 
-  mutate(direction = 'cluster_8')
+enrich_metabolites = function(category = 'Target') {
+      
+      categories = c('Target', 'Process', 'Type')  
+  
+      if (category %in% categories){
+        
+        cat(glue::glue("Calculating the enrichment for {category} category \n\n"))
+        
+        meta_type = metaU %>% 
+          separate_rows(category, sep = ', ') %>% 
+          select(Drug, category) %>% 
+          drop_na(Drug) %>% 
+          drop_na(category) 
+      } else {
+        print(glue::glue("You need to specify one of the following categories: {categories}"))
+        break
+      }
+      
+      # iterate over the clusters created
+      enrichment_table = tibble()
+      for (cluster in 1:max(as.integer(results_cluster$cluster))) {
+        # filter cluster
+        cl = results_cluster %>% filter(cluster == 1) %>% pull(Drug)
+        # calculate enrich
+        cl.enrich = enrich(cl, db = meta_type) %>% 
+          mutate(direction = glue::glue('cluster_{cluster}'))
+        # merge datasets
+        enrichment_table = bind_rows(enrichment_table, cl.enrich)
+      }
+      
+      return(enrichment_table)
+}
 
 
-cl1.enrich %>% 
-  bind_rows(cl2.enrich, cl3.enrich, cl4.enrich, cl5.enrich,
-            cl6.enrich, cl7.enrich, cl8.enrich) %>% 
-  # filter(pval <= 0.05) %>% 
-  view
+enrich_target = enrich_metabolites("Target")
+
+enrich_type = enrich_metabolites("Type")
+
+enrich_process = enrich_metabolites("Process")
+
+
 
 
 
