@@ -2372,7 +2372,185 @@ enrich_process = enrich_metabolites("Process")
 
 
 
+# stats of each category vs others ----------------------------------------
 
 
+## Type ####
+
+list_of_types = metaU %>% 
+    separate_rows(Type, sep = ', ') %>% 
+    distinct(Type) %>% 
+    drop_na() %>% 
+    pull(Type)
+
+types_stats = tibble()
+for (type in list_of_types) {
+  
+  temp_df = result_ZIP %>% 
+    left_join(metaU, by = "Drug") %>% 
+    mutate(group = case_when(str_detect(Type, type) ~ type,
+                             TRUE ~ 'null'), 
+           .before=Synergy.score) 
+  
+  if (length(temp_df$group[temp_df$group == type]) > 2){
+    # print(glue::glue("Type {type} is valid"))
+    temp_stats = temp_df %>%
+      rstatix::t_test(Most.synergistic.area.score ~ group)
+    
+    types_stats = bind_rows(types_stats, temp_stats)
+    
+    temp_stats = temp_df %>%
+      rstatix::t_test(Synergy.score ~ group)
+    
+    types_stats = bind_rows(types_stats, temp_stats)
+    
+    
+  } 
+  
+}
+
+
+## Molecule ####
+
+
+list_of_types = metaU %>% 
+  separate_rows(Molecule, sep = ', ') %>% 
+  distinct(Molecule) %>% 
+  drop_na() %>% 
+  pull(Molecule)
+
+mol_stats = tibble()
+for (type in list_of_types) {
+  
+  temp_df = result_ZIP %>% 
+    left_join(metaU, by = "Drug") %>% 
+    mutate(group = case_when(str_detect(Molecule, type) ~ type,
+                             TRUE ~ 'null'), 
+           .before=Synergy.score) 
+  
+  if (length(temp_df$group[temp_df$group == type]) > 2){
+    # print(glue::glue("Type {type} is valid"))
+    temp_stats = temp_df %>%
+      rstatix::t_test(Most.synergistic.area.score ~ group)
+    
+    mol_stats = bind_rows(mol_stats, temp_stats)
+    
+    temp_stats = temp_df %>%
+      rstatix::t_test(Synergy.score ~ group)
+    
+    mol_stats = bind_rows(mol_stats, temp_stats)
+    
+  } 
+  
+}
+
+
+## Process ####
+
+list_of_types = metaU %>% 
+  separate_rows(Process, sep = ', ') %>% 
+  distinct(Process) %>% 
+  drop_na() %>% 
+  pull(Process)
+
+proc_stats = tibble()
+for (type in list_of_types) {
+  
+  temp_df = result_ZIP %>% 
+    left_join(metaU, by = "Drug") %>% 
+    mutate(group = case_when(str_detect(Process, type) ~ type,
+                             TRUE ~ 'null'), 
+           .before=Synergy.score) 
+  print(length(temp_df$group[temp_df$group == type]))
+        
+  if (length(temp_df$group[temp_df$group == type]) > 2){
+    # print(glue::glue("Type {type} is valid"))
+    temp_stats = temp_df %>%
+      rstatix::t_test(Most.synergistic.area.score ~ group)
+    
+    proc_stats = bind_rows(proc_stats, temp_stats)
+    
+    temp_stats = temp_df %>%
+      rstatix::t_test(Synergy.score ~ group)
+    
+    proc_stats = bind_rows(proc_stats, temp_stats)
+    
+    
+  } 
+  
+}
+
+## Target ####
+
+list_of_types = metaU %>% 
+  separate_rows(Target, sep = ', ') %>% 
+  distinct(Target) %>% 
+  drop_na() %>% 
+  pull(Target)
+
+target_stats = tibble()
+for (type in list_of_types) {
+  
+  temp_df = result_ZIP %>% 
+    left_join(metaU, by = "Drug") %>% 
+    mutate(group = case_when(str_detect(Target, type) ~ type,
+                             TRUE ~ 'null'), 
+           .before=Synergy.score) 
+  
+  if (length(temp_df$group[temp_df$group == type]) > 2){
+    # print(glue::glue("Type {type} is valid"))
+    temp_stats = temp_df %>%
+      rstatix::t_test(Most.synergistic.area.score ~ group)
+    
+    target_stats = bind_rows(target_stats, temp_stats)
+    
+    temp_stats = temp_df %>%
+      rstatix::t_test(Synergy.score ~ group)
+    
+    target_stats = bind_rows(target_stats, temp_stats)
+    
+    
+  } 
+  
+}
+
+
+result_ZIP %>% 
+  left_join(metaU) %>% 
+  mutate(group = case_when(str_detect(Process, 'mitosis') ~ 'mitosis',
+                           TRUE ~ 'null'), 
+         .before=Synergy.score) %>% 
+  ggplot(aes(y= Most.synergistic.area.score, x = group)) +
+  geom_boxplot() +
+  geom_jitter(position = position_dodge(width = 1))
+  
+
+## save the datasets
+
+types_stats = types_stats %>% 
+  rstatix::add_significance("p") %>% 
+  arrange(`.y.`)
+
+mol_stats = mol_stats %>% 
+  rstatix::add_significance("p") %>% 
+  arrange(`.y.`)
+
+types_stats = proc_stats %>% 
+  rstatix::add_significance("p") %>% 
+  arrange(`.y.`)
+
+target_stats = target_stats %>% 
+  rstatix::add_significance("p") %>% 
+  arrange(`.y.`)
+
+list_of_datasets = list(
+  types_stats = types_stats,
+  mol_stats = mol_stats,
+  proc_stats = proc_stats,
+  target_stats = target_stats
+)
+
+write.xlsx(list_of_datasets, 
+           here('exploration','ZIP_categories_stats.xlsx'))
 
 
