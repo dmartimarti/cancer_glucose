@@ -16,6 +16,7 @@ bact_class = read_excel("metabolomics/BCA_producersnonproducers.xlsx",
 ## pellet ####
 bca %>% 
   filter(Sample == 'Pellet') %>% 
+  filter(Bacteria != 'gltA prpB double mutant') %>% 
   mutate(Producers = factor(Producers, levels = c('Producer',
                                                   'Non-producer'))) %>%
   ggplot(aes(y = fct_reorder(Bacteria, Phylum), 
@@ -35,9 +36,7 @@ bca %>%
     '#DBA10D'
     )) +
   theme_half_open(13) +
-  scale_y_discrete(limits=rev) +
-  # panel_border() +p
-  theme(strip.text.y = element_text(angle = 0))
+  scale_y_discrete(limits=rev) 
 
 ggsave('metabolomics/plots/barplot_pellet.pdf',
        height = 7, width = 7)
@@ -45,6 +44,7 @@ ggsave('metabolomics/plots/barplot_pellet.pdf',
 ## supernatant####
 bca %>% 
   filter(Sample == 'Supernatant') %>% 
+  filter(Bacteria != 'gltA prpB double mutant') %>% 
   mutate(Producers = factor(Producers, levels = c('Producer',
                                                   'Non-producer'))) %>% 
    ggplot(aes(y = fct_reorder(Bacteria, Phylum), 
@@ -64,9 +64,7 @@ bca %>%
     '#DBA10D'
   )) +
   theme_half_open(13) +
-  scale_y_discrete(limits=rev) +
-  # panel_border() +p
-  theme(strip.text.y = element_text(angle = 0))
+  scale_y_discrete(limits=rev)
 
 ggsave('metabolomics/plots/barplot_supernatant.pdf',
        height = 7, width = 7)
