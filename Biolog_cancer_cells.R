@@ -2046,8 +2046,12 @@ tsne.df %>%
 tsne.df%>%
   mutate(DB = all_compounds$DB) %>% 
   as_tibble() %>% 
+  mutate(opacity = case_when(DB == 'Biolog' ~ 1,
+                             TRUE ~ 0.2)) %>% 
   plot_ly(x = ~Dim1, y = ~Dim2, z = ~Dim3,
-          text = ~Drug, color=~DB) %>% 
+          text = ~Drug, color=~DB, 
+          opacity=~opacity,
+          colors = 'Set1') %>% 
   add_markers()
 
 # keep only the compounds from biolog
