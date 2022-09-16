@@ -340,12 +340,15 @@ enrich %>%
 enrich %>% 
   filter(p < 0.05) %>%
   mutate(logpval = -log10(p)) %>% 
+  filter(logpval > 2) %>%
   unite(sample, genotype, direction, remove = F) %>% 
   # mutate(Pathway = str_wrap(Pathway, width = 25)) %>% 
   mutate(sample = case_when(sample == 'p53_down' ~ 'p53\nDown',
                             sample == 'p53_up' ~ 'p53\nUp',
                             sample == 'wt_down' ~ 'WT\nDown',
                             sample == 'wt_up' ~ 'WT\nUp')) %>% 
+  mutate(sample = factor(sample, levels = c('WT\nUp','WT\nDown',
+                                            'p53\nUp','p53\nDown'))) %>% 
   ggplot(aes(x = sample, y = Pathway, fill = logpval,
              size = logpval, color = logpval)) +
   # geom_tile() +
@@ -365,8 +368,51 @@ enrich %>%
          size = guide_legend(title = '-log10(p-value)'),
          fill='none')
 
+ggsave(here("summary", "metaboanalyst", "enrich", "Enrich_heatmap_pval_cutoff2.pdf"),
+       height = 10, width = 8)
+
+
+### version for presentation ####
+
+
+# version with p-values
+enrich %>% 
+  filter(p < 0.05) %>%
+  mutate(logpval = -log10(p)) %>% 
+  mutate(categories = cut(logpval, 
+                          breaks = c(-Inf, 2, 4, Inf),
+                          labels = c('2', '4', '6'))) %>% 
+  unite(sample, genotype, direction, remove = F) %>% 
+  # mutate(Pathway = str_wrap(Pathway, width = 25)) %>% 
+  mutate(sample = case_when(sample == 'p53_down' ~ 'p53\nDown',
+                            sample == 'p53_up' ~ 'p53\nUp',
+                            sample == 'wt_down' ~ 'WT\nDown',
+                            sample == 'wt_up' ~ 'WT\nUp')) %>% 
+  ggplot(aes(x = sample, y = Pathway, fill = categories,
+             # size = categories, 
+             color = categories)) +
+  # geom_tile() +
+  geom_point(size = 2) +
+  labs(
+    x = 'Pathway',
+    y = 'Sample'
+  ) +
+  # guides(color = guide_legend(title='-log10(p-value)'),
+  #        # size = 'none',
+  #        fill = 'none') +
+  scale_y_discrete(limits=rev) +
+  # scale_fill_gradient(low = 'white', high = 'red') +
+  scale_color_manual(values = c( '#E6C7B1','#E6945A', '#E6660C')) +
+  # scale_color_gradient(low = 'white', high = 'red', guide = 'legend') +
+  # scale_size_continuous(range = c(1, 7)) +
+  guides(color=guide_legend(title = '-log10(p-value)'), 
+         size = guide_legend(title = '-log10(p-value)'),
+         fill='none')
+
 ggsave(here("summary", "metaboanalyst", "enrich", "Enrich_heatmap_pval.pdf"),
        height = 10, width = 10)
+
+
 
 
 enrich %>% 
@@ -510,8 +556,271 @@ for (metabolite in metab_list) {
 
 
 
+# plot for presentation ---------------------------------------------------
+
+## Heatmap for selected paths ####
+
+# Filipe wants a plot with all the metabolites from the Purine, Pyrimidine and
+# TCA/Glycolysis pathways, p53 and WT
+# I went to Metaboanalyst and parsed all the metabolites to get the metabolites
+# within each pathway so I can match them
+
+# read pathway data
+library(readxl)
+library(ComplexHeatmap)
+
+paths = read_excel("pyr_pur_TCA_paths.xlsx")
+
+paths = paths %>% 
+  distinct(Pathway, Metabolite) 
+# %>%   mutate(Metabolite = tolower(Metabolite))
 
 
+
+metab_paths = metab_clean %>% 
+  # mutate(Metabolite = tolower(Metabolite)) %>% 
+  filter(Metabolite %in% paths$Metabolite) %>% 
+  left_join(paths) %>% 
+  drop_na() 
+# %>% 
+#   distinct(experiment, Genotype, 
+#            Condition, Metabolite, Pathway, .keep_all = T)
+
+
+
+metab_paths %>% 
+  filter(Metabolite == 'ADP') %>% 
+  filter(Pathway == 'Purine')
+
+# test that we are plotting them right
+metab_paths %>% 
+  filter(Pathway == 'Pyrimidine') %>% 
+  mutate(log_val = log2(value)) %>% 
+  unite(cond, Condition, Genotype, remove = F) %>% 
+  ggplot(aes(y = Metabolite, x = log_val, fill = cond)) +
+  geom_boxplot() +
+  geom_point(position = position_jitter(width = 0.0), alpha = 0.4)
+
+
+# create a matrix with purine compounds
+pur_mat = metab_paths %>% 
+  filter(Pathway == 'Purine') %>% 
+  unite(Sample, Genotype, Condition, sep = ', ', remove = FALSE) %>% 
+  mutate(Sample = factor(Sample, levels = c('WT, Control',
+                                            'WT, Micit',
+                                            'p53, Control',
+                                            'p53, Micit'))) %>% 
+  mutate(logval = log2(value)) %>% 
+  group_by(Metabolite, Sample) %>%
+  summarise(Mean = mean(logval)) %>% 
+  mutate(
+    z_score = (Mean - mean(Mean)) / sd(Mean)) %>% 
+  select(Sample, Metabolite, z_score) %>% 
+  pivot_wider(names_from = Sample, values_from = z_score) %>% 
+  column_to_rownames('Metabolite') %>% 
+  as.matrix()
+
+
+# create a matrix with purine compounds
+pyr_mat = metab_paths %>% 
+  filter(Pathway == 'Pyrimidine') %>% 
+  unite(Sample, Genotype, Condition, sep = ', ', remove = FALSE) %>% 
+  mutate(Sample = factor(Sample, levels = c('WT, Control',
+                                            'WT, Micit',
+                                            'p53, Control',
+                                            'p53, Micit'))) %>% 
+  mutate(logval = log2(value)) %>% 
+  group_by(Metabolite, Sample) %>%
+  summarise(Mean = mean(logval)) %>% 
+  mutate(
+    z_score = (Mean - mean(Mean)) / sd(Mean)) %>% 
+  select(Sample, Metabolite, z_score) %>% 
+  pivot_wider(names_from = Sample, values_from = z_score) %>% 
+  column_to_rownames('Metabolite') %>% 
+  as.matrix()
+
+# create a matrix with TCA compounds
+tca_mat = metab_paths %>% 
+  filter(Pathway == 'TCA/Glycolysis') %>% 
+  unite(Sample, Genotype, Condition, sep = ', ', remove = FALSE) %>% 
+  mutate(Sample = factor(Sample, levels = c('WT, Control',
+                                            'WT, Micit',
+                                            'p53, Control',
+                                            'p53, Micit'))) %>% 
+  mutate(logval = log2(value)) %>% 
+  group_by(Metabolite, Sample) %>%
+  summarise(Mean = mean(logval)) %>% 
+  mutate(
+    z_score = (Mean - mean(Mean)) / sd(Mean)) %>% 
+  select(Sample, Metabolite, z_score) %>% 
+  pivot_wider(names_from = Sample, values_from = z_score) %>% 
+  column_to_rownames('Metabolite') %>% 
+  as.matrix()
+
+
+ha = HeatmapAnnotation(
+  Condition = c(rep(c('Control','Micit'),2)), 
+  Genotype = c('WT', 'WT', 'p53', 'p53'),
+  col = list(
+    Condition = c('Control' = '#25CC89', 'Micit' = '#E34F32' ),
+    Genotype = c('WT' = '#2661E0', 'p53' = '#E0CD1D')
+  )
+)
+
+ha_half = HeatmapAnnotation(
+  Condition = c(rep(c('Control','Micit'),1)), 
+  Genotype = c('WT', 'WT'),
+  col = list(
+    Condition = c('Control' = '#25CC89', 'Micit' = '#E34F32'),
+    Genotype = c('WT' = '#2661E0')
+  )
+)
+
+Heatmap(pur_mat[,1:2],
+        name = 'Z-score',
+        cluster_columns = FALSE,
+        column_names_rot = 0,
+        column_names_side = "top",
+        column_names_centered = T,
+        show_column_names = T,
+        top_annotation = ha_half) 
+
+quartz.save(file = here('summary', 'heatmap_purines_metabolomics.pdf'),
+            type = 'pdf', dpi = 300, height = 7, width = 5)
+
+Heatmap(pyr_mat[,1:2],
+        name = 'Z-score',
+        cluster_columns = FALSE,
+        column_names_rot = 0,
+        column_names_side = "top",
+        column_names_centered = T,
+        top_annotation = ha_half,
+        show_column_names = T)
+
+quartz.save(file = here('summary', 'heatmap_pyrimidines_metabolomics.pdf'),
+            type = 'pdf', dpi = 300, height = 7, width = 6)
+
+
+Heatmap(tca_mat,
+        name = 'Z-score',
+        cluster_columns = FALSE,
+        column_names_rot = 0,
+        column_names_side = "top",
+        column_names_centered = T,
+        top_annotation = ha,
+        show_column_names = T)
+
+quartz.save(file = here('summary', 'heatmap_TCA_metabolomics.pdf'),
+            type = 'pdf', dpi = 300, height = 7, width = 7)
+
+# ht_list = h1 %v% h2 %v% h3
+# draw(ht_list)
+
+
+## selected boxplots #####
+
+# helper function
+plot_metab_boxplot = function(query_metab =  presentation_metabs[1]){
+  
+  metab_plots %>% 
+    unite(Sample, Genotype, Condition, sep = ', ', remove = FALSE) %>% 
+    filter(Metabolite %in% query_metab) %>% 
+    mutate(Condition = factor(Condition, levels = c('Control', 'Micit')),
+           Genotype = factor(Genotype, levels = c('WT', 'p53'))) %>% 
+    ggplot(aes(x = Condition, y = value, fill = Condition)) +
+    geom_boxplot(show.legend = F) + 
+    labs(
+      x = 'Sample',
+      y = NULL,
+      title = query_metab
+    ) +
+    scale_fill_manual(
+      values = c(
+        '#25CC89', # green
+        '#E34F32'  # orange
+      )
+    ) +
+    geom_point(position = position_jitter(width = 0.1),
+               show.legend = F) + 
+    facet_wrap(~Genotype) +
+    # facet_grid(~Genotype*Metabolite) +
+    theme_cowplot(15) +
+    theme(plot.title = element_text(hjust = 0.5))
+}
+
+
+plot_metab_boxplot(query_metab = presentation_metabs[3])
+
+presentation_metabs = c('NAD', 'NADH', 'glycerol 3-phosphate')
+
+for (metab in presentation_metabs){
+  
+  plot_metab_boxplot(query_metab = metab)
+  
+  ggsave(here('summary', 'selected_boxplots', 
+              glue::glue('{metab}_boxplot.pdf')),
+         height = 5, width = 7)  
+}
+
+
+
+# all 3 plots together because why not
+
+library(ggpubr)
+
+pl1 = plot_metab_boxplot(query_metab = presentation_metabs[1]) +
+  labs(y = 'Normalised ion intensity (log2)')
+pl2 = plot_metab_boxplot(query_metab = presentation_metabs[2])
+pl3 = plot_metab_boxplot(query_metab = presentation_metabs[3]) 
+
+figure = ggarrange(pl1, pl2, pl3,
+          ncol = 3, nrow = 1)
+figure
+
+ggsave(here('summary', 'selected_boxplots', 
+            'selected_presentation_boxplot.pdf'),
+       height = 5, width = 13)  
+
+## stats for boxplots ####
+
+# WT micit vs control
+
+wt_select = metab_clean %>% 
+  filter(Metabolite %in% presentation_metabs) %>% 
+  filter(Genotype == 'WT') %>% 
+  mutate(value = log2(value)) %>%
+  # mutate(Condition = as.factor) %>% 
+  group_by(Metabolite) %>% 
+  t_test(value ~ Condition, p.adjust.method = "fdr", detailed = T) %>% 
+  mutate(test = 'WT',.before = Metabolite)
+
+p_select = metab_clean %>% 
+  filter(Metabolite %in% presentation_metabs) %>% 
+  filter(Genotype == 'p53') %>% 
+  mutate(value = log2(value)) %>%
+  # mutate(Condition = as.factor) %>% 
+  group_by(Metabolite) %>% 
+  t_test(value ~ Condition, p.adjust.method = "fdr", detailed = T)  %>% 
+  mutate(test = 'p53',.before = Metabolite)
+
+
+interaction_terms = metab_clean %>% 
+  filter(Metabolite %in% presentation_metabs) %>% 
+  # filter(Genotype == 'p53') %>% 
+  mutate(value = log2(value)) %>%
+  group_by(Metabolite) %>% 
+  anova_test(value ~ Condition * Genotype, detailed = T) 
+
+
+wt_select %>% 
+  bind_rows(p_select) %>% 
+  write_csv(here('summary', 'selected_boxplots',
+                 'stats_t_test.csv'))
+
+
+interaction_terms %>% 
+  write_csv(here('summary', 'selected_boxplots',
+                 'interaction_terms.csv'))
 
 
 
