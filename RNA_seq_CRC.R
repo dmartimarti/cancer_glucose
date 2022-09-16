@@ -2170,9 +2170,6 @@ ggsave(here('summary', 'tf_activity_complete_ALL.pdf'),
 # multiomics --------------------------------------------------------------
 
 
-
-
-
 gene_counts %>% 
   unite(Sample, Sample, Replicate, sep = '_', remove=T) %>% 
   filter(Cell_line == 'HCT116') %>% 
@@ -2187,10 +2184,137 @@ gene_counts %>%
 
 
 
+# Enrich plots presentation -----------------------------------------------
+
+# these plots are for Filipe's (and mine?) presentation
+# 
+
+
+library(readxl)
+
+#### HCT116 ####
+
+HCT116_output = read_excel("summary/GSEA/HCT116/HCT116_output.xlsx", 
+                            sheet = "KEGG")
 
 
 
+removals = c('Antigen processing and presentation',
+             'Epstein-Barr virus infection',
+             'Pathogenic Escherichia coli infection',
+             'Protein processing in endoplasmic reticulum')
 
+HCT116_output %>% 
+  filter(!(description %in% removals)) %>% 
+  mutate(direction=factor(direction, levels = c('UP', 'DOWN'))) %>% 
+  mutate(FDR = cut(fdr, 
+                   labels = c('0.001', '0.01', '0.05', 'ns'),
+                   breaks = c(-Inf, 0.001, 0.01, 0.05, Inf)),
+         .before = term) %>% 
+  mutate(description = str_wrap(description, width = 25)) %>% 
+  ggplot(aes(y = description, x = direction ,fill = FDR)) + 
+  geom_tile() +
+  scale_fill_manual(values = c('#2432FF',
+                               '#616BFF',
+                               '#A3A9FF',
+                               '#FFFFFF')) +
+  labs(
+    x = 'Regulation',
+    y = 'KEGG Terms'
+  ) +
+  scale_y_discrete(limits=rev)
+
+ggsave('summary/GSEA/HCT116/HCT116_heatmap_enrich_KEGG.pdf',
+       width = 6, height = 6.5)  
+
+
+#### DLD ####
+
+DLD_output = read_excel("summary/GSEA/DLD/DLD_output.xlsx", 
+                           sheet = "KEGG")
+
+
+
+include_dld = c(  # UP
+                'Autophagy - animal', 'Apoptosis',
+                'Mitophagy - animal',
+                'FoxO signaling pathway',
+                'Transcriptional misregulation in cancer',
+                'ErbB signaling pathway', 'Endocytosis',
+                'Colorectal cancer','mTOR signaling pathway',
+                'Insulin resistance','p53 signaling pathway',
+                'TNF signaling pathway',
+                  # DOWN
+                'Ribosome', 'Spliceosome', 'Pyrimidine metabolism',
+                'RNA transport','Proteasome','Purine metabolism',
+                'Cell cycle', 'Glycolysis / Gluconeogenesis',
+                'DNA replication','Mismatch repair','RNA polymerase',
+                'Citrate cycle (TCA cycle)', 'Pyruvate metabolism',
+                'RNA degradation','Carbon metabolism'
+                
+                )
+
+DLD_output %>% 
+  filter((description %in% include_dld)) %>% 
+  mutate(direction=factor(direction, levels = c('UP', 'DOWN'))) %>% 
+  mutate(FDR = cut(fdr, 
+                   labels = c('0.001', '0.01', '0.05', 'ns'),
+                   breaks = c(-Inf, 0.001, 0.01, 0.05, Inf)),
+         .before = term) %>% 
+  mutate(description = str_wrap(description, width = 25)) %>% 
+  ggplot(aes(y = description, x = direction ,fill = FDR)) + 
+  geom_tile() +
+  scale_fill_manual(values = c('#2432FF',
+                               '#616BFF',
+                               '#A3A9FF',
+                               '#FFFFFF')) +
+  labs(
+    x = 'Regulation',
+    y = 'KEGG Terms'
+  ) +
+  scale_y_discrete(limits=rev)
+
+ggsave('summary/GSEA/DLD/DLD_heatmap_enrich_KEGG.pdf',
+       width = 6, height = 9.5)  
+
+
+#### LoVo ####
+
+lovo_output = read_excel("summary/GSEA/LoVo/LoVo_output.xlsx", 
+                        sheet = "KEGG")
+
+
+
+removals_lovo = c(
+  'Chemical carcinogenesis','Steroid hormone biosynthesis',
+  'Human papillomavirus infection',
+  'Protein processing in endoplasmic reticulum',
+  'Antigen processing and presentation','Epstein-Barr virus infection'
+)
+  
+
+lovo_output %>% 
+  filter(!(description %in% removals_lovo)) %>% 
+  mutate(direction=factor(direction, levels = c('UP', 'DOWN'))) %>% 
+  mutate(FDR = cut(fdr, 
+                   labels = c('0.001', '0.01', '0.05', 'ns'),
+                   breaks = c(-Inf, 0.001, 0.01, 0.05, Inf)),
+         .before = term) %>% 
+  mutate(description = str_wrap(description, width = 25)) %>% 
+  ggplot(aes(y = description, x = direction ,fill = FDR)) + 
+  geom_tile() +
+  scale_fill_manual(values = c('#2432FF',
+                               '#616BFF',
+                               '#A3A9FF',
+                               '#FFFFFF')) +
+  labs(
+    x = 'Regulation',
+    y = 'KEGG Terms'
+  ) +
+  scale_y_discrete(limits=rev)
+
+ggsave('summary/GSEA/LoVo/LoVo_heatmap_enrich_KEGG.pdf',
+       width = 6, height = 8.5)  
 
 
 
