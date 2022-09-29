@@ -635,6 +635,45 @@ for (line in cells){
 }
 
 
+# presentation plots ------------------------------------------------------
+
+
+select_viab = auc_viab %>% 
+  filter(cell %in% c('HCT116', 'LoVo', 'DLD-1')) %>% 
+  filter((IC == 250 & cell == 'HCT116') |
+           (IC == 1000 & cell == 'LoVo') |
+           (IC == 1000 & cell == 'DLD-1'))
+
+select_viab %>% 
+  left_join(stats4plot %>% ungroup) %>% 
+  ggplot(aes(x = Micit_mM, y =  Viability, color = Micit_mM, fill = Micit_mM)) +
+  # geom_boxplot() +
+  geom_point(position = position_jitterdodge(),
+             show.legend = FALSE) +
+  stat_summary(fun.data = "mean_cl_boot", size = 1, show.legend = F)  +
+  geom_text(aes(label = p.stars), 
+            y = 1.2,
+            color = 'black',
+            size = 6) +
+  ylim(0,1.3) +
+  labs(y = 'Normalized confluence',
+       x = '2-methylisocitrate (mM)',
+       color = '2-methylisocitrate (mM)',
+       fill = '2-methylisocitrate (mM)') +
+  scale_fill_viridis_d() +
+  scale_color_viridis_d() +
+  facet_wrap(~cell) 
+
+ggsave(here('summary/Viability_plots/presentation/', 
+            'selected_viability.pdf'), 
+       height = 5, 
+       width = 9)
+
+
+
+
+
+
 # plot with bioreps separately
 
 cells = unique(auc_viab$cell)

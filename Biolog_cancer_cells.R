@@ -2558,3 +2558,51 @@ write.xlsx(list_of_datasets,
            here('exploration','ZIP_categories_stats.xlsx'))
 
 
+
+
+# description categories --------------------------------------------------
+
+metaU %>% 
+  separate_rows(Type, sep =  ', ') %>% 
+  count(Type) %>%
+  drop_na() %>% 
+  ggplot(aes(y = fct_reorder(Type, n), x = n)) +
+  geom_col(fill = 'grey50', color = 'white') +
+  labs(
+    x = 'Ocurrence',
+    y = 'Molecule type'
+  )
+
+ggsave('exploration/molecule_type_metadata.pdf',
+       height = 8, width = 5)
+
+
+metaU %>% 
+  separate_rows(Target, sep =  ', ') %>% 
+  count(Target) %>%
+  drop_na() %>% 
+  ggplot(aes(y = fct_reorder(Target, n), x = n)) +
+  geom_col(fill = 'grey50', color = 'white') +
+  labs(
+    x = 'Ocurrence',
+    y = 'Target type'
+  )
+
+ggsave('exploration/molecule_target_metadata.pdf',
+       height = 9, width = 5)
+
+metaU %>% 
+  separate_rows(Process, sep =  ', ') %>% 
+  count(Process) %>%
+  drop_na() %>% 
+  ggplot(aes(y = fct_reorder(Process, n), x = n)) +
+  geom_col(fill = 'grey50', color = 'white') +
+  labs(
+    x = 'Ocurrence',
+    y = 'Process'
+  )
+
+ggsave('exploration/molecule_process_metadata.pdf',
+       height = 9, width = 5)
+
+

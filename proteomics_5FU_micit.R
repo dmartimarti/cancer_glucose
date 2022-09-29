@@ -2488,10 +2488,10 @@ data_long %>% filter(Gene_names %in%  gene) %>%
            color = 'orange', parse = T) +
   geom_vline(xintercept = 2.5, linetype="dashed", color = 'grey60') +
   geom_vline(xintercept = 4.5, linetype="dashed", color = 'grey60') +
-  annotate("text", x = 3.5, y = 29.7, label = 'atop(bold("Metabolite"))', size = 7, 
+  annotate("text", x = 3.5, y = 29.7, label = 'atop(bold("Micit"))', size = 7, 
            color = 'blue', parse = T) +
   geom_vline(xintercept = 4.5, linetype="dashed", color = 'grey60') +
-  annotate("text", x = 5.5, y = 29.7, label = 'atop(bold("Metabolite"))', size = 7, 
+  annotate("text", x = 5.5, y = 29.7, label = 'atop(bold("Micit"))', size = 7, 
            color = 'blue', parse = T) +
   annotate("text", x = 5.5, y = 29.57, label = 'atop(bold(" + 5-FU"))', size = 7, 
            color = 'orange', parse = T) +
@@ -2514,7 +2514,7 @@ data_long %>% filter(Gene_names %in%  gene) %>%
         axis.title.x = element_text(size=14, face="bold"),
         axis.title.y = element_text(size=14, face="bold"))
 
-ggsave(here('presentation','TYMS_boxplot.pdf'), height = 8, width = 10)
+ggsave(here('presentation','TYMS_boxplot.pdf'), height = 7, width = 7.5)
 
 
 ### TP53 plot ####
@@ -2544,10 +2544,10 @@ data_long %>% filter(Gene_names %in%  gene) %>%
            color = 'orange', parse = T) +
   geom_vline(xintercept = 2.5, linetype="dashed", color = 'grey60') +
   geom_vline(xintercept = 4.5, linetype="dashed", color = 'grey60') +
-  annotate("text", x = 3.5, y = 23, label = 'atop(bold("Metabolite"))', size = 7,
+  annotate("text", x = 3.5, y = 23, label = 'atop(bold("Micit"))', size = 7,
            color = 'blue', parse = T) +
   geom_vline(xintercept = 4.5, linetype="dashed", color = 'grey60') +
-  annotate("text", x = 5.5, y = 23, label = 'atop(bold("Metabolite"))', size = 7,
+  annotate("text", x = 5.5, y = 23, label = 'atop(bold("Micit"))', size = 7,
            color = 'blue', parse = T) +
   annotate("text", x = 5.5, y = 22.93, label = 'atop(bold(" + 5-FU"))', size = 7,
            color = 'orange', parse = T) +
@@ -2570,7 +2570,7 @@ data_long %>% filter(Gene_names %in%  gene) %>%
         axis.title.x = element_text(size=14, face="bold"),
         axis.title.y = element_text(size=14, face="bold"))
 
-ggsave(here('presentation','TP53_boxplot.pdf'), height = 8, width = 10)
+ggsave(here('presentation','TP53_boxplot.pdf'), height = 7, width = 7.5)
 
 
 
@@ -2601,10 +2601,10 @@ data_long %>% filter(Gene_names %in%  gene) %>%
            color = 'orange', parse = T) +
   geom_vline(xintercept = 2.5, linetype="dashed", color = 'grey60') +
   geom_vline(xintercept = 4.5, linetype="dashed", color = 'grey60') +
-  annotate("text", x = 3.5, y = 26.8, label = 'atop(bold("Metabolite"))', size = 7,
+  annotate("text", x = 3.5, y = 26.8, label = 'atop(bold("Micit"))', size = 7,
            color = 'blue', parse = T) +
   geom_vline(xintercept = 4.5, linetype="dashed", color = 'grey60') +
-  annotate("text", x = 5.5, y = 26.8, label = 'atop(bold("Metabolite"))', size = 7,
+  annotate("text", x = 5.5, y = 26.8, label = 'atop(bold("Micit"))', size = 7,
            color = 'blue', parse = T) +
   annotate("text", x = 5.5, y = 26.6, label = 'atop(bold(" + 5-FU"))', size = 7,
            color = 'orange', parse = T) +
@@ -2627,7 +2627,7 @@ data_long %>% filter(Gene_names %in%  gene) %>%
         axis.title.x = element_text(size=14, face="bold"),
         axis.title.y = element_text(size=14, face="bold"))
 
-ggsave(here('presentation','TP21_boxplot.pdf'), height = 8, width = 10)
+ggsave(here('presentation','TP21_boxplot.pdf'), height = 7, width = 7.5)
 
 
 
