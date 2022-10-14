@@ -16,6 +16,7 @@ library(tau)
 library(fmsb)
 library(readxl)
 library(cowplot)
+library(rstatix)
 
 
 # theme_set(theme_classic())
@@ -2300,7 +2301,93 @@ dev.copy2pdf(device = cairo_pdf,
 
 
 
+# revisiting radar plots --------------------------------------------------
 
+
+### barplots of selected pathways ####
+# zscores_paths = 
+# zscores_paths = data_long %>% 
+#   separate_rows(KEGG_name, sep=';') %>% 
+#   filter(!(Gene_names %in% removals)) %>% 
+#   filter(Gene_names %in% prots_sig) %>% 
+#   arrange(Gene_names) %>% 
+#   filter(KEGG_name %in%  kegg_select) %>% 
+#   unite(ID, Gene_names, KEGG_name, remove = FALSE) %>% 
+#   group_by(ID, Sample) %>% 
+#   summarise(Mean = mean(Intensity, na.rm = TRUE)) %>% 
+#   mutate(z_score = scale(Mean)) %>%
+#   select(-Mean) %>% 
+#   separate(ID, into = c('Gene_names', 'Pathway'), sep = '_') %>% 
+#   arrange(Pathway) %>% 
+#   group_by(Pathway, Sample) %>% 
+#   summarise(zMean = mean(z_score,na.rm = TRUE),
+#             zSD = sd(z_score, na.rm = TRUE),
+#             zSEM = zSD/sqrt(n())) %>% 
+#   ungroup
+
+
+
+selected_stats = data_long %>% 
+  separate_rows(KEGG_name, sep=';') %>% 
+  filter(!(Gene_names %in% removals)) %>% 
+  filter(KEGG_name %in%  kegg_select) %>% 
+  group_by(Gene_names, KEGG_name) %>% 
+  t_test(Intensity ~ Sample, ref.group = 'Control', detailed = TRUE)
+
+
+
+
+estimate_paths = selected_stats %>% 
+  # filter(p.adj < 0.05) %>% 
+  # group_by(group2) %>% 
+  # mutate(z_score = scale(estimate), .before = estimate) %>% 
+  mutate(estimate = -estimate) %>% 
+  group_by(group2, KEGG_name) %>% 
+  summarise(Mean_score = mean(estimate),
+            SD_score = sd(estimate),
+            SEM = SD_score/sqrt(n())) %>% 
+  rename(Sample = group2)
+  
+
+
+
+
+estimate_paths %>% 
+  ungroup %>% 
+  mutate(Sample = factor(Sample, 
+                         levels = c('Control', 
+                                    '5FU',
+                                    '1mM_Micit',
+                                    '5FU_1mM_Micit',
+                                    '10mM_Micit',
+                                    '5FU_10mM_Micit'))) %>% 
+  ggplot(aes(KEGG_name, Mean_score, fill = Sample)) +
+  geom_histogram(stat='identity', position = 'dodge2') +
+  geom_errorbar(aes(ymin = Mean_score - SEM, ymax = Mean_score + SEM), 
+                position = position_dodge(0.9), width = 0) +
+  scale_fill_manual(values = c(
+                               '#FA2713', # 5FU
+                               '#F0C600', # 1 micit
+                               '#E05C10', # 5fu + 1 micit
+                               '#F79E05', # 10 micit
+                               '#AD4413'  # 5fu + 10 micit
+  )) +
+  labs(
+    x = NULL,
+    y = 'Fold Change (+- SEM)',
+    fill = 'Condition'
+  ) +
+  theme(
+    axis.text.x = element_blank(),
+    strip.text.x = element_text(size = 7),
+    strip.background = element_rect(fill = 'white', color = 'black')
+  ) +
+  facet_wrap(~KEGG_name, scales = 'free')
+
+
+dev.copy2pdf(device = cairo_pdf,
+             file = here('summary', 'FC_paths_estimates.pdf'),
+             width = 10, height = 9, useDingbats = FALSE)
 
 # protein means comparison ------------------------------------------------
 
