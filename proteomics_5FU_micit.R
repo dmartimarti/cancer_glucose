@@ -2338,7 +2338,7 @@ selected_stats = data_long %>%
 
 
 estimate_paths = selected_stats %>% 
-  # filter(p.adj < 0.05) %>% 
+  # filter(p.adj < 0.05) %>%
   # group_by(group2) %>% 
   # mutate(z_score = scale(estimate), .before = estimate) %>% 
   mutate(estimate = -estimate) %>% 
@@ -2388,6 +2388,92 @@ estimate_paths %>%
 dev.copy2pdf(device = cairo_pdf,
              file = here('summary', 'FC_paths_estimates.pdf'),
              width = 10, height = 9, useDingbats = FALSE)
+
+
+
+
+# spider plot with FC -----------------------------------------------------
+
+
+## create the spider plot #####
+
+
+mins = c(min(estimate_paths$Mean_score))
+maxs = c(max(estimate_paths$Mean_score))
+
+# define values that are symmetric
+mins = -0.5
+maxs = 0.4
+
+estimate_wide = estimate_paths %>% 
+  select(Pathway = KEGG_name, Sample, Mean_score) %>% 
+  pivot_wider(names_from = Sample, values_from = Mean_score) %>% 
+  mutate(Max = maxs, Min = mins, Limit = 0, .before = `10mM_Micit`)
+
+# zscores_wide = zscores_paths %>% 
+#   select(Pathway:zMean) %>% 
+#   pivot_wider(names_from = Sample, values_from = zMean) %>%
+#   mutate(Max = maxs, Min = mins, Limit = 0, .before = `10mM_Micit`)
+
+zscores_mat = as.matrix(estimate_wide[,2:9])
+
+rownames(zscores_mat) = estimate_wide$Pathway
+
+zscores_mat = t(zscores_mat)
+
+
+
+zscores_mat = as.data.frame(zscores_mat[1:8,])
+
+# HERE ------------
+
+zscores_mat[c(1:3,4,6,7),] 
+
+select_zscores = zscores_mat[c(1:3,4,6,7),] 
+
+names(select_zscores) = c("Cell cycle", "Citrate cycle\n(TCA cycle)", 
+                          "ErbB signaling\npathway", "Fatty acid\nmetabolism", 
+                          "Focal adhesion", "Gap junction", 
+                          "MAPK signaling\npathway" ,
+                          "mTOR signaling\npathway", "p53 signaling\npathway", 
+                          "Purine\nmetabolism", "Pyrimidine\nmetabolism", 
+                          "Ribosome", "RNA\ntransport" )
+
+opar = par() 
+# Define settings for plotting in a 3x4 grid, with appropriate margins:
+par(mar = rep(1,4))
+
+radarchart(
+  select_zscores,
+  caxislabels = c(-1.5, -0.75, 0, 0.75, 1.5),
+  # vlcex = 1.1,
+  pfcol = c("#99999980",NA,NA,NA),
+  pcol= c(NA,
+          '#F2AB0C',
+          '#E60B1A',
+          '#1700F2'), plty = 1, plwd = 2
+)
+
+
+row_nams = c('10mM Micit',
+             '5-FU',
+             '5-FU + Micit')
+legend(
+  # x = "bottom",
+  x = 0.85,y = 1.1,
+  legend = row_nams, horiz = F,
+  bty = "n", pch = 20 ,col= c('#F2AB0C',
+                              '#E60B1A',
+                              '#1700F2'),
+  text.col = "black", cex = 1, pt.cex = 2.5
+)
+
+par <- par(opar) 
+
+dev.copy2pdf(device = cairo_pdf,
+             file = here('summary', 'radar_5FU_Micit_comparison.pdf'),
+             width = 7, height = 6.5, useDingbats = FALSE)
+
 
 # protein means comparison ------------------------------------------------
 
