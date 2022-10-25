@@ -2471,7 +2471,7 @@ legend(
 par <- par(opar) 
 
 dev.copy2pdf(device = cairo_pdf,
-             file = here('summary', 'radar_5FU_Micit_comparison.pdf'),
+             file = here('summary', 'radar_5FU_Micit_FC_comparison.pdf'),
              width = 7, height = 6.5, useDingbats = FALSE)
 
 
