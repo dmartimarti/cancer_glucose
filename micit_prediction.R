@@ -612,12 +612,13 @@ hits_freqs_recalc_micit %>%
                                '#50CF28')) +
   theme_light() + 
   labs(y = 'Tissue',
-       x = 'Metabolite production',
+       x = 'Metabolite production (a.u.)',
        fill = 'Phyla') +
-  theme_cowplot(19) 
+  theme_cowplot(19) +
+  theme(legend.position=c(0.6,0.3))
 
 
-ggsave('Micit_prod_byTissue_phylum.pdf', height = 7, width = 9)
+ggsave('Micit_prod_byTissue_phylum.pdf', height = 7, width = 7)
 
 
 # ggsave('Micit_prod_byTissue_phylum.pdf', height = 7, width = 18)
