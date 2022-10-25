@@ -247,11 +247,12 @@ ggsave(here('summary', 'basal_respiration.pdf'),
 
 
 mresp %>% 
+  filter(Genotype == 'WT') %>% 
   ggplot(aes(x = Micit, y = max_resp, fill = Micit,
              color = Micit)) +
   stat_summary(fun.data = "mean_cl_boot", size = 1.5) +
   geom_point(size = 3, alpha = .7) +
-  facet_wrap(~Genotype) +
+  # facet_wrap(~Genotype) +
   scale_color_viridis(discrete = T) +
   labs(title = 'Maximal Respiration',
        y = 'OCR (pmol/min)',
@@ -260,7 +261,8 @@ mresp %>%
 ggsave(here('summary', 'maximal_respiration.pdf'),
        height = 7, width = 9)
 
-
+ggsave(here('summary', 'maximal_respiration_poster.pdf'),
+       height = 3, width = 4)
 
 proton_leak %>% 
   ggplot(aes(x = Micit, y = prot_leak, fill = Micit,
@@ -294,11 +296,12 @@ ggsave(here('summary', 'atp_production.pdf'),
 
 
 spare_resp %>% 
+  filter(Genotype == 'WT') %>%
   ggplot(aes(x = Micit, y = spare_resp, fill = Micit,
              color = Micit)) +
   stat_summary(fun.data = "mean_cl_boot", size = 1.5) +
   geom_point(size = 3, alpha = .7) +
-  facet_wrap(~Genotype) +
+  # facet_wrap(~Genotype) +
   scale_color_viridis(discrete = T) + 
   labs(title = 'Spare Respiration',
        y = 'OCR (pmol/min)',
@@ -307,6 +310,8 @@ spare_resp %>%
 ggsave(here('summary', 'spare_respiration.pdf'),
        height = 7, width = 9)
 
+ggsave(here('summary', 'spare_respiration_poster.pdf'),
+       height = 3, width = 4)
 
 # spare_resp_per %>%
 #   ggplot(aes(x = Micit, y = spare_resp, fill = Micit,
