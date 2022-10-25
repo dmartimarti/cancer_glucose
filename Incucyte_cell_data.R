@@ -671,6 +671,63 @@ ggsave(here('summary/Viability_plots/presentation/',
 
 
 
+select_viab %>% 
+  group_by(cell, IC, Micit_mM) %>% 
+  summarise(Viab_mean = mean(Viability),
+            Viab_sd = sd(Viability)) %>% 
+  left_join(stats4plot %>% ungroup) %>% 
+  select(cell, IC, Micit_mM, Viab_mean, Viab_sd, p.stars) %>% 
+  mutate(lwr = Viab_mean - Viab_sd,
+         upr = Viab_mean + Viab_sd) %>% 
+  # mutate(Micit_mM = as.factor(as.character(Micit_mM))) %>%
+  ungroup %>% 
+  ggplot(aes(x = Micit_mM, y = Viab_mean, 
+             group = cell)) +
+  geom_ribbon(aes(ymin = lwr,
+                  ymax = upr,
+                  fill = cell),
+              alpha = 0.6) +
+  geom_line(color = 'black') +
+  geom_point(show.legend = F, size = 3) +
+  scale_fill_viridis_d(end = 0.7) +
+  labs(y = 'Cell viability ',
+       x = '2-methylisocitrate (mM)',
+       fill = 'Cell line') +
+  facet_wrap(~cell)
+
+
+
+
+select_viab %>% 
+  left_join(stats4plot %>% ungroup) %>% 
+  ggplot(aes(x = Micit_mM, y =  Viability, color = Micit_mM, fill = Micit_mM)) +
+  geom_point(position = position_jitterdodge(),
+             show.legend = FALSE, size = 1.9) +
+  stat_summary(fun.data = "mean_cl_boot", size = 0.4, 
+               show.legend = F, color = 'black',
+               position = position_nudge(x = 0.24))  +
+  geom_text(aes(label = p.stars), 
+            y = 1.2,
+            color = 'black',
+            size = 6) +
+  ylim(0,1.3) +
+  labs(y = 'Normalized confluence',
+       x = '2-methylisocitrate (mM)',
+       color = '2-methylisocitrate (mM)',
+       fill = '2-methylisocitrate (mM)') +
+  scale_fill_viridis_d() +
+  scale_color_viridis_d(begin = 0.24, end = 0.94) +
+  facet_wrap(~cell) 
+
+
+ggsave(here('summary/Viability_plots/presentation/', 
+            'selected_viability.pdf'), 
+       height = 4, 
+       width = 6)
+
+
+
+
 
 
 
