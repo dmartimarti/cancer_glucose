@@ -552,7 +552,7 @@ p4 = BW.plot / pyrE.plot / TM.plot +
 
 p4
 
-ggsave(p4, file = here('Summary', '4wayScreening_score.pdf'),
+ggsave(p4, file = here('Summary', '4wayScreening_score_v2.pdf'),
        height = 10, width = 13)
 
 
@@ -771,20 +771,23 @@ scatter.4way.TM= function(data.4way, padding = 0.2, nudge_y = 1.5) {
 BW_total = met_dat(strain = 'BW', experiment = 'T5') 
 
 BW.plot = scatter.4way(BW_total, padding = 0.2) + 
-  labs(title = 'BW25113 - Wild type')
+  labs(title = 'BW25113 - Wild type',
+       x = NULL, y = NULL)
 
 
 # pyrE
 pyrE_total = met_dat(strain = 'pyrE', experiment = 'T5') 
 
 pyrE.plot = scatter.4way(pyrE_total, padding = 0.3) + 
-  labs(title = bquote(~Delta*pyrE ~ "mutant"))
+  labs(title = bquote(~Delta*italic(pyrE) ~ "mutant"),
+       x = NULL)
 
 # TM
 TM_total = met_dat(strain = 'TM', experiment = 'T250') 
 
 TM.plot = scatter.4way.TM(TM_total, padding = 0.3, nudge_y = 0) +
-  labs(title = bquote(~Delta*upp*Delta*udp*Delta*udk ~ "mutant"))
+  labs(title = bquote(~Delta*italic(upp)*Delta*italic(udp)*Delta*italic(udk) ~ "mutant"),
+       y = NULL)
 
 
 
@@ -792,10 +795,15 @@ TM.plot = scatter.4way.TM(TM_total, padding = 0.3, nudge_y = 0) +
 p4 = BW.plot / pyrE.plot / TM.plot +
   plot_layout(guides = 'collect')
 
-p4
+p4 
 
 ggsave(p4, file = here('Summary', '4wayScreening_score_2.pdf'),
        height = 10, width = 13)
+
+
+ggsave(p4, file = here('Summary', '4wayScreening_score_3.pdf'),
+       height = 8, width = 10)
+
 
 
 
