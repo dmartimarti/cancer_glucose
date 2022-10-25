@@ -444,7 +444,7 @@ nucl = c('Azathioprine', 'Fluorouracil',
          'Mercaptopurine', 'Thioguanine',
          "5-Fluoro-5'- DeoxyurIdine", 'Zidovudine', 
          'Azacytidine', 'Carmofur',
-         'Zidovudine',
+         'Zidovudine', 'Methotrexate',
          'Floxuridine', "Cytosine-Beta-DArabinofuranoside")
 
 res_ZIP_cats = result_ZIP %>% 
@@ -479,7 +479,7 @@ res_ZIP_cats %>%
   ggplot(aes(x = Category, y = Most.synergistic.area.score, 
              fill = Category)) +
   geom_violin() +
-  geom_jitter(size = 0.5,height = 0, width = 0.1) +
+  geom_jitter(size = 1.1, alpha = 0.5, height = 0, width = 0.1) +
   geom_point(data = res_ZIP.sum,
              size = 3.5,
              color = 'black',
@@ -496,8 +496,8 @@ res_ZIP_cats %>%
                linetype="dashed", colour = 'grey50') +
   # pval annotation
   geom_segment(aes(x = 1, xend = 2, y = 16.5, yend = 16.5)) +
-  annotate("text", x = 1.5, y = 18, 
-           label = paste('P-value: ',round(pval, 5))) +
+  annotate("text", x = 1.5, y = 18,
+           label = paste('P-value: ',round(pval, 3))) +
   # annotate("text", x = 1.5, y = 18, label = paste('P-value < ','0.0001')) +
   scale_fill_manual(values = c('#F5EC49',
                                 '#3D9CE6'),
@@ -509,11 +509,14 @@ res_ZIP_cats %>%
                    labels = c("Nucleotides" = "Nucleotide \n antimetabolite",
                               "Other" = "Other")) +
   theme(axis.text.x = element_text(face = "bold", size = 13, color = 'black'),
-        axis.text.y = element_text(face = "bold", size = 13, color = 'black'))
+        axis.text.y = element_text(face = "bold", size = 13, color = 'black'),
+        legend.position = 'none')
 
-ggsave(here('exploration', 'violin_nucleotides_biolog_MostSynergyScore.pdf'), 
+ggsave(here('exploration', 'violin_nucleotides_biolog_MostSynergyScore.pdf'),
        height = 8, width = 9)
 
+ggsave(here('exploration', 'violin_nucleotides_biolog_MostSynergyScore_poster.pdf'), 
+       height = 5, width = 4.5)
 
 res_ZIP.sum %>%
   ggplot(aes(x = Category, y = Mean)) +
