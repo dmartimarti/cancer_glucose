@@ -1570,6 +1570,7 @@ tidy_tf %>%
   arrange(desc(abs(mean_activity))) %>% 
   mutate(Direction = factor(Direction, levels = c('Up', 'Down'))) %>% 
   filter(tf %in% unique(head(tidy_tf$tf, 25))) %>%
+  # drop_na() %>% 
   ggplot(aes(x = fct_reorder(tf, p), y = mean_activity)) +
   geom_errorbar(aes(ymax = mean_activity + sd_activity, 
                     ymin = mean_activity - sd_activity),
@@ -2321,9 +2322,77 @@ ggsave('summary/GSEA/LoVo/LoVo_heatmap_enrich_KEGG.pdf',
 
 
 
+# poster version ----------------------------------------------------------
+
+# join 3 datasets
+
+hct_cats = HCT116_output %>% 
+  mutate(direction=factor(direction, levels = c('UP', 'DOWN'))) %>% 
+  mutate(FDR = cut(fdr, 
+                   labels = c('0.001', '0.01', '0.05', 'ns'),
+                   breaks = c(-Inf, 0.001, 0.01, 0.05, Inf)),
+         .before = term) %>% 
+  mutate(description = str_wrap(description, width = 25),
+         cell = 'HCT 116') %>% 
+  filter(description %in% categories)
 
 
+dld_cats =DLD_output %>% 
+  mutate(direction=factor(direction, levels = c('UP', 'DOWN'))) %>% 
+  mutate(FDR = cut(fdr, 
+                   labels = c('0.001', '0.01', '0.05', 'ns'),
+                   breaks = c(-Inf, 0.001, 0.01, 0.05, Inf)),
+         .before = term) %>% 
+  mutate(description = str_wrap(description, width = 25),
+         cell = 'DLD-1') %>% 
+  filter(description %in% categories)
+  
+  
+lovo_cats = lovo_output %>% 
+  mutate(direction=factor(direction, levels = c('UP', 'DOWN'))) %>% 
+  mutate(FDR = cut(fdr, 
+                   labels = c('0.001', '0.01', '0.05', 'ns'),
+                   breaks = c(-Inf, 0.001, 0.01, 0.05, Inf)),
+         .before = term) %>% 
+  mutate(description = str_wrap(description, width = 25),
+         cell = 'LoVo') %>% 
+  filter(description %in% categories)
 
+
+merge_cats = hct_cats %>% 
+  bind_rows(dld_cats) %>% 
+  bind_rows(lovo_cats) 
+
+# categories = unique(merge_cats$description)
+
+library(ggtext)
+
+highlight = function(x, pat, color="black") {
+  ifelse(grepl(pat, x), 
+         glue("<b style='font-size:18pt; color:{color}'>{x}</b>"), x)
+}
+
+merge_cats %>% 
+  ggplot(aes(y = description, x = direction ,fill = FDR)) + 
+  geom_tile() +
+  scale_fill_manual(values = c('#2432FF',
+                               '#616BFF',
+                               '#A3A9FF',
+                               '#FFFFFF')) +
+  labs(
+    x = 'Regulation',
+    y = 'KEGG Terms'
+  ) +
+  scale_y_discrete(limits=rev,
+                   labels= function(x) highlight(x, "p53 signaling pathway", "red")) +
+  facet_wrap(~cell) +
+  theme(
+    strip.text = element_text(size = 15),
+    axis.text.y = element_markdown(size = 12, lineheight = 0.6)
+  ) +
+  panel_border(color = 'black', size = 0.5)
   
-  
-  
+
+ggsave('summary/GSEA/poster_heatmap_enrich_KEGG.pdf',
+       width = 12, height = 10)  
+
