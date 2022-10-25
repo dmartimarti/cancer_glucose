@@ -2657,16 +2657,16 @@ data_long %>% filter(Gene_names %in%  gene) %>%
                               "5FU_1mM_Micit" = "1mM",
                               "5FU_10mM_Micit" = "10mM")) +
   geom_vline(xintercept = 1.5, linetype="dashed", color = 'grey60') +
-  annotate("text", x = 2, y = 29.7, label = 'atop(bold("5-FU"))', size = 7,
+  annotate("text", x = 2, y = 29.2, label = 'atop(bold("5-FU"))', size = 7,
            color = 'orange', parse = T) +
   geom_vline(xintercept = 2.5, linetype="dashed", color = 'grey60') +
   geom_vline(xintercept = 4.5, linetype="dashed", color = 'grey60') +
-  annotate("text", x = 3.5, y = 29.7, label = 'atop(bold("Micit"))', size = 7, 
+  annotate("text", x = 3.5, y = 29.2, label = 'atop(bold("Micit"))', size = 7, 
            color = 'blue', parse = T) +
   geom_vline(xintercept = 4.5, linetype="dashed", color = 'grey60') +
-  annotate("text", x = 5.5, y = 29.7, label = 'atop(bold("Micit"))', size = 7, 
+  annotate("text", x = 5.5, y = 29.2, label = 'atop(bold("Micit"))', size = 7, 
            color = 'blue', parse = T) +
-  annotate("text", x = 5.5, y = 29.57, label = 'atop(bold(" + 5-FU"))', size = 7, 
+  annotate("text", x = 5.5, y = 29.02, label = 'atop(bold(" + 5-FU"))', size = 7, 
            color = 'orange', parse = T) +
   scale_fill_manual(
     values = c('grey60',
@@ -2687,7 +2687,7 @@ data_long %>% filter(Gene_names %in%  gene) %>%
         axis.title.x = element_text(size=14, face="bold"),
         axis.title.y = element_text(size=14, face="bold"))
 
-ggsave(here('presentation','TYMS_boxplot.pdf'), height = 7, width = 7.5)
+ggsave(here('presentation','TYMS_boxplot.pdf'), height = 5, width = 6.3)
 
 
 ### TP53 plot ####
@@ -2713,16 +2713,16 @@ data_long %>% filter(Gene_names %in%  gene) %>%
                               "5FU_1mM_Micit" = "1mM",
                               "5FU_10mM_Micit" = "10mM")) +
   geom_vline(xintercept = 1.5, linetype="dashed", color = 'grey60') +
-  annotate("text", x = 2, y = 23, label = 'atop(bold("5-FU"))', size = 7,
+  annotate("text", x = 2, y = 22.7, label = 'atop(bold("5-FU"))', size = 6,
            color = 'orange', parse = T) +
   geom_vline(xintercept = 2.5, linetype="dashed", color = 'grey60') +
   geom_vline(xintercept = 4.5, linetype="dashed", color = 'grey60') +
-  annotate("text", x = 3.5, y = 23, label = 'atop(bold("Micit"))', size = 7,
+  annotate("text", x = 3.5, y = 22.7, label = 'atop(bold("Micit"))', size = 7,
            color = 'blue', parse = T) +
   geom_vline(xintercept = 4.5, linetype="dashed", color = 'grey60') +
-  annotate("text", x = 5.5, y = 23, label = 'atop(bold("Micit"))', size = 7,
+  annotate("text", x = 5.5, y = 22.7, label = 'atop(bold("Micit"))', size = 7,
            color = 'blue', parse = T) +
-  annotate("text", x = 5.5, y = 22.93, label = 'atop(bold(" + 5-FU"))', size = 7,
+  annotate("text", x = 5.5, y = 22.6, label = 'atop(bold(" + 5-FU"))', size = 7,
            color = 'orange', parse = T) +
   scale_fill_manual(
     values = c('grey60',
@@ -2737,13 +2737,13 @@ data_long %>% filter(Gene_names %in%  gene) %>%
                '10mM',
                '1mM + 5-FU',
                '10mM + 5-FU')) +
-  theme(axis.text.x = element_text(hjust = 0.5)) +
-  theme(axis.text.x = element_text(size=15, color = 'black'),
-        axis.text.y = element_text(size=15, color = 'black'),
+  # theme(axis.text.x = element_text()) +
+  theme(axis.text.x = element_text(size=13, color = 'black', hjust = 0.5),
+        axis.text.y = element_text(size=13, color = 'black'),
         axis.title.x = element_text(size=14, face="bold"),
         axis.title.y = element_text(size=14, face="bold"))
 
-ggsave(here('presentation','TP53_boxplot.pdf'), height = 7, width = 7.5)
+ggsave(here('presentation','TP53_boxplot.pdf'), height = 5, width = 6.3)
 
 
 
@@ -2770,16 +2770,16 @@ data_long %>% filter(Gene_names %in%  gene) %>%
                               "5FU_1mM_Micit" = "1mM",
                               "5FU_10mM_Micit" = "10mM")) +
   geom_vline(xintercept = 1.5, linetype="dashed", color = 'grey60') +
-  annotate("text", x = 2, y = 26.8, label = 'atop(bold("5-FU"))', size = 7,
+  annotate("text", x = 2, y = 26.2, label = 'atop(bold("5-FU"))', size = 7,
            color = 'orange', parse = T) +
   geom_vline(xintercept = 2.5, linetype="dashed", color = 'grey60') +
   geom_vline(xintercept = 4.5, linetype="dashed", color = 'grey60') +
-  annotate("text", x = 3.5, y = 26.8, label = 'atop(bold("Micit"))', size = 7,
+  annotate("text", x = 3.5, y = 26.2, label = 'atop(bold("Micit"))', size = 7,
            color = 'blue', parse = T) +
   geom_vline(xintercept = 4.5, linetype="dashed", color = 'grey60') +
-  annotate("text", x = 5.5, y = 26.8, label = 'atop(bold("Micit"))', size = 7,
+  annotate("text", x = 5.5, y = 26.2, label = 'atop(bold("Micit"))', size = 7,
            color = 'blue', parse = T) +
-  annotate("text", x = 5.5, y = 26.6, label = 'atop(bold(" + 5-FU"))', size = 7,
+  annotate("text", x = 5.5, y = 25.94, label = 'atop(bold(" + 5-FU"))', size = 7,
            color = 'orange', parse = T) +
   scale_fill_manual(
     values = c('grey60',
@@ -2800,7 +2800,7 @@ data_long %>% filter(Gene_names %in%  gene) %>%
         axis.title.x = element_text(size=14, face="bold"),
         axis.title.y = element_text(size=14, face="bold"))
 
-ggsave(here('presentation','TP21_boxplot.pdf'), height = 7, width = 7.5)
+ggsave(here('presentation','TP21_boxplot.pdf'),height = 5, width = 6.3)
 
 
 
@@ -2910,8 +2910,8 @@ Heatmap(heat_pres[362:379,],
         )
 
 dev.copy2pdf(device = cairo_pdf,
-             file = here('presentation', 'heatmap_mTOR.pdf'),
-             width = 5, height = 5, useDingbats = FALSE)
+             file = here('presentation', 'heatmap_mTOR_poster.pdf'),
+             width = 5, height = 2, useDingbats = FALSE)
 
 
 
@@ -2938,8 +2938,8 @@ Heatmap(heat_pres[380:405,],
         )
 
 dev.copy2pdf(device = cairo_pdf,
-             file = here('presentation', 'heatmap_p53.pdf'),
-             width = 5, height = 5, useDingbats = FALSE)
+             file = here('presentation', 'heatmap_p53_poster.pdf'),
+             width = 5, height = 2.2, useDingbats = FALSE)
 
 
 
@@ -3264,10 +3264,11 @@ heat_mat_gen = function(mat=heat_mat_all,genes) {
   return(temp_mat)
 }
 
-draw_HT_with_top = function(temp_mat = temp_mat, pathway) {
+draw_HT_with_top = function(temp_mat = temp_mat, pathway, show_names = T) {
   Heatmap(temp_mat[,c(1,2,4,6)], 
           # name = "Z-score",
           show_heatmap_legend = F,
+          show_row_names = show_names,
           row_names_gp = gpar(fontsize = 6),
           column_names_rot =0, 
           column_names_side = "top",
@@ -3289,11 +3290,12 @@ draw_HT_with_top = function(temp_mat = temp_mat, pathway) {
   
 }
 
-draw_HT = function(temp_mat = temp_mat, pathway) {
+draw_HT = function(temp_mat = temp_mat, pathway, show_names = T) {
  Heatmap(temp_mat[,c(1,2,4,6)], 
           # name = "Z-score",
          show_heatmap_legend = F,
           row_names_gp = gpar(fontsize = 6),
+         show_row_names = show_names,
           column_names_rot =0, 
           column_names_side = "top",
           cluster_columns = F,
@@ -3312,27 +3314,27 @@ draw_HT = function(temp_mat = temp_mat, pathway) {
 # draw individual heatmaps
 # folate
 temp_mat = heat_mat_gen(genes = folate)
-fol_ht = draw_HT_with_top(temp_mat , pathway = 'Folate')
+fol_ht = draw_HT_with_top(temp_mat , pathway = 'Folate', show_names = F)
 
 # pyrimidines
 temp_mat = heat_mat_gen(genes = pyr)
-pyr_ht = draw_HT(temp_mat , pathway = 'Pyrimidines')
+pyr_ht = draw_HT(temp_mat , pathway = 'Pyrimidines', show_names = F)
 
 # purines
 temp_mat = heat_mat_gen(genes = pur)
-pur_ht = draw_HT(temp_mat , pathway = 'Purines')
+pur_ht = draw_HT(temp_mat , pathway = 'Purines', show_names = F)
 
 # ribosome
 temp_mat = heat_mat_gen(genes = rib)
-rib_ht = draw_HT(temp_mat , pathway = 'Ribosome')
+rib_ht = draw_HT(temp_mat , pathway = 'Ribosome',show_names = F)
 
 # p53
 temp_mat = heat_mat_gen(genes = p53)
-p53_ht = draw_HT(temp_mat , pathway = 'p53')
+p53_ht = draw_HT(temp_mat , pathway = 'p53',show_names = F)
 
 # tca
 temp_mat = heat_mat_gen(genes = tca)
-tca_ht = draw_HT(temp_mat , pathway = 'TCA cycle')
+tca_ht = draw_HT(temp_mat , pathway = 'TCA cycle',show_names = F)
 
 
 pathways = c('Folate', 'Pyrimidines','Purines','Ribosome','p53','TCA cycle')
@@ -3358,7 +3360,9 @@ dev.copy2pdf(device = cairo_pdf,
              file = here('presentation', 'heatmap_KEGG.pdf'),
              width = 6, height = 8, useDingbats = FALSE)
 
-
+dev.copy2pdf(device = cairo_pdf,
+             file = here('presentation', 'heatmap_KEGG_poster.pdf'),
+             width = 6, height = 3.4, useDingbats = FALSE)
 
 
 
