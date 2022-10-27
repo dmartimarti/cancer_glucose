@@ -335,12 +335,21 @@ enrich %>%
                  "enrichment_stats.csv"))
 
 
+paths = c('Amino Sugar Metabolism','Citric Acid Cycle','Alanine Metabolism',
+          'Butyrate Metabolism', 'Folate Metabolism', 'Gluconeogenesis',
+          'Glucose-Alanine Cycle', 'Glutamate Metabolism', 
+          'Glutathione Metabolism', 'Glycolisis', 
+          'Mitochondrial Electron Transport Chain', 'Purine Metabolism',
+          'Pyrimidine Metabolism', 'Pyruvate Metabolism', 'Urea Cycle',
+          'Marburg Effect', 'Glycerol Phosphate Shuttle'
+          )
 
 # version with p-values
 enrich %>% 
   filter(p < 0.05) %>%
   mutate(logpval = -log10(p)) %>% 
   filter(logpval > 2) %>%
+  filter(Pathway %in% paths) %>% 
   unite(sample, genotype, direction, remove = F) %>% 
   # mutate(Pathway = str_wrap(Pathway, width = 25)) %>% 
   mutate(sample = case_when(sample == 'p53_down' ~ 'p53\nDown',
@@ -349,6 +358,7 @@ enrich %>%
                             sample == 'wt_up' ~ 'WT\nUp')) %>% 
   mutate(sample = factor(sample, levels = c('WT\nUp','WT\nDown',
                                             'p53\nUp','p53\nDown'))) %>% 
+  filter(sample %in% c('WT\nUp', 'WT\nDown')) %>% 
   ggplot(aes(x = sample, y = Pathway, fill = logpval,
              size = logpval, color = logpval)) +
   # geom_tile() +
@@ -364,12 +374,20 @@ enrich %>%
   # scale_fill_gradient(low = 'white', high = 'red') +
   scale_color_gradient(low = 'white', high = 'red', guide = 'legend') +
   scale_size_continuous(range = c(1, 7)) +
-  guides(color=guide_legend(title = '-log10(p-value)'), 
-         size = guide_legend(title = '-log10(p-value)'),
-         fill='none')
+  guides(color=guide_legend(title = '-log10\n(p-value)'), 
+         size = guide_legend(title = '-log10\n(p-value)'),
+         fill='none') 
 
 ggsave(here("summary", "metaboanalyst", "enrich", "Enrich_heatmap_pval_cutoff2.pdf"),
        height = 10, width = 8)
+
+
+ggsave(here("summary", "metaboanalyst", "enrich", "Enrich_heatmap_poster.pdf"),
+       height = 5.5, width = 7)
+
+
+ggsave(here("summary", "metaboanalyst", "enrich", "Enrich_heatmap_poster2.pdf"),
+       height = 5.5, width = 5)
 
 
 ### version for presentation ####
