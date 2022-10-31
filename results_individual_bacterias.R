@@ -41,6 +41,41 @@ bca %>%
 ggsave('metabolomics/plots/barplot_pellet.pdf',
        height = 7, width = 7)
 
+
+
+# plot by phyla -----------------------------------------------------------
+
+# plot by sample #####
+## pellet ####
+bca %>% 
+  # filter(Sample == 'Pellet') %>% 
+  filter(Bacteria != 'gltA prpB double mutant') %>% 
+  mutate(Sample = str_replace(Sample, 'Pellet', 'Endogenous'),
+         Sample = str_replace(Sample, 'Supernatant', 'Excreted')) %>% 
+  ggplot(aes(x = Phylum, 
+             y = Micit, fill = Phylum)) +
+  geom_boxplot(show.legend = F, outlier.shape = NA) +
+  geom_point(position = position_jitterdodge(),
+             show.legend = F) +
+  facet_wrap(~ Sample) +
+  labs(
+    x = NULL,
+    y = 'Micit concentration'
+  ) +
+  scale_fill_manual(values = c(
+    '#F9B91A', # actinobac
+    '#D9024B', # bacteroidetes
+    '#6C2AF1', # Firmicutes
+    '#00B9EA'  # proteobact
+  )) +
+  theme_half_open() +
+  theme(
+    axis.text.x =  element_text(angle = 45, hjust = 1)
+  )
+
+ggsave('metabolomics/plots/boxplot_phyla.pdf',
+       height = 5, width = 5.6)
+
 ## supernatant####
 bca %>% 
   filter(Sample == 'Supernatant') %>% 
