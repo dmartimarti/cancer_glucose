@@ -209,16 +209,23 @@ mumax = cells %>%
   ungroup
 
 mumax %>% 
-  ggplot(aes(x = Condition, y = lag, fill = Condition)) +
-  geom_boxplot() +
-  geom_point(position = position_jitterdodge()) +
+  ggplot(aes(x = Condition, y = mumax, fill = Condition)) +
+  geom_boxplot(show.legend = F) +
+  geom_point(position = position_jitterdodge(),
+             show.legend = F) +
   scale_fill_manual(values = c(
     '#3AD535', # green
     '#2065D6', # blue
     '#D69E2B', # orange
     '#D62055' # red
   )) +
+  labs(
+    x = NULL, 
+    y = 'Max growth rate'
+  ) +
   facet_wrap(~Cell)
+
+ggsave('plots/growth_rates.pdf', height = 5, width = 7)
 
 
 numax %>% 
