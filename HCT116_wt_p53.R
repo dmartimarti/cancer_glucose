@@ -244,3 +244,67 @@ par(mfrow = c(8, 3))
 par(mar = c(2.5, 4, 2, 1))
 plot(many_splines)
 
+
+
+
+
+# racemic mixture growth curves -------------------------------------------
+
+
+
+
+library(readxl)
+racemic_mixture = read_excel("racemic_mixture.xlsx")
+
+
+mix.sum = racemic_mixture %>% 
+  pivot_longer(Control_1:Batch_4, names_to = 'Condition', 
+               values_to = 'Confluence') %>% 
+  separate(Condition, into = c('Condition', 'Replicate'), sep = '_') %>% 
+  mutate(Condition = case_when(Condition == 'Mixture' ~ 'Racemic mixture',
+                               Condition == 'Batch' ~ '2R, 3S', 
+                               TRUE ~ Condition),
+         Condition = factor(Condition, 
+                            levels = 
+                              c('Control', 
+                                'Racemic mixture',
+                                '2R, 3S'))) %>% 
+  group_by(Elapsed, Condition) %>% 
+  summarise(mean_conf = mean(Confluence),
+            sd_conf = sd(Confluence)) %>% 
+  ungroup
+
+
+mix.sum %>% 
+  ggplot(aes(x = Elapsed, y = mean_conf, colour = Condition, fill = Condition)) +
+  geom_ribbon(aes(ymin = mean_conf - sd_conf, ymax = mean_conf + sd_conf),
+              alpha = 0.3, color = NA) +
+  geom_line() +
+  scale_fill_manual(values = c(
+    '#196FE0',
+    '#0AA652',
+    '#F01853'
+  )) +
+  scale_color_manual(values = c(
+    '#196FE0',
+    '#0AA652',
+    '#F01853'
+  )) +
+  labs(
+    x = 'Time (h)',
+    y = 'Confluency (%)'
+  ) +
+  theme_cowplot(15) +
+  theme(
+    legend.position = c(0.06, 0.8),
+    legend.title = element_blank()
+  )
+
+ggsave('plots/racemic_mixture.pdf',
+       height = 4.5, width = 6 
+       )  
+  
+  
+  
+  
+
