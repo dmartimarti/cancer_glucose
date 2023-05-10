@@ -116,7 +116,9 @@ data_long = data_long %>% select(Gene_names, Sample, Intensity, everything()) %>
 data_long
 
 data_long %>% 
-  select(Gene_names, Sample, Intensity) %>% 
+  select(Gene_names:Protein_IDs, KEGG_name) %>% 
+  group_by(Gene_names) %>% 
+  mutate(Replicate = 1:n(), .before = Protein_IDs) %>% 
   write_csv(here('summary','data_long.csv'))
 
 
