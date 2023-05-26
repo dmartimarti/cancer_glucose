@@ -230,9 +230,15 @@ ggsave('plots/growth_rates.pdf', height = 5, width = 7)
 
 numax %>% 
   group_by(Cell) %>% 
-  t_test(numax ~ Condition, detailed = T) %>% 
-  add_significance("p.adj") 
+  rstatix::t_test(mumax ~ Condition, detailed = TRUE) %>% 
+  adjust_pvalue(method = 'fdr') %>% 
+  add_significance("p.adj")  %>% 
+  write_csv('ttest_growth_rate.csv')
 
+
+numax %>% 
+  rstatix::anova_test(mumax ~ Condition * Cell, detailed = TRUE) %>% 
+  write_csv('interaction_growth_rate.csv')
 
 
 
@@ -240,6 +246,7 @@ numax %>%
 many_splines = all_splines(value ~ Elapsed | Replicate + Cell + Condition, 
                            data = cells %>% 
                              filter(Elapsed > 30), optgrid = 30)
+
 par(mfrow = c(8, 3))
 par(mar = c(2.5, 4, 2, 1))
 plot(many_splines)
