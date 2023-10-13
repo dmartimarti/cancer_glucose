@@ -22,6 +22,8 @@ library(colorspace)
 library(plotly)
 library(ggpubr)
 library(patchwork)
+library(here)
+library(cowplot)
 
 # options(width = 150)
 
@@ -695,7 +697,7 @@ scatter.4way= function(data.4way, padding = 0.2) {
     coord_cartesian(xlim = c(-10,415),
                     ylim = c(-0.5,4.5)) +
     # ylim(0, 15) +
-    scale_size(guide=FALSE) +
+    scale_size(guide="none") +
     theme_classic() +
     theme(
       # axis.title.y=element_blank(),
@@ -747,7 +749,7 @@ scatter.4way.TM= function(data.4way, padding = 0.2, nudge_y = 1.5) {
     coord_cartesian(xlim = c(-10,415),
                     ylim = c(-0.5,4.5)) +
     # ylim(0, 15) +
-    scale_size(guide=FALSE) +
+    scale_size(guide="none") +
     theme_classic() +
     theme(
       # axis.title.y=element_blank(),
@@ -1185,5 +1187,56 @@ df_class %>%
 
 ggsave(file = here('Summary', '4wayScreening_ggtern_class_density_v4.pdf'),
        height = 9, width = 12)
+
+
+
+
+
+
+
+
+# more simpler 4-way plots ------------------------------------------------
+
+
+strain = 'BW'
+experiment = "T5"
+
+bw_worms = worm.sum %>% filter(Strain == strain, Experiment == experiment) %>% 
+  select(-Experiment, -Mean:-SD)
+
+bw_scores =
+  results %>% 
+  filter(Contrast %in% c('BW_5FU', 'BW_C', 'BW_T')) %>% 
+  select(Contrast, Strain:FDR, -SE, -p.value, -FDR, -t.value) %>% 
+  pivot_wider(names_from = Contrast, values_from = logFC) %>% 
+  left_join(bw_worms) %>% 
+  mutate(slope = adjustments %>% 
+           filter(Contrast == 'BW_5FU_Alln') %>% 
+           pull(a)) %>%
+  mutate(BW_adj = (BW_C - slope),
+         score = abs(BW_T - BW_adj))
+
+
+
+
+
+bw_scores %>%
+  ggplot(aes(x = fct_reorder(MetaboliteU, score), y = score)) +
+  geom_point(aes(fill = Median), shape = 21) +
+  scale_fill_gradientn(colours = gradcolours,
+                       breaks = c(1,2,3,4), limits = c(1,4),
+                       guide = "legend", name = 'C. elegans\nphenotype') +
+  theme_cowplot(14)
+
+
+
+
+
+
+
+
+
+
+
 
 
