@@ -9,6 +9,7 @@ library(openxlsx)
 library(ggpubr)
 library(cowplot)
 
+
 theme_set(theme_cowplot(15))
 
 
@@ -56,6 +57,9 @@ joint_resp.sum = joint_resp %>%
   mutate(BW_norm = Median_Score - BW_Score,
          BW_Mean_norm = Mean - BW_Mean)
 
+joint_resp.sum %>% 
+  write_csv(here("Summary", "resp_sublibrary", "resp_sublib_means.csv"))
+
 drug = 5
 pos = position_jitter(width = 0.05, height = 0.05, seed = 1) # to plot names in jitter positions
 joint_resp.sum %>% 
@@ -87,6 +91,13 @@ ggsave(file = here('Summary/resp_sublibrary', 'Scatter_sub_lib_JOINT_DATASETS_5u
 
 
 #### density plots for pathways ####
+
+ecocyc %>% 
+  write_csv("ecocyc_pathways.csv")
+
+
+
+ecocyc = read_csv("ecocyc_pathways.csv")
 
 ecocyc_zip = ecocyc %>% 
   group_by(gene) %>% 
@@ -125,7 +136,7 @@ interesting_genes = tca_genes %>%
 
 # plot with density for the two pathways
 joint_resp.sum %>% 
-  filter(Drug == drug) %>% 
+  filter(Drug == 5) %>% 
   select(Supplement, Supplement_mM, Genes, BW_norm) %>%
   unite(Supp, Supplement, Supplement_mM) %>%
   spread(Supp, BW_norm) %>%
@@ -440,8 +451,8 @@ paths_scores_tidy_filter = paths_scores_tidy %>%
 background %>% 
   # mutate(new_fill = (Glucose_0 * Glucose_10) ) %>% 
   mutate(new_fill = (Glucose_0_fill * Glucose_10_fill) ) %>% 
-  ggplot(aes(y = Glucose_0,
-             x = Glucose_10)) +
+  ggplot(aes(y = Glucose_10,
+             x = Glucose_0)) +
   geom_tile(aes(fill = new_fill),
             alpha = 1,
             width = .05) +
@@ -451,8 +462,8 @@ background %>%
     low = 'blue') +
   geom_label_repel(
     data = paths_scores_tidy_filter,
-    aes(x = Glucose_10, 
-        y = Glucose_0,
+    aes(x = Glucose_0, 
+        y = Glucose_10,
         label = categories,
         size = size),
     min.segment.length = Inf,
@@ -460,8 +471,8 @@ background %>%
     seed = 1234) +
   geom_label_repel(
     data = paths_scores_tidy_filter,
-    aes(x = Glucose_10, 
-        y = Glucose_0,
+    aes(x = Glucose_0, 
+        y = Glucose_10,
         label = categories,
         size = size,
         color = color),
@@ -473,8 +484,8 @@ background %>%
          size = 'none',
          color = 'none') +
   labs(
-    x = 'Sensitivity to 5FU + Glucose score',
-    y = 'Sensitivity to 5FU score'
+    x = 'Sensitivity to 5FU score',
+    y = 'Sensitivity to 5FU + Glucose score'
   ) +
   scale_size(range = c(3,6)) +
   scale_color_manual(values = c('darkred', 'grey50', 'darkblue')) +
@@ -487,7 +498,8 @@ background %>%
 ggsave(here('summary/resp_sublibrary', 'Pathways_sensitivity_v3.pdf'),
        height = 9, width = 11)
 
-
+ggsave(here('FIGURES', 'res_sublib_pathways_sensitivity_v3.pdf'),
+       height = 11, width = 11)
 
 
 
@@ -502,5 +514,239 @@ background %>%
     high = 'red',
     mid = 'grey95',
     low = 'blue')
+
+
+
+
+
+# paper version -----------------------------------------------------------
+
+
+# POSSIBLY A FINAL VERSION ------------------------------------------------
+
+
+## Glucose as x-axis -------
+
+very_sig_paths = sig_paths %>%
+  filter(fdr < 0.01) %>% 
+  filter(!(categories %in% c("NADH to trimethylamine N'oxide electron transfer",
+                             "NADH to hydrogen peroxide electron transfer",
+                             "NADH to dimethyl sulfoxide electron transfer",
+                             "NADH to cytochrome bo oxidase electron transfer I",
+                             "NADH to fumarate electron transfer",
+                             # "superpathway of glycolysis, pyruvate dehydrogenase, TCA, and glyoxylate bypass",
+                             "nitrate reduction VIII (dissimilatory)",
+                             "superpathway of glyoxylate bypass and TCA",
+                             "sulfate activation for sulfonation",
+                             "2-oxoglutarate decarboxylation to succinyl-CoA"))) %>% 
+  distinct(categories) %>% pull(categories)
+
+# add some extra interesting paths
+very_sig_paths = c(very_sig_paths, "inosine-5'-phosphate biosynthesis I",
+                   "chorismate biosynthesis from 3-dehydroquinate",
+                   "salvage pathways of pyrimidine ribonucleotides")
+
+
+
+
+## MISMATCHES IN ECOCYC -----
+setdiff(joint_resp.sum %>% 
+          distinct(Genes) %>% pull(Genes),
+        ecocyc$gene)
+
+
+
+
+drug_resistance_paths = joint_resp.sum %>% 
+  filter(Drug == 5) %>% 
+  select(Supplement, Supplement_mM, Genes, BW_norm) %>% 
+  left_join(ecocyc %>% rename(Genes = gene),
+            relationship = "many-to-many") %>% 
+  filter(pathway %in% very_sig_paths) %>% 
+  filter(Supplement_mM == 0) %>% 
+  group_by(pathway) %>% 
+  summarise(drug_resistance = median(BW_norm)) %>% 
+  distinct(pathway, .keep_all = T)
+
+
+
+
+
+joint_resp.sum %>% 
+  filter(Drug == 5) %>% 
+  select(Supplement, Supplement_mM, Genes, BW_norm) %>% 
+  left_join(ecocyc %>% rename(Genes = gene),
+            relationship = "many-to-many") %>% 
+  filter(pathway %in% very_sig_paths) %>% 
+  filter(Supplement_mM == 10) %>% 
+  left_join(drug_resistance_paths) %>% 
+  # mutate(drug_resistance = as.factor(drug_resistance)) %>% 
+  ggplot(aes(y = pathway, x = BW_norm, fill = drug_resistance)) +
+  geom_violin(show.legend = T, scale = "width") +
+  geom_jitter(height = 0.05, width = 0.05, show.legend = F) +
+  viridis::scale_fill_viridis(begin = 0.1, end = 0.9, option = "C") +
+  labs(
+    x = "C. elegans phenotype normalised scores (with Glucose)",
+    y = NULL,
+    fill = "5-FU resistance"
+  ) +
+  scale_y_discrete(labels = scales::label_wrap(40)) +
+  theme_cowplot(15, font_family = "Arial")
+
+quartz.save(file = here('FIGURES', "resp_sublibrary_violin.pdf"),
+            type = 'pdf', dpi = 300, height = 10, width = 12)
+  
+
+
+## 5FU as x-axis ------
+
+
+drug_resistance_paths = joint_resp.sum %>% 
+  filter(Drug == 5) %>% 
+  select(Supplement, Supplement_mM, Genes, BW_norm) %>% 
+  left_join(ecocyc %>% rename(Genes = gene),
+            relationship = "many-to-many") %>% 
+  filter(pathway %in% very_sig_paths) %>% 
+  filter(Supplement_mM == 10) %>% 
+  group_by(pathway) %>% 
+  summarise(drug_resistance = mean(BW_norm)) %>% 
+  distinct(pathway, .keep_all = T)
+
+
+
+joint_resp.sum %>% 
+  filter(Drug == 5) %>% 
+  select(Supplement, Supplement_mM, Genes, BW_norm) %>% 
+  left_join(ecocyc %>% rename(Genes = gene),
+            relationship = "many-to-many") %>% 
+  filter(pathway %in% very_sig_paths) %>% 
+  filter(Supplement_mM == 0) %>% 
+  left_join(drug_resistance_paths) %>% 
+  mutate(pathway =  factor(pathway,
+                           levels = c(
+                             # energy
+                             "TCA cycle I (prokaryotic)",
+                             "superpathway of glycolysis, pyruvate dehydrogenase, TCA, and glyoxylate bypass",
+                             "pentose phosphate pathway (non-oxidative branch)",
+                             "pentose phosphate pathway",
+                             "NADH to trimethylamine N-oxide electron transfer",
+                             "NADH to cytochrome bd oxidase electron transfer I",
+                             # nucleotides
+                             "superpathway of pyrimidine ribonucleotides de novo biosynthesis",
+                             "superpathway of pyrimidine deoxyribonucleotides de novo biosynthesis",
+                             "UMP biosynthesis I",
+                             "superpathway of purine nucleotides de novo biosynthesis II",
+                             "inosine-5'-phosphate biosynthesis I",
+                             "superpathway of guanosine nucleotides de novo biosynthesis II",
+                             "superpathway of adenosine nucleotides de novo biosynthesis II",
+                             "salvage pathways of pyrimidine ribonucleotides",
+                             "superpathway of histidine, purine, and pyrimidine biosynthesis",
+                             "superpathway of aromatic amino acid biosynthesis",
+                             "chorismate biosynthesis from 3-dehydroquinate"
+                           ))) %>% 
+  ggplot(aes(y = pathway, x = BW_norm, fill = drug_resistance)) +
+  geom_violin(show.legend = T, scale = "width", alpha = 0.9) +
+  geom_jitter(height = 0.2, width = 0.05, show.legend = F,
+              shape = 21, size = 4) +
+  # viridis::scale_fill_viridis(begin = 0.1, end = 0.9, option = "C") +
+  scale_fill_gradient2(mid = "grey90", high = '#31A95E', low = '#FA2014') +
+  labs(
+    x = "C. elegans phenotype normalised scores",
+    y = NULL,
+    fill = "5-FU + Glucose resistance"
+  ) +
+  scale_y_discrete(labels = scales::label_wrap(40), limits=rev) +
+  theme_cowplot(15, font_family = "Arial") 
+
+quartz.save(file = here('FIGURES', "resp_sublibrary_violin_reverted.pdf"),
+            type = 'pdf', dpi = 300, height = 10, width = 14)
+
+
+
+
+## 5FU as x-axis  with selected genes ------
+
+genes2use = c(as.vector(group_1$Genes),
+              as.vector(group_2$Genes),
+              as.vector(group_3$Genes),
+              as.vector(group_4$Genes),
+              as.vector(group_5$Genes),
+              as.vector(group_6$Genes),
+              as.vector(group_7$Genes)) %>% unique
+
+
+
+
+drug_resistance_paths = joint_resp.sum %>% 
+  filter(Drug == 5) %>% 
+  filter(Genes %in% genes2use) %>% 
+  select(Supplement, Supplement_mM, Genes, BW_norm) %>% 
+  left_join(ecocyc %>% rename(Genes = gene),
+            relationship = "many-to-many") %>% 
+  filter(pathway %in% very_sig_paths) %>% 
+  filter(Supplement_mM == 10) %>% 
+  group_by(pathway) %>% 
+  summarise(drug_resistance = mean(BW_norm)) %>% 
+  distinct(pathway, .keep_all = T)
+
+
+
+joint_resp.sum %>% 
+  filter(Drug == 5) %>% 
+  filter(Genes %in% genes2use) %>% 
+  select(Supplement, Supplement_mM, Genes, BW_norm) %>% 
+  left_join(ecocyc %>% rename(Genes = gene),
+            relationship = "many-to-many") %>% 
+  filter(pathway %in% very_sig_paths) %>% 
+  filter(Supplement_mM == 0) %>% 
+  left_join(drug_resistance_paths) %>% 
+  mutate(pathway =  factor(pathway,
+                           levels = c(
+                             # energy
+                             "TCA cycle I (prokaryotic)",
+                             "superpathway of glycolysis, pyruvate dehydrogenase, TCA, and glyoxylate bypass",
+                             "pentose phosphate pathway (non-oxidative branch)",
+                             "pentose phosphate pathway",
+                             "NADH to trimethylamine N-oxide electron transfer",
+                             "NADH to cytochrome bd oxidase electron transfer I",
+                             # nucleotides
+                             "superpathway of pyrimidine ribonucleotides de novo biosynthesis",
+                             "superpathway of pyrimidine deoxyribonucleotides de novo biosynthesis",
+                             "UMP biosynthesis I",
+                             "superpathway of purine nucleotides de novo biosynthesis II",
+                             "inosine-5'-phosphate biosynthesis I",
+                             "superpathway of guanosine nucleotides de novo biosynthesis II",
+                             "superpathway of adenosine nucleotides de novo biosynthesis II",
+                             "salvage pathways of pyrimidine ribonucleotides",
+                             "superpathway of histidine, purine, and pyrimidine biosynthesis",
+                             "superpathway of aromatic amino acid biosynthesis",
+                             "chorismate biosynthesis from 3-dehydroquinate",
+                             "flagellar assembly"
+                           ))) %>% 
+  ggplot(aes(y = pathway, x = BW_norm, fill = drug_resistance)) +
+  geom_violin(show.legend = T, 
+              scale = "width",
+              trim = T,
+              alpha = 0.9) +
+  geom_jitter(height = 0.2, width = 0.05, show.legend = F,
+              shape = 21, size = 4) +
+  # viridis::scale_fill_viridis(begin = 0.1, end = 0.9, option = "C") +
+  scale_fill_gradient2(mid = "grey90", high = '#31A95E', low = '#FA2014') +
+  labs(
+    x = "C. elegans phenotype normalised scores",
+    y = NULL,
+    fill = "5-FU + Glucose resistance"
+  ) +
+  scale_y_discrete(labels = scales::label_wrap(40), limits=rev) +
+  theme_cowplot(15, font_family = "Arial") 
+
+quartz.save(file = here('FIGURES', "resp_sublibrary_violin_reverted_sigpoints.pdf"),
+            type = 'pdf', dpi = 300, height = 10, width = 14)
+
+
+
+
+
+
 
 

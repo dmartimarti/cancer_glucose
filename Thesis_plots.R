@@ -17,7 +17,8 @@ library(openxlsx)
 library(coin)
 # library(RVAideMemoire)
 library(colorspace)
-
+library(extrafont)
+font_import()
 
 # options(width = 170)
 
@@ -298,6 +299,7 @@ pca_plot("pyrE")
 pca_plot(c("crp", "BW", "TM", "pyrE"))
 # change name of generated file before next line
 pca_plot("crp")
+pca_plot(c("BW", "TM", "pyrE"))
 
 
 
@@ -3714,46 +3716,54 @@ gltA_pyr.sum %>%
     mutate(n_genes = lengths(names),
            n_genes = case_when(n_genes == 1 ~ 'Single\nmutant',
                                n_genes == 2 ~ 'Double\nmutant')) %>% 
+  mutate(Genes = case_when(Genes != "BW" ~ str_sub(Genes, end = -4),
+                           TRUE ~ Genes)) %>% 
     select(Supplement, Supplement_mM, Genes, BW_norm, n_genes) %>%
     unite(Supp, Supplement, Supplement_mM) %>%
     spread(Supp, BW_norm) %>%
     ggplot(aes(x = Glucose_0, y = Glucose_10)) + 
     geom_hline(yintercept = 0, colour = 'grey30') +
     geom_vline(xintercept = 0, colour = 'grey30') +
-    geom_point(aes(color = n_genes), position = pos, 
-               size = 3, alpha = 0.7 ) + 
+    geom_point(aes(fill = n_genes),
+               shape = 21,
+               position = pos, 
+               size = 3, 
+               alpha = 0.8 ) + 
     coord_cartesian(ylim = c(-1,1)) + # for drug == 0
     # geom_text_repel(aes(label = Genes), position = pos) +
-    # geom_text_repel(aes(label = ifelse(!Genes %in% c('Δglta ΔprpB::K','ΔgltA::K'), 
-    #                                    as.character(Genes), '')), 
-    #                 position = pos, 
-    #                 max.overlaps = Inf,
-    #                 colour = 'black', size = 2.5) +
-    geom_text_repel(aes(label = ifelse(Genes %in% c('Δglta ΔprpB::K','ΔgltA::K'), 
+    geom_text_repel(aes(label = ifelse(!Genes %in% c('Δglta ΔprpB','ΔgltA'),
+                                       as.character(Genes), '')),
+                    position = pos,
+                    max.overlaps = Inf,
+                    colour = 'black', size = 2.5) +
+    geom_text_repel(aes(label = ifelse(Genes %in% c('Δglta ΔprpB','ΔgltA'), 
                                        as.character(Genes), '')), 
                     position = pos, colour = 'red', 
                     max.overlaps = Inf,
-                    size = 7, box.padding = 3.5) +
+                    size = 7, box.padding = 2.5) +
     scale_color_manual(values = c('#B2108B', '#1C8F01')) +
     # labs(
     #      x = expression(paste('Normalised median scores of ', italic('C. elegans'), ' N2 phenotype', sep = ' ')),
     #      y = expression(paste('Normalised median scores of ', italic('C. elegans'), ' N2 phenotype ' , bold('(Pyruvate)'), sep = ' '))) +
   labs(
-    x = 'C. elegans phenotype scores',
-    y = 'C. elegans phenotype scores (with pyruvate)'
+    x = 'C. elegans phenotype normalised scores',
+    y = 'C. elegans phenotype normalised scores (with pyruvate)'
   ) +
-    theme(plot.title = element_text(size = 15, hjust = 0.5, face = "bold"),
-            panel.grid.major = element_line(colour = "grey90"),
-            panel.background = element_rect(fill = "white", colour = "grey50"),
-            legend.text = element_text(size = 6)) + 
-  theme_cowplot(22) +
+  theme_cowplot(17) +
+    theme(legend.text = element_text(size = 6),
+          text = element_text(family = "Arial")) + 
+  theme_cowplot(17) +
+  background_grid() +
   ylim(-0.6, 1) +
-    guides(colour = guide_legend(
+    guides(fill = guide_legend(
       title = 'Mutant type',
       override.aes = list(size = 4))) # make lengend points larger
 
 quartz.save(file = here('Summary', paste0('Scatter_pyruvate_DMs_lib_glucose_',as.character(drug),'uM.pdf')),
     type = 'pdf', dpi = 300, height = 8, width = 10)
+
+quartz.save(file = here('FIGURES', paste0('Scatter_pyruvate_DMs_lib_glucose_',as.character(drug),'uM.pdf')),
+            type = 'pdf', dpi = 300, height = 8, width = 10)
 
 
 

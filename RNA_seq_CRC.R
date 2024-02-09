@@ -16,9 +16,9 @@
 ### libraries ####
 # library(tximport)
 library(tidyverse)
-# library(DESeq2)
+library(DESeq2)
 # notice that DESeq2 library masks 'rename' function from dplyr 
-# library(ensembldb) # use only if you are going to deal with db
+library(ensembldb) # use only if you are going to deal with db
 here::set_here()
 library(here)
 library(RColorBrewer)
@@ -31,10 +31,6 @@ library(viridis)
 library(glue)
 library(cowplot)
 
-
-theme_set(theme_classic() +
-              theme(axis.text=element_text(size=15),
-                    axis.title=element_text(size=18,face="bold")))
 
 # the first step we need to do is to read the sample file, and parse it with 
 # the data produced by salmon to get tables ready to be analysed by DESeq2

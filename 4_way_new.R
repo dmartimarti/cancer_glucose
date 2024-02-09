@@ -60,6 +60,15 @@ labels_4way = c("Uracil_N","Cytidine_N","Uridine_N","Cytidine-3'-monophosphate",
                 "Uridine-5'-monophosphate","Uridine","D-Galactose",
                 "Glycerol","D-Sorbitol","D-Trehalose","Dulcitol",
                 "Maltose","D-Mannose",'alpha-D-Glucose')
+
+labels_4way_nogluc = c("Uracil_N","Cytidine_N","Uridine_N","Cytidine-3'-monophosphate",
+                "Cytidine- 2',3'-cyclic monophosphate","Uridine-3'-monophosphate",
+                "Uridine-2',3'-cyclic-monophosphate","Cytidine-2'-monophosphate",
+                "Cytidine-5'-monophosphate","Uridine-2'-monophosphate",
+                "Uridine-5'-monophosphate","Uridine","D-Galactose",
+                "Glycerol","D-Sorbitol","D-Trehalose","Dulcitol",
+                "Maltose","D-Mannose")
+
 # specify nucleotide labels
 labels_nuc = c("Uracil_N","Cytidine_N","Uridine_N","Cytidine-3'-monophosphate",
                "Cytidine- 2',3'-cyclic monophosphate","Uridine-3'-monophosphate",
@@ -68,7 +77,7 @@ labels_nuc = c("Uracil_N","Cytidine_N","Uridine_N","Cytidine-3'-monophosphate",
                "Uridine-5'-monophosphate","Uridine")
 # specify sugar labels
 labels_sug = c("D-Galactose","Glycerol","D-Sorbitol",
-               "D-Trehalose","Dulcitol","Maltose","D-Mannose",'alpha-D-Glucose')
+               "D-Trehalose","Dulcitol","Maltose","D-Mannose")
 
 
 
@@ -148,9 +157,10 @@ NGMb = adjustments[adjustments$Contrast == alln, ]$b
 
 
 
-gradcolours = c('#71B83B','yellow','orange','red')
+# gradcolours = c('#71B83B','yellow','orange','red')
+gradcolours = c('red','orange', 'yellow','#71B83B') ## new colors for the paper
 
-
+# gradcolours = c("#9A1324", "#D53E24", "#F3E930", "#74B533")
 
 total = jointresults.multi %>%
   filter(x_Contrast == str_C & y_Contrast == str_T & z_Contrast == 'Ce_Dev5')
@@ -566,7 +576,7 @@ ggsave(p4, file = here('Summary', '4wayScreening_score_v2.pdf'),
 
 
 
-# conference version ------------------------------------------------------
+# PAPER version ------------------------------------------------------
 
 
 met_dat = function(strain='BW',experiment='T5') {
@@ -636,7 +646,7 @@ met_dat = function(strain='BW',experiment='T5') {
       drop_na(z_logFC)
     
     total = total %>% 
-      mutate(new_labels = case_when(MetaboliteU %in% labels_4way ~ MetaboliteU,
+      mutate(new_labels = case_when(MetaboliteU %in% labels_4way_nogluc ~ MetaboliteU,
                                     TRUE ~ ''),
              points_alpha = case_when(MetaboliteU %in% labels_4way ~ 1,
                                       TRUE ~ 0.15),
@@ -673,7 +683,7 @@ scatter.4way= function(data.4way, padding = 0.2) {
     # annotate("rect", xmin = 0, xmax = 400, ymin = 1 - sr, ymax = 1 + sr, alpha = .2) +
     scale_fill_gradientn(colours = gradcolours,
                          breaks = c(1,2,3,4), limits = c(1,4), 
-                         guide = "legend", name = 'C. elegans\nphenotype') +
+                         guide = "legend", name = 'Developmental\nscore') +
     scale_color_manual(values = c('black',
                                   '#C70B00', # nucleotides 
                                   '#310CB3' # sugars
@@ -723,7 +733,7 @@ scatter.4way.TM= function(data.4way, padding = 0.2, nudge_y = 1.5) {
     # annotate("rect", xmin = 0, xmax = 400, ymin = 1 - sr, ymax = 1 + sr, alpha = .2) +
     scale_fill_gradientn(colours = gradcolours,
                          breaks = c(1,2,3,4), limits = c(1,4), 
-                         guide = "legend", name = 'C. elegans\nphenotype') +
+                         guide = "legend", name = 'Developmental\nscore') +
     scale_color_manual(values = c('black',
                                   '#C70B00', # nucleotides 
                                   '#310CB3' # sugars
@@ -772,24 +782,51 @@ scatter.4way.TM= function(data.4way, padding = 0.2, nudge_y = 1.5) {
 # BW
 BW_total = met_dat(strain = 'BW', experiment = 'T5') 
 
-BW.plot = scatter.4way(BW_total, padding = 0.2) + 
+BW.plot = BW_total %>%
+  mutate(glucose_lab = case_when(MetaboliteU == 'alpha-D-Glucose' ~ 'Glucose'),
+         .before = "Index") %>% 
+  scatter.4way(padding = 0.2) + 
   labs(title = 'BW25113 - Wild type',
-       x = NULL, y = NULL)
+       x = NULL, y = NULL) +
+  geom_text_repel(aes(label = glucose_lab),
+                   box.padding = 0.6,
+                  nudge_y = 1, 
+                   segment.alpha = 0.4,
+                   max.overlaps = 100,
+                  size = 5)
 
 
 # pyrE
 pyrE_total = met_dat(strain = 'pyrE', experiment = 'T5') 
 
-pyrE.plot = scatter.4way(pyrE_total, padding = 0.3) + 
+pyrE.plot = pyrE_total %>% 
+  mutate(glucose_lab = case_when(MetaboliteU == 'alpha-D-Glucose' ~ 'Glucose'),
+         .before = "Index") %>% 
+  scatter.4way(padding = 0.3) + 
   labs(title = bquote(~Delta*italic(pyrE) ~ "mutant"),
-       x = NULL)
+       x = NULL) +
+  geom_text_repel(aes(label = glucose_lab),
+                  box.padding = 0.6,
+                  nudge_y = 0.9, 
+                  segment.alpha = 0.4,
+                  max.overlaps = 100,
+                  size = 5)
 
 # TM
 TM_total = met_dat(strain = 'TM', experiment = 'T250') 
 
-TM.plot = scatter.4way.TM(TM_total, padding = 0.3, nudge_y = 0) +
+TM.plot = TM_total %>% 
+  mutate(glucose_lab = case_when(MetaboliteU == 'alpha-D-Glucose' ~ 'Glucose'),
+         .before = "Index") %>% 
+  scatter.4way.TM(padding = 0.3, nudge_y = 0) +
   labs(title = bquote(~Delta*italic(upp)*Delta*italic(udp)*Delta*italic(udk) ~ "mutant"),
-       y = NULL)
+       y = NULL) +
+  geom_text_repel(aes(label = glucose_lab),
+                  box.padding = 0.6,
+                  nudge_y = 1.6, 
+                  segment.alpha = 0.4,
+                  max.overlaps = 100,
+                  size = 5)
 
 
 
@@ -799,15 +836,16 @@ p4 = BW.plot / pyrE.plot / TM.plot +
 
 p4 
 
-ggsave(p4, file = here('Summary', '4wayScreening_score_2.pdf'),
+# ggsave(p4, file = here('Summary', '4wayScreening_score_2.pdf'),
+#        height = 10, width = 13)
+# 
+# 
+# ggsave(p4, file = here('Summary', '4wayScreening_score_3.pdf'),
+#        height = 8, width = 10)
+
+
+ggsave(p4, file = here('FIGURES', '4wayScreening_composite.pdf'),
        height = 10, width = 13)
-
-
-ggsave(p4, file = here('Summary', '4wayScreening_score_3.pdf'),
-       height = 8, width = 10)
-
-
-
 
 
 
@@ -831,6 +869,380 @@ BW.scores %>%
 
 
 
+# SUPP scatterplots -------------------------------------------------------
+
+### BW cases ----------------
+
+NGMa = adjustments[adjustments$Contrast == "BW_5FU_Alln", ]$a %>% round(2)
+NGMb = adjustments[adjustments$Contrast == "BW_5FU_Alln", ]$b %>% round(2)
+
+
+#### 0uM ---------
+
+BW_total = met_dat(strain = 'BW', experiment = 'C0') 
+
+BW_total %>%
+  mutate(new_labels = case_when(MetaboliteU == 'alpha-D-Glucose' ~ 'Glucose',
+                                TRUE ~ new_labels),
+         .before = "Index") %>% 
+  ggplot(aes(y = y_logFC, x = x_logFC, fill = z_logFC)) +
+  geom_abline(intercept = 0, slope = 1, alpha = 1, 
+              color = 'grey', 
+              linetype = 'longdash') +
+  geom_abline(aes(intercept = NGMb, slope = NGMa), 
+              alpha = 0.8, color = 'red') +
+  geom_errorbarh(aes(y = y_logFC, xmax = x_logFC + x_SE, 
+                     xmin = x_logFC - x_SE), height = 0, 
+                 alpha = 0.3, color = 'grey50') +
+  geom_errorbar(aes(x = x_logFC, ymax = y_logFC + y_SE, 
+                    ymin = y_logFC - y_SE), 
+                width = 0, alpha = 0.3, 
+                color = 'grey50') +
+  geom_point(shape = 21,
+             size = 4, alpha = 0.7) +
+  # geom_text_repel(aes(label= new_labels),
+  #                 box.padding = 0.4,
+  #                 size = 3.5,
+  #                 segment.alpha = 0.4,
+  #                 max.overlaps = 100) +
+  scale_fill_gradientn(colours = gradcolours,
+                         breaks = c(1,2,3,4), 
+                         limits = c(1,4), 
+                         guide = "legend", 
+                         name = 'C. elegans\nphenotype') +
+  annotate("text", x = -3.5, y = 2,
+           label = glue::glue("y = {NGMa}x + {NGMb}"),
+           size=6) +
+  theme_light()
+
+  
+
+ggsave(file = here('FIGURES', "supp", '4way_BW_0uM.pdf'),
+       height = 10, width = 13)
+
+
+#### 1.5 uM ---------
+
+
+BW_total = met_dat(strain = 'BW', experiment = 'T1.5') 
+
+BW_total %>%
+  mutate(new_labels = case_when(MetaboliteU == 'alpha-D-Glucose' ~ 'Glucose',
+                                TRUE ~ new_labels),
+         .before = "Index") %>% 
+  ggplot(aes(y = y_logFC, x = x_logFC, fill = z_logFC)) +
+  geom_abline(intercept = 0, slope = 1, alpha = 1, 
+              color = 'grey', 
+              linetype = 'longdash') +
+  geom_abline(aes(intercept = NGMb, slope = NGMa), 
+              alpha = 0.8, color = 'red') +
+  geom_errorbarh(aes(y = y_logFC, xmax = x_logFC + x_SE, 
+                     xmin = x_logFC - x_SE), height = 0, 
+                 alpha = 0.3, color = 'grey50') +
+  geom_errorbar(aes(x = x_logFC, ymax = y_logFC + y_SE, 
+                    ymin = y_logFC - y_SE), 
+                width = 0, alpha = 0.3, 
+                color = 'grey50') +
+  geom_point(shape = 21,
+             size = 4, alpha = 0.7) +
+  # geom_text_repel(aes(label= new_labels),
+  #                 box.padding = 0.4,
+  #                 size = 3.5,
+  #                 segment.alpha = 0.4,
+  #                 max.overlaps = 100) +
+  scale_fill_gradientn(colours = gradcolours,
+                       breaks = c(1,2,3,4), 
+                       limits = c(1,4), 
+                       guide = "legend", 
+                       name = 'C. elegans\nphenotype') +
+  annotate("text", x = -3.5, y = 2,
+           label = glue::glue("y = {NGMa}x + {NGMb}"),
+           size=6) +
+  theme_light()
+
+
+
+ggsave(file = here('FIGURES', "supp", '4way_BW_1.5uM.pdf'),
+       height = 10, width = 13)
+
+
+
+#### 5 uM ---------
+
+
+BW_total = met_dat(strain = 'BW', experiment = 'T5') 
+
+BW_total %>%
+  mutate(new_labels = case_when(MetaboliteU == 'alpha-D-Glucose' ~ 'Glucose',
+                                TRUE ~ new_labels),
+         .before = "Index") %>% 
+  ggplot(aes(y = y_logFC, x = x_logFC, fill = z_logFC)) +
+  geom_abline(intercept = 0, slope = 1, alpha = 1, 
+              color = 'grey', 
+              linetype = 'longdash') +
+  geom_abline(aes(intercept = NGMb, slope = NGMa), 
+              alpha = 0.8, color = 'red') +
+  geom_errorbarh(aes(y = y_logFC, xmax = x_logFC + x_SE, 
+                     xmin = x_logFC - x_SE), height = 0, 
+                 alpha = 0.3, color = 'grey50') +
+  geom_errorbar(aes(x = x_logFC, ymax = y_logFC + y_SE, 
+                    ymin = y_logFC - y_SE), 
+                width = 0, alpha = 0.3, 
+                color = 'grey50') +
+  geom_point(shape = 21,
+             size = 4, alpha = 0.7) +
+  # geom_text_repel(aes(label= new_labels),
+  #                 box.padding = 0.4,
+  #                 size = 3.5,
+  #                 segment.alpha = 0.4,
+  #                 max.overlaps = 100) +
+  scale_fill_gradientn(colours = gradcolours,
+                       breaks = c(1,2,3,4), 
+                       limits = c(1,4), 
+                       guide = "legend", 
+                       name = 'C. elegans\nphenotype') +
+  annotate("text", x = -3.5, y = 2,
+           label = glue::glue("y = {NGMa}x + {NGMb}"),
+           size=6) +
+  theme_light()
+
+
+
+ggsave(file = here('FIGURES', "supp", '4way_BW_5uM.pdf'),
+       height = 10, width = 13)
+
+
+### pyrE cases ---------
+
+NGMa = adjustments[adjustments$Contrast == "pyrE_5FU_Alln", ]$a %>% round(2)
+NGMb = adjustments[adjustments$Contrast == "pyrE_5FU_Alln", ]$b %>% round(2)
+
+#### 0uM ---------
+
+BW_total = met_dat(strain = 'pyrE', experiment = 'T0') 
+ 
+BW_total %>%
+  mutate(new_labels = case_when(MetaboliteU == 'alpha-D-Glucose' ~ 'Glucose',
+                                TRUE ~ new_labels),
+         .before = "Index") %>% 
+  ggplot(aes(y = y_logFC, x = x_logFC, fill = z_logFC)) +
+  geom_abline(intercept = 0, slope = 1, alpha = 1, 
+              color = 'grey', 
+              linetype = 'longdash') +
+  geom_abline(aes(intercept = NGMb, slope = NGMa), 
+              alpha = 0.8, color = 'red') +
+  geom_errorbarh(aes(y = y_logFC, xmax = x_logFC + x_SE, 
+                     xmin = x_logFC - x_SE), height = 0, 
+                 alpha = 0.3, color = 'grey50') +
+  geom_errorbar(aes(x = x_logFC, ymax = y_logFC + y_SE, 
+                    ymin = y_logFC - y_SE), 
+                width = 0, alpha = 0.3, 
+                color = 'grey50') +
+  geom_point(shape = 21,
+             size = 4, alpha = 0.7) +
+  # geom_text_repel(aes(label= new_labels),
+  #                 box.padding = 0.4,
+  #                 size = 3.5,
+  #                 segment.alpha = 0.4,
+  #                 max.overlaps = 100) +
+  scale_fill_gradientn(colours = gradcolours,
+                       breaks = c(1,2,3,4), 
+                       limits = c(1,4), 
+                       guide = "legend", 
+                       name = 'C. elegans\nphenotype') +
+  annotate("text", x = -3.5, y = 2,
+           label = glue::glue("y = {NGMa}x + {NGMb}"),
+           size=6) +
+  theme_light()
+
+
+
+ggsave(file = here('FIGURES', "supp", '4way_pyrE_0uM.pdf'),
+       height = 10, width = 13)
+
+
+
+#### 1.5 uM ---------
+
+BW_total = met_dat(strain = 'pyrE', experiment = 'T1.5') 
+
+BW_total %>%
+  mutate(new_labels = case_when(MetaboliteU == 'alpha-D-Glucose' ~ 'Glucose',
+                                TRUE ~ new_labels),
+         .before = "Index") %>% 
+  ggplot(aes(y = y_logFC, x = x_logFC, fill = z_logFC)) +
+  geom_abline(intercept = 0, slope = 1, alpha = 1, 
+              color = 'grey', 
+              linetype = 'longdash') +
+  geom_abline(aes(intercept = NGMb, slope = NGMa), 
+              alpha = 0.8, color = 'red') +
+  geom_errorbarh(aes(y = y_logFC, xmax = x_logFC + x_SE, 
+                     xmin = x_logFC - x_SE), height = 0, 
+                 alpha = 0.3, color = 'grey50') +
+  geom_errorbar(aes(x = x_logFC, ymax = y_logFC + y_SE, 
+                    ymin = y_logFC - y_SE), 
+                width = 0, alpha = 0.3, 
+                color = 'grey50') +
+  geom_point(shape = 21,
+             size = 4, alpha = 0.7) +
+  # geom_text_repel(aes(label= new_labels),
+  #                 box.padding = 0.4,
+  #                 size = 3.5,
+  #                 segment.alpha = 0.4,
+  #                 max.overlaps = 100) +
+  scale_fill_gradientn(colours = gradcolours,
+                       breaks = c(1,2,3,4), 
+                       limits = c(1,4), 
+                       guide = "legend", 
+                       name = 'C. elegans\nphenotype') +
+  annotate("text", x = -3.5, y = 2,
+           label = glue::glue("y = {NGMa}x + {NGMb}"),
+           size=6) +
+  theme_light()
+
+
+
+ggsave(file = here('FIGURES', "supp", '4way_pyrE_1.5uM.pdf'),
+       height = 10, width = 13)
+
+
+
+#### 5 uM ---------
+
+BW_total = met_dat(strain = 'pyrE', experiment = 'T5') 
+
+BW_total %>%
+  mutate(new_labels = case_when(MetaboliteU == 'alpha-D-Glucose' ~ 'Glucose',
+                                TRUE ~ new_labels),
+         .before = "Index") %>% 
+  ggplot(aes(y = y_logFC, x = x_logFC, fill = z_logFC)) +
+  geom_abline(intercept = 0, slope = 1, alpha = 1, 
+              color = 'grey', 
+              linetype = 'longdash') +
+  geom_abline(aes(intercept = NGMb, slope = NGMa), 
+              alpha = 0.8, color = 'red') +
+  geom_errorbarh(aes(y = y_logFC, xmax = x_logFC + x_SE, 
+                     xmin = x_logFC - x_SE), height = 0, 
+                 alpha = 0.3, color = 'grey50') +
+  geom_errorbar(aes(x = x_logFC, ymax = y_logFC + y_SE, 
+                    ymin = y_logFC - y_SE), 
+                width = 0, alpha = 0.3, 
+                color = 'grey50') +
+  geom_point(shape = 21,
+             size = 4, alpha = 0.7) +
+  # geom_text_repel(aes(label= new_labels),
+  #                 box.padding = 0.4,
+  #                 size = 3.5,
+  #                 segment.alpha = 0.4,
+  #                 max.overlaps = 100) +
+  scale_fill_gradientn(colours = gradcolours,
+                       breaks = c(1,2,3,4), 
+                       limits = c(1,4), 
+                       guide = "legend", 
+                       name = 'C. elegans\nphenotype') +
+  annotate("text", x = -3.5, y = 2,
+           label = glue::glue("y = {NGMa}x + {NGMb}"),
+           size=6) +
+  theme_light()
+
+
+
+ggsave(file = here('FIGURES', "supp", '4way_pyrE_5uM.pdf'),
+       height = 10, width = 13)
+
+
+### TM cases ---------
+
+NGMa = adjustments[adjustments$Contrast == "TM_5FU_Alln", ]$a %>% round(2)
+NGMb = adjustments[adjustments$Contrast == "TM_5FU_Alln", ]$b %>% round(2)
+
+#### 0uM ---------
+
+BW_total = met_dat(strain = 'TM', experiment = 'T0') 
+
+BW_total %>%
+  mutate(new_labels = case_when(MetaboliteU == 'alpha-D-Glucose' ~ 'Glucose',
+                                TRUE ~ new_labels),
+         .before = "Index") %>% 
+  ggplot(aes(y = y_logFC, x = x_logFC, fill = z_logFC)) +
+  geom_abline(intercept = 0, slope = 1, alpha = 1, 
+              color = 'grey', 
+              linetype = 'longdash') +
+  geom_abline(aes(intercept = NGMb, slope = NGMa), 
+              alpha = 0.8, color = 'red') +
+  geom_errorbarh(aes(y = y_logFC, xmax = x_logFC + x_SE, 
+                     xmin = x_logFC - x_SE), height = 0, 
+                 alpha = 0.3, color = 'grey50') +
+  geom_errorbar(aes(x = x_logFC, ymax = y_logFC + y_SE, 
+                    ymin = y_logFC - y_SE), 
+                width = 0, alpha = 0.3, 
+                color = 'grey50') +
+  geom_point(shape = 21,
+             size = 4, alpha = 0.7) +
+  # geom_text_repel(aes(label= new_labels),
+  #                 box.padding = 0.4,
+  #                 size = 3.5,
+  #                 segment.alpha = 0.4,
+  #                 max.overlaps = 100) +
+  scale_fill_gradientn(colours = gradcolours,
+                       breaks = c(1,2,3,4), 
+                       limits = c(1,4), 
+                       guide = "legend", 
+                       name = 'C. elegans\nphenotype') +
+  annotate("text", x = -3.5, y = 1,
+           label = glue::glue("y = {NGMa}x + {NGMb}"),
+           size=6) +
+  theme_light()
+
+
+
+ggsave(file = here('FIGURES', "supp", '4way_TM_0uM.pdf'),
+       height = 10, width = 13)
+
+
+
+#### 0uM ---------
+
+BW_total = met_dat(strain = 'TM', experiment = 'T250') 
+
+BW_total %>%
+  mutate(new_labels = case_when(MetaboliteU == 'alpha-D-Glucose' ~ 'Glucose',
+                                TRUE ~ new_labels),
+         .before = "Index") %>% 
+  ggplot(aes(y = y_logFC, x = x_logFC, fill = z_logFC)) +
+  geom_abline(intercept = 0, slope = 1, alpha = 1, 
+              color = 'grey', 
+              linetype = 'longdash') +
+  geom_abline(aes(intercept = NGMb, slope = NGMa), 
+              alpha = 0.8, color = 'red') +
+  geom_errorbarh(aes(y = y_logFC, xmax = x_logFC + x_SE, 
+                     xmin = x_logFC - x_SE), height = 0, 
+                 alpha = 0.3, color = 'grey50') +
+  geom_errorbar(aes(x = x_logFC, ymax = y_logFC + y_SE, 
+                    ymin = y_logFC - y_SE), 
+                width = 0, alpha = 0.3, 
+                color = 'grey50') +
+  geom_point(shape = 21,
+             size = 4, alpha = 0.7) +
+  # geom_text_repel(aes(label= new_labels),
+  #                 box.padding = 0.4,
+  #                 size = 3.5,
+  #                 segment.alpha = 0.4,
+  #                 max.overlaps = 100) +
+  scale_fill_gradientn(colours = gradcolours,
+                       breaks = c(1,2,3,4), 
+                       limits = c(1,4), 
+                       guide = "legend", 
+                       name = 'C. elegans\nphenotype') +
+  annotate("text", x = -3.5, y = 1,
+           label = glue::glue("y = {NGMa}x + {NGMb}"),
+           size=6) +
+  theme_light()
+
+
+
+ggsave(file = here('FIGURES', "supp", '4way_TM_250uM.pdf'),
+       height = 10, width = 13)
 
 
 
@@ -1234,6 +1646,58 @@ bw_scores %>%
 
 
 
+# PCA plot Paper ----------------------------------------------------------
+
+
+pca_b_data = data.b %>%
+  filter(Strain %in% c("BW", "pyrE", "TM") & 
+           Metabolite != 'Negative Control')
+
+# some data frame transformations
+pca_b_data = pca_b_data %>%
+  select(SampleID, MetaboliteU, logAUC) %>%
+  spread(MetaboliteU, logAUC) %>%
+  data.frame(check.names = F)
+
+rownames(pca_b_data) = pca_b_data[,1]; pca_b_data = pca_b_data[,-1]
+
+# lets compute the PCA
+res.pca = PCA(pca_b_data, scale.unit = TRUE, ncp = 5, graph = F)
+
+# metadata 
+meta_var = bioinfo %>% filter(Strain %in%  c("BW", "pyrE", "TM"))
+
+# extract info about the individuals
+ind = get_pca_ind(res.pca)
+ind_df = data.frame(ind$coord[,1], ind$coord[,2], ind$coord[,3], meta_var$Type, 
+                    meta_var$Strain)
+
+colnames(ind_df) = c('Dim1', 'Dim2', 'Dim3', 'Type', 'Strain')
+
+# get ellipses based on the correlation
+getellipse = function(x, y, sc = 1) {
+  as.data.frame(ellipse::ellipse(cor(x, y),
+                                 scale = c(sd(x) * sc, sd(y) * sc),
+                                 centre = c(mean(x), mean(y))))
+}
+
+# make a data frame from ellipses
+ell = ind_df %>% group_by(Type, Strain) %>% do(getellipse(.$Dim1, .$Dim2, 1)) %>% data.frame
+
+# plot!
+ggplot(ind_df, aes(x = Dim1, y = Dim2, color = Strain, group = interaction(Type, Strain))) + 
+  geom_point(size = 3, show.legend = NA, alpha = 0.5) + 
+  geom_path(data = ell, aes(x = x, y = y, group = interaction(Type, Strain), linetype = Type), size = 1) +
+  geom_polygon(data = ell, aes(x = x, y = y, group = interaction(Type, Strain), 
+                               linetype = Type, fill = Strain), size = 1, alpha = 0.3) +
+  xlab(paste("PC1 - ", round(res.pca$eig[1,2], 1), " % of variance", sep = "")) + 
+  ylab(paste("PC2 - ", round(res.pca$eig[2,2], 1), " % of variance", sep = "")) +
+  cowplot::theme_cowplot(14)
+
+# save the file
+ggsave(file = here('FIGURES', "PCA_main_fig2.pdf"),
+       width = 100, height = 80, units = 'mm', 
+       scale = 2, device = cairo_pdf, family = "Arial")
 
 
 
