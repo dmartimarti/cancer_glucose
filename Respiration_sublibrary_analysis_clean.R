@@ -735,18 +735,115 @@ joint_resp.sum %>%
   labs(
     x = "C. elegans phenotype normalised scores",
     y = NULL,
-    fill = "5-FU + Glucose resistance"
+    fill = "5-FU + Glucose\nresistance"
   ) +
   scale_y_discrete(labels = scales::label_wrap(40), limits=rev) +
-  theme_cowplot(15, font_family = "Arial") 
+  theme_cowplot(17, font_family = "Arial") 
 
 quartz.save(file = here('FIGURES', "resp_sublibrary_violin_reverted_sigpoints.pdf"),
-            type = 'pdf', dpi = 300, height = 10, width = 14)
+            type = 'pdf', dpi = 300, height = 10, width = 10)
 
 
 
+### FIG S3 - Panel A -------
+
+# original figure
+drug = 5
+pos = position_jitter(width = 0.05, height = 0.05, seed = 1) # to plot names in jitter positions
+joint_resp.sum %>% 
+  filter(Drug == drug) %>% 
+  select(Supplement, Supplement_mM, Genes, BW_norm) %>%
+  unite(Supp, Supplement, Supplement_mM) %>%
+  spread(Supp, BW_norm) %>%
+  ggplot(aes(x = Glucose_0, y = Glucose_10)) + 
+  geom_hline(yintercept = 0, colour = 'grey30') +
+  geom_vline(xintercept = 0, colour = 'grey30') +
+  geom_point(position = pos, size = 2) + 
+  geom_text_repel(aes(label = Genes), position = pos, max.overlaps = 100) +
+  labs(title = expression(paste("5FU + Glucose effect on ", italic('C. elegans'),
+                                " N2 phenotype", sep = '')),
+       x = "Normalised median scores of *C. elegans* N2 phenotype",
+       y = "Normalised median scores of *C. elegans* N2 phenotype with **Glucose**") +
+  theme(plot.title = element_text(size = 15, hjust = 0.5, face = "bold"),
+        panel.grid.major = element_line(colour = "grey90"),
+        panel.background = element_rect(fill = "white", colour = "grey50"),
+        legend.text = element_text(size = 6),
+        axis.title.y = ggtext::element_markdown(),
+        axis.title.x = ggtext::element_markdown()) + 
+  guides(colour = guide_legend(override.aes = list(size = 4))) 
+
+
+ggsave(file = here('Summary/resp_sublibrary', 'Scatter_sub_lib_JOINT_DATASETS_5uM.pdf'),
+       height = 10, width = 12)
+
+
+# let's fix the categories
 
 
 
+pathways_small = read_xlsx(here('Sub_library/big_screen','EcoCyc_pathways_KeioSublibrary_08-12-18.xlsx'), 
+                     sheet = 'paths')
 
+paths_kegg = read_xlsx(here('Sub_library/big_screen','mmc2.xlsx'), 
+                       sheet = 'Enrichment_with_genes') %>% 
+  rename(Genes = Gene) %>% 
+  select(Category, Genes, Term) 
+  
+# remove the genes that are already annotated
+annot_genes = pathways_small %>% 
+  distinct(Genes) %>% pull(Genes)
+
+
+joint_resp.sum %>% 
+  distinct(Genes) %>% 
+  filter(!(Genes %in% annot_genes)) %>% 
+  # left_join(paths_kegg %>% filter(Category == )) %>% 
+  arrange(Category, Genes) %>% 
+  write.xlsx("summary/resp_sublibrary/missing_gene_pathways.xlsx")
+
+
+
+# plot with pathways ------------------------------------------------------
+
+install.packages("randomcoloR") 
+library("randomcoloR") 
+
+no_of_colors <- 19
+
+# sample colors 
+palette <- distinctColorPalette(no_of_colors)   
+
+resp_sub_full_pathways = read_xlsx(here("summary/resp_sublibrary/gene_pathways_resp_lib_full.xlsx"))
+
+drug = 5
+pos = position_jitter(width = 0.05, height = 0.05, seed = 1) # to plot names in jitter positions
+joint_resp.sum %>% 
+  filter(Drug == drug) %>% 
+  select(Supplement, Supplement_mM, Genes, BW_norm) %>%
+  unite(Supp, Supplement, Supplement_mM) %>%
+  spread(Supp, BW_norm) %>%
+  left_join(resp_sub_full_pathways %>% select(Genes, KEGG3)) %>% 
+  distinct(Genes, KEGG3, .keep_all = T) %>% 
+  ggplot(aes(x = Glucose_0, y = Glucose_10, fill = KEGG3)) + 
+  geom_hline(yintercept = 0, colour = 'grey30') +
+  geom_vline(xintercept = 0, colour = 'grey30') +
+  geom_point(position = pos, size = 4, shape = 21) + 
+  geom_text_repel(aes(label = Genes), position = pos, max.overlaps = 100) +
+  labs(title = expression(paste("5FU + Glucose effect on ", italic('C. elegans'),
+                                " N2 phenotype", sep = '')),
+       x = "Normalised median scores of *C. elegans* N2 phenotype",
+       y = "Normalised median scores of *C. elegans* N2 phenotype with **Glucose**",
+       fill = "Pathway") +
+  scale_fill_manual(values = palette) +
+  theme(plot.title = element_text(size = 15, hjust = 0.5, face = "bold"),
+        panel.grid.major = element_line(colour = "grey90"),
+        panel.background = element_rect(fill = "white", colour = "grey50"),
+        legend.text = element_text(size = 9),
+        axis.title.y = ggtext::element_markdown(),
+        axis.title.x = ggtext::element_markdown()) + 
+  guides(colour = guide_legend(override.aes = list(size = 4))) 
+
+
+ggsave(file = here('FIGURES', 'Scatter_sub_lib_Pathways_5uM_S3_panelA.pdf'),
+       height = 10, width = 12)
 
