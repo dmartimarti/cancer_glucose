@@ -4,6 +4,7 @@ library(readxl)
 library(here)
 library(broom)
 library(cowplot)
+library(ComplexHeatmap)
 
 theme_set(theme_cowplot(15))
 
@@ -795,4 +796,241 @@ auc_viab %>%
 ggsave(here('summary/Viability_plots/', 'selected_paper.pdf'), 
        height = 7, 
        width = 12)
+
+
+
+
+
+
+## heatmap ======
+
+cell_metadata = read_xlsx("cell_line_metadata.xlsx") %>% 
+  rename(cell = `Cell line`)
+
+cell_order = c("CCD841_CoN", "CCD-18Co", "SW1417", "HCT116",
+               "LoVo", "HT29", "SW837", "LS123", "MCF7",
+               "RKO", "SW48", "T84", "SK-CO-1", "Hs 578T",
+               "DLD-1", "SW948", "LS411N")
+
+tissue_data = cell_metadata %>% 
+  filter(cell %in% cell_order) %>% 
+  select(cell, Tissue) %>% 
+  column_to_rownames("cell")
+
+tissue_data = tissue_data[cell_order,]
+
+
+
+ha = HeatmapAnnotation(Tissue = tissue_data,
+                       col = list(Tissue = c("Colon" = "#F0C73C", 
+                                          "Breast" = "#EA43F0", 
+                                          "Cecum" = "#3CF0CE")))
+
+
+
+# stats by biorep
+auc_viab_stats = auc_viab %>% 
+  group_by(cell) %>% 
+  nest() %>% 
+  mutate( model = map(data, ~aov(Viability~Micit_mM, data = .x)) ,
+          tukey = map(.x = model, ~TukeyHSD(.x)),
+          tukey = map(tukey, tidy))  %>% 
+  select(-model,-data) %>% 
+  unnest(cols = c(tukey)) %>% 
+  mutate(p.stars = gtools::stars.pval(adj.p.value)) 
+
+auc_stats_matrix = auc_viab_stats %>% 
+  filter(str_detect(contrast, "-0")) %>% 
+  separate(contrast, into = c("Micit_mM", "control"), sep = "-") %>% 
+  filter(cell %in% cell_order) %>% 
+  select(cell, Micit_mM, p.stars) %>% 
+  pivot_wider(names_from = Micit_mM, values_from = p.stars) %>% 
+  mutate(`0` = "", .before = `1`) %>% 
+  column_to_rownames("cell") %>% 
+  as.matrix()
+  
+auc_stats_matrix = t(auc_stats_matrix[cell_order,])
+
+cell_matrix = auc_viab %>% 
+  filter(!(str_detect(cell, "ENEM"))) %>% 
+  filter(!(str_detect(cell, "lowG"))) %>% 
+  group_by(cell, Micit_mM) %>% 
+  summarise(mean_viab = mean(Viability)) %>% 
+  ungroup %>% 
+  pivot_wider(names_from = Micit_mM, values_from = mean_viab) %>% 
+  column_to_rownames("cell") %>% 
+  as.matrix()
+
+cell_matrix = t(cell_matrix[cell_order,])
+
+library(circlize)
+
+col_fun = colorRamp2(c(0.4, 1, 1.4), c("red", "white", "green"))
+
+pushViewport(viewport(gp = gpar(fontfamily = "Arial")))
+cell_matrix %>%
+  Heatmap(cluster_columns = F,
+          cluster_rows = F,
+          col = col_fun,
+          name = "Mean cell\nviability (%)", 
+          cell_fun = function(j, i, x, y, width, height, fill) {
+            grid.text(sprintf("%s", auc_stats_matrix[i, j]), 
+                      x, y, 
+                      gp = gpar(fontsize = 10))},
+          top_annotation = ha,
+          column_names_side = "top")
+
+dev.copy2pdf(device = cairo_pdf,
+             file = "summary/Viability_plots/heatmap_viability_all.pdf",
+             width = 10, height = 7, useDingbats = FALSE)
+
+
+
+
+# supplementary cell growth  ----------------------------------------------
+
+
+# cell lines and conditions to select (initial conditions - biorep)
+# CCD-18Co - 1000 (2, 3)
+# CCD841_Co - 1000 (3,4)
+# DLD-1 - 1000 (2)
+# HCT116 - 500 (3, 4)
+# Hs 578T - 500 (2)
+# HT29 - 1000 (2)
+# LoVo - 100- (2,3)
+# LS123 - 1000 (1,2)
+# LS411N - 1000 (1,2)
+# MCF7 - 1000 (1)
+# RKO - 250 (1)
+# SK-CO-1 - 1000 (1,2)
+# SW48 - 2000 (1)
+# SW837 - 1000 (1)
+# SW948 - 1000 (1)
+# SW1417 - 1000 (1)
+# T84 - 1000 (2)
+
+cell_data = data
+
+cell1 = cell_data %>% 
+  filter(cell == "CCD-18Co", biorep %in% c(2,3), IC == 1000) %>% 
+  group_by(cell, IC, elapsed, Micit_mM) %>% 
+  summarise(Mean = mean(confluence2), SD = sd(confluence2)) %>% ungroup
+
+cell2 = cell_data %>% 
+  filter(cell == "CCD841_CoN", biorep %in% c(4,3), IC == 1000) %>% 
+  group_by(cell, IC, elapsed, Micit_mM) %>% 
+  summarise(Mean = mean(confluence2), SD = sd(confluence2)) %>% ungroup
+
+cell3 = cell_data %>% 
+  filter(cell == "DLD-1", biorep %in% c(2), IC == 1000) %>% 
+  group_by(cell, IC, elapsed, Micit_mM) %>% 
+  summarise(Mean = mean(confluence2), SD = sd(confluence2)) %>% ungroup
+
+cell4 = cell_data %>% 
+  filter(cell == "HCT116", biorep %in% c(3,4), IC == 500) %>% 
+  group_by(cell, IC, elapsed, Micit_mM) %>% 
+  summarise(Mean = mean(confluence2), SD = sd(confluence2)) %>% ungroup
+
+cell5 = cell_data %>% 
+  filter(cell == "Hs 578T", biorep %in% c(2), IC == 500) %>% 
+  group_by(cell, IC, elapsed, Micit_mM) %>% 
+  summarise(Mean = mean(confluence2), SD = sd(confluence2)) %>% ungroup
+
+cell6 = cell_data %>% 
+  filter(cell == "HT29", biorep %in% c(2), IC == 1000) %>% 
+  group_by(cell, IC, elapsed, Micit_mM) %>% 
+  summarise(Mean = mean(confluence2), SD = sd(confluence2)) %>% ungroup
+
+cell7 = cell_data %>% 
+  filter(cell == "LoVo", biorep %in% c(2,3), IC == 1000) %>% 
+  group_by(cell, IC, elapsed, Micit_mM) %>% 
+  summarise(Mean = mean(confluence2), SD = sd(confluence2)) %>% ungroup
+
+cell8 = cell_data %>% 
+  filter(cell == "LS123", biorep %in% c(1), IC == 1000) %>% 
+  group_by(cell, IC, elapsed, Micit_mM) %>% 
+  summarise(Mean = mean(confluence2), SD = sd(confluence2)) %>% ungroup
+
+cell9 = cell_data %>% 
+  filter(cell == "LS411N", biorep %in% c(2), IC == 1000) %>% 
+  group_by(cell, IC, elapsed, Micit_mM) %>% 
+  summarise(Mean = mean(confluence2), SD = sd(confluence2)) %>% ungroup
+
+cell10 = cell_data %>% 
+  filter(cell == "MCF7", biorep %in% c(1), IC == 1000) %>% 
+  group_by(cell, IC, elapsed, Micit_mM) %>% 
+  summarise(Mean = mean(confluence2), SD = sd(confluence2)) %>% ungroup
+
+cell11 = cell_data %>% 
+  filter(cell == "RKO", biorep %in% c(1), IC == 250) %>% 
+  group_by(cell, IC, elapsed, Micit_mM) %>% 
+  summarise(Mean = mean(confluence2), SD = sd(confluence2)) %>% ungroup
+
+cell12 = cell_data %>% 
+  filter(cell == "SK-CO-1", biorep %in% c(1), IC == 1000) %>% 
+  group_by(cell, IC, elapsed, Micit_mM) %>% 
+  summarise(Mean = mean(confluence2), SD = sd(confluence2)) %>% ungroup
+
+cell13 = cell_data %>% 
+  filter(cell == "SW48", biorep %in% c(1), IC == 2000) %>% 
+  group_by(cell, IC, elapsed, Micit_mM) %>% 
+  summarise(Mean = mean(confluence2), SD = sd(confluence2)) %>% ungroup
+
+cell14 = cell_data %>% 
+  filter(cell == "SW837", biorep %in% c(1), IC == 1000) %>% 
+  group_by(cell, IC, elapsed, Micit_mM) %>% 
+  summarise(Mean = mean(confluence2), SD = sd(confluence2)) %>% ungroup
+
+cell15 = cell_data %>% 
+  filter(cell == "SW948", biorep %in% c(1), IC == 1000) %>% 
+  group_by(cell, IC, elapsed, Micit_mM) %>% 
+  summarise(Mean = mean(confluence2), SD = sd(confluence2)) %>% ungroup
+
+cell16 = cell_data %>% 
+  filter(cell == "SW1417", biorep %in% c(1), IC == 1000) %>% 
+  group_by(cell, IC, elapsed, Micit_mM) %>% 
+  summarise(Mean = mean(confluence2), SD = sd(confluence2)) %>% ungroup
+
+cell17 = cell_data %>% 
+  filter(cell == "T84", biorep %in% c(2), IC == 1000) %>% 
+  group_by(cell, IC, elapsed, Micit_mM) %>% 
+  summarise(Mean = mean(confluence2), SD = sd(confluence2)) %>% ungroup
+
+
+
+
+
+
+cells_paper = cell1 %>% 
+  bind_rows(cell2,cell3,cell4,cell5,cell6,cell7,cell8,cell9,cell10,cell11,
+            cell12,cell13,cell14,cell15,cell16,cell17)
+
+
+cell_order = c("CCD841_CoN", "CCD-18Co", "SW1417", "HCT116",
+               "LoVo", "HT29", "SW837", "LS123", "MCF7",
+               "RKO", "SW48", "T84", "SK-CO-1", "Hs 578T",
+               "DLD-1", "SW948", "LS411N")
+
+cells_paper %>% 
+  filter(elapsed < 300) %>% 
+  ggplot(aes(x = elapsed, y = Mean, color = Micit_mM, fill = Micit_mM)) +
+  geom_ribbon(aes(ymin = Mean - SD, ymax = Mean + SD), 
+              color = NA, alpha = 0.2)+
+  geom_line() +
+  labs(y = 'Mean confluence (+- SD)',
+       x = 'Time (h)') +
+  scale_x_continuous(breaks = seq(0, 335, by = 60)) +
+  # xlim(0, 150) +
+  theme_cowplot(15) +
+  background_grid() +
+  panel_border() +
+  theme(legend.position = "bottom", 
+        strip.text = element_text(size = 13)) +
+  scale_fill_viridis_d() + 
+  scale_color_viridis_d() +
+  facet_wrap(~cell, nrow = 4 )
+
+ggsave('summary/growth_supplementary_figure.pdf', height = 11, width = 14)
+
+
 
