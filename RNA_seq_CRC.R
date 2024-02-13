@@ -30,7 +30,7 @@ library(openxlsx)
 library(viridis)
 library(glue)
 library(cowplot)
-
+library(ggtext)
 
 # the first step we need to do is to read the sample file, and parse it with 
 # the data produced by salmon to get tables ready to be analysed by DESeq2
@@ -663,12 +663,17 @@ ggsave(here('summary',glue('PCA_{line}.pdf')), height = 7, width = 8)
 library(tidymodels)
 library(ggrepel)
 
+
+
 rld_table = t(assay(rld)) %>% as_tibble(rownames = 'Name')
 
 rld_table = samples %>% select(Name, Cell_line, Replicate, Sample) %>% 
   left_join(rld_table) %>% as_tibble() %>% 
   select(-Name) 
 
+# remove SW948 cell line
+rld_table = rld_table %>% 
+  filter(Cell_line != "SW948")
 
 pca_rec = recipe(~., data = rld_table) %>%
   update_role(Replicate, Sample, Cell_line, new_role = "id") %>%
@@ -677,7 +682,13 @@ pca_rec = recipe(~., data = rld_table) %>%
 
 pca_prep = prep(pca_rec)
 
+names(pca_prep)
+
 pca_prep
+
+sdev = pca_prep$steps[[1]]$res$sdev
+percent_variation =  100 * round(sdev^2 / sum(sdev^2),4)
+
 
 tidied_pca = tidy(pca_prep,1)
 
@@ -698,16 +709,76 @@ tidied_pca %>%
 
 
 juice(pca_prep) %>%
-  ggplot(aes(PC1, PC2, label = Sample)) +
-  geom_point(aes(color = Sample), alpha = 0.7, size = 6) +
+  select(-Cell_line) %>% 
+  separate(Sample, into = c("Cell_line", "Condition"), sep = "_") %>% 
+  ggplot(aes(PC1, PC2, fill = Cell_line)) +
+  geom_point(aes(fill = Cell_line,
+                 color = Cell_line,
+                 shape = Condition), 
+             alpha = 0.9, size = 3) +
   # geom_text(check_overlap = F, hjust = "inward") +
-  geom_text_repel(max.overlaps = 14) +
-  labs(color = NULL) +
-  guides(color = NULL) +
-  theme_cowplot(17) +
-  theme(legend.position = "none")
+  # geom_text_repel(max.overlaps = 14) +
+  # labs(color = NULL) +
+  # guides(color = NULL) +
+  scale_shape_manual(values = c(21, 23)) +
+  scale_fill_manual(name = "Cell line",
+                    values = c("#F0822E",
+                               "#5D3EF0",
+                               "#3D9B42")) +
+  scale_color_manual(name = "Cell line",
+                    values = c("#F0822E",
+                               "#5D3EF0",
+                               "#3D9B42")) +
+  theme_cowplot(17, font_family = 'Arial') +
+  theme()
 
-ggsave(here('summary', 'PCA_tidymodels_all.pdf'), height = 6, width = 7)
+ggsave(here('summary', 'PCA_tidymodels_noSW.pdf'), height = 6, width = 7)
+
+
+
+
+
+# calculate by hand -------------------------------------------------------
+
+rld_table = t(assay(rld)) %>% as_tibble(rownames = 'Name')
+
+rld_table = samples %>% select(Name, Cell_line, Replicate, Sample) %>% 
+  left_join(rld_table) %>% as_tibble() %>% 
+  select(-Name) 
+
+# remove SW948 cell line
+rld_table = rld_table %>% 
+  filter(Cell_line != "SW948")
+
+
+
+rld_table
+
+pca_fit = rld_table %>% 
+  select(where(is.numeric)) %>% # retain only numeric columns
+  prcomp(scale = F) # do PCA on scaled data
+
+eigens = pca_fit %>%
+  tidy(matrix = "eigenvalues") %>% 
+  mutate(percent = percent * 100)
+
+
+pca_fit %>%
+  augment(rld_table) %>% # add original dataset back in
+  select(-Cell_line) %>% 
+  separate(Sample, into = c("Cell_line", "Condition"), sep = "_") %>% 
+  ggplot(aes(.fittedPC1, .fittedPC2, 
+             color = Cell_line,
+             shape = Condition)) + 
+  geom_point(size = 2) +
+  labs(
+    x = glue("PC1 ({eigens[1,]$percent}%)"),
+    y = glue("PC2 ({eigens[2,]$percent}%)")
+  ) +
+  theme_half_open(12) +
+  background_grid()
+
+ggsave(here('summary', 'PCA_noSW.pdf'), height = 6, width = 7)
 
 
 #### UMAP ####
@@ -1019,6 +1090,39 @@ for (path in pathways) {
 }
 
 
+# HEATMAP PAPER VERSION ---------------------------------------------------
+
+
+
+autoph.genes = kegg.links %>% 
+  filter(Description %in% c('Citrate cycle (TCA cycle)',
+                            'Oxidative phosphorylation')) %>% 
+  left_join(info) %>% 
+  distinct(gene_id) %>% 
+  pull(gene_id)
+
+path_res = results.filt  %>% 
+  filter(gene_id %in% sig.genes) %>%
+  filter(gene_id %in% autoph.genes)
+
+
+path_res %>% 
+  ungroup %>% 
+  left_join(df) %>% 
+  mutate(Contrast = factor(Contrast, levels = c('HCT116', 'DLD', 'LoVo'))) %>%
+  ggplot(aes(y = reorder(gene_name, log2FoldChange), x = Contrast, fill = log2FoldChange)) +
+  scale_fill_gradient2(low = "blue",
+                       mid = "white",
+                       high = "red",
+                       midpoint = 0) +
+  geom_tile() +
+  geom_text(aes(label = p_adj_stars),nudge_y = -0.2) +
+  labs(x = 'Cell line',
+       y = 'Gene name',
+       fill = 'Fold Change\n(log2)') +
+  theme(axis.text.y = NULL)
+
+ggsave(here('summary/heatmaps', glue('{path}_heatmap.pdf')), height = 9, width = 12)
 
 
 ### plot gene boxplots ####
@@ -2361,7 +2465,7 @@ merge_cats = hct_cats %>%
 
 # categories = unique(merge_cats$description)
 
-library(ggtext)
+
 
 highlight = function(x, pat, color="black") {
   ifelse(grepl(pat, x), 
@@ -2389,6 +2493,74 @@ merge_cats %>%
   panel_border(color = 'black', size = 0.5)
   
 
+merge_cats %>% 
+  ggplot(aes(y = description, x = direction ,fill = FDR)) + 
+  geom_tile() +
+  scale_fill_manual(values = c('#2432FF',
+                               '#616BFF',
+                               '#A3A9FF',
+                               '#FFFFFF')) +
+  labs(
+    x = 'Regulation',
+    y = 'KEGG Terms'
+  ) +
+  scale_y_discrete(limits=rev) +
+  facet_wrap(~cell) +
+  theme_cowplot(19) +
+  panel_border() +
+  theme(
+    strip.text = element_text(size = 15),
+    axis.text.y = element_markdown(size = 15, lineheight = 0.6),
+    text = element_text(family="Arial")
+  ) +
+  panel_border(color = 'black', size = 0.5)
+
 ggsave('summary/GSEA/poster_heatmap_enrich_KEGG.pdf',
        width = 12, height = 10)  
+
+dev.copy2pdf(device = cairo_pdf,
+             file = 'summary/GSEA/poster_heatmap_enrich_KEGG.pdf',
+             width = 12, height = 10, useDingbats = FALSE)
+
+
+
+# paper version -----------------------------------------------------------
+
+## filter the categories that show up at least twice in the 3 cell lines
+
+library(extrafont)
+# font_import()
+
+selected_descriptions = merge_cats %>% 
+  group_by(description) %>% 
+  count() %>% 
+  filter(n > 1) %>% 
+  pull(description)
+
+
+merge_cats %>% 
+  filter(description %in% selected_descriptions) %>% 
+  ggplot(aes(y = description, x = direction ,fill = FDR)) + 
+  geom_tile() +
+  scale_fill_manual(values = c('#2432FF',
+                               '#616BFF',
+                               '#A3A9FF',
+                               '#FFFFFF')) +
+  labs(
+    x = 'Regulation',
+    y = 'KEGG Terms'
+  ) +
+  scale_y_discrete(limits=rev) +
+  facet_wrap(~cell) +
+  theme_cowplot(15) +
+  panel_border() +
+  theme(
+    strip.text = element_text(size = 15),
+    axis.text.y = element_markdown(size = 12, lineheight = 0.6)
+  ) +
+  panel_border(color = 'black', size = 0.5)
+
+
+ggsave('summary/GSEA/paper_heatmap_enrich_KEGG.pdf',
+       width = 8, height = 6)  
 

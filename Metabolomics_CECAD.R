@@ -9,12 +9,12 @@ library(glue)
 library(ComplexHeatmap)
 library(rstatix)
 library(cowplot)
-
+library(extrafont)
+# font_import()
 
 theme_set(theme_cowplot(15))
 
 
-# read the data ----------------------
 metab = read_excel("Rdata.xlsx", sheet = "Rdata")
 
 
@@ -407,10 +407,10 @@ enrich %>%
                             sample == 'wt_down' ~ 'WT\nDown',
                             sample == 'wt_up' ~ 'WT\nUp')) %>% 
   ggplot(aes(x = sample, y = Pathway, fill = categories,
-             # size = categories, 
+             size = categories,
              color = categories)) +
   # geom_tile() +
-  geom_point(size = 2) +
+  geom_point() +
   labs(
     x = 'Pathway',
     y = 'Sample'
@@ -429,6 +429,90 @@ enrich %>%
 
 ggsave(here("summary", "metaboanalyst", "enrich", "Enrich_heatmap_pval.pdf"),
        height = 10, width = 10)
+
+
+
+# paper versions ----------------------------------------------------------
+library(extrafont)
+# version with p-values
+enrich %>% 
+  filter(p < 0.05) %>%
+  mutate(logpval = -log10(p)) %>% 
+  mutate(categories = cut(logpval, 
+                          breaks = c(-Inf, 2, 4, Inf),
+                          labels = c('2', '4', '6'))) %>% 
+  unite(sample, genotype, direction, remove = F) %>% 
+  # mutate(Pathway = str_wrap(Pathway, width = 25)) %>% 
+  mutate(sample = case_when(sample == 'p53_down' ~ 'p53\nDown',
+                            sample == 'p53_up' ~ 'p53\nUp',
+                            sample == 'wt_down' ~ 'WT\nDown',
+                            sample == 'wt_up' ~ 'WT\nUp')) %>% 
+  filter(sample %in% c("WT\nDown", "WT\nUp")) %>% 
+  ggplot(aes(x = sample, y = Pathway, fill = categories,
+             size = categories,
+             color = categories)) +
+  # geom_tile() +
+  geom_point() +
+  labs(
+    x = 'Pathway',
+    y = 'Sample'
+  ) +
+  # guides(color = guide_legend(title='-log10(p-value)'),
+  #        # size = 'none',
+  #        fill = 'none') +
+  scale_y_discrete(limits=rev) +
+  # scale_fill_gradient(low = 'white', high = 'red') +
+  scale_color_manual(values = c( '#E6C7B1','#E6945A', '#E6660C')) +
+  # scale_color_gradient(low = 'white', high = 'red', guide = 'legend') +
+  # scale_size_continuous(range = c(1, 7)) +
+  guides(color=guide_legend(title = '-log10(p-value)'), 
+         size = guide_legend(title = '-log10(p-value)'),
+         fill='none') +
+  theme_cowplot(font_family = "Arial")
+
+ggsave(here("summary", "metaboanalyst", "enrich", "Enrich_heatmap_pval_WT.pdf"),
+       height = 9, width = 7)
+
+
+
+enrich %>% 
+  filter(p < 0.05) %>%
+  mutate(logpval = -log10(p)) %>% 
+  mutate(categories = cut(logpval, 
+                          breaks = c(-Inf, 2, 4, Inf),
+                          labels = c('2', '4', '6'))) %>% 
+  unite(sample, genotype, direction, remove = F) %>% 
+  # mutate(Pathway = str_wrap(Pathway, width = 25)) %>% 
+  mutate(sample = case_when(sample == 'p53_down' ~ 'p53\nDown',
+                            sample == 'p53_up' ~ 'p53\nUp',
+                            sample == 'wt_down' ~ 'WT\nDown',
+                            sample == 'wt_up' ~ 'WT\nUp')) %>% 
+  filter(sample %in% c("p53\nDown", "p53\nUp")) %>% 
+  ggplot(aes(x = sample, y = Pathway, fill = categories,
+             size = categories,
+             color = categories)) +
+  # geom_tile() +
+  geom_point() +
+  labs(
+    x = 'Pathway',
+    y = 'Sample'
+  ) +
+  # guides(color = guide_legend(title='-log10(p-value)'),
+  #        # size = 'none',
+  #        fill = 'none') +
+  scale_y_discrete(limits=rev) +
+  # scale_fill_gradient(low = 'white', high = 'red') +
+  scale_color_manual(values = c( '#E6C7B1','#E6945A', '#E6660C')) +
+  # scale_color_gradient(low = 'white', high = 'red', guide = 'legend') +
+  # scale_size_continuous(range = c(1, 7)) +
+  guides(color=guide_legend(title = '-log10(p-value)'), 
+         size = guide_legend(title = '-log10(p-value)'),
+         fill='none') +
+  theme_cowplot(font_family = "Arial")
+
+ggsave(here("summary", "metaboanalyst", "enrich", "Enrich_heatmap_pval_p53.pdf"),
+       height = 10, width = 10)
+
 
 
 
@@ -734,6 +818,136 @@ quartz.save(file = here('summary', 'heatmap_TCA_metabolomics.pdf'),
 # ht_list = h1 %v% h2 %v% h3
 # draw(ht_list)
 
+## landscape mode -------
+ha_r = rowAnnotation(
+  Condition = c(rep(c('Control','Micit'),2)), 
+  Genotype = c('WT', 'WT', 'p53', 'p53'),
+  col = list(
+    Condition = c('Control' = '#25CC89', 'Micit' = '#E34F32' ),
+    Genotype = c('WT' = '#2661E0', 'p53' = '#E0CD1D')
+  )
+)
+
+Heatmap(t(tca_mat),
+        name = 'Z-score',
+        cluster_columns = TRUE,
+        cluster_rows = FALSE,
+        column_names_rot = 90,
+        column_names_side = "bottom",
+        column_names_centered = T,
+        # top_annotation = ha,
+        left_annotation = ha_r,
+        show_column_names = T)
+
+quartz.save(file = here('summary', 'heatmap_TCA_metabolomics_landscape.pdf'),
+            type = 'pdf', dpi = 300, height = 5, width = 7)
+
+
+
+# Paper figures -----------------------------------------------------------
+
+## pyrimidine & purine heatmaps ----------------------
+
+# create a matrix with purine compounds
+pyrpur_mat = metab_paths %>% 
+  filter(Pathway %in% c('Purine', 'Pyrimidine')) %>% 
+  unite(Sample, Genotype, Condition, sep = ', ', remove = FALSE) %>% 
+  mutate(Sample = factor(Sample, levels = c('WT, Control',
+                                            'WT, Micit',
+                                            'p53, Control',
+                                            'p53, Micit'))) %>% 
+  arrange(Pathway) %>% 
+  # filter(Genotype == 'WT') %>% 
+  mutate(logval = log2(value)) %>% 
+  group_by(Metabolite, Sample) %>%
+  summarise(Mean = mean(logval)) %>% 
+  mutate(
+    z_score = (Mean - mean(Mean)) / sd(Mean)) %>% 
+  select(Sample, Metabolite, z_score) %>% 
+  pivot_wider(names_from = Sample, values_from = z_score) %>% 
+  column_to_rownames('Metabolite') %>% 
+  as.matrix()
+
+# without z-score, just log2 values
+pyrpur_mat = metab_paths %>%
+  filter(Pathway %in% c('Purine', 'Pyrimidine')) %>%
+  unite(Sample, Genotype, Condition, sep = ', ', remove = FALSE) %>%
+  mutate(Sample = factor(Sample, levels = c('WT, Control',
+                                            'WT, Micit',
+                                            'p53, Control',
+                                            'p53, Micit'))) %>%
+  arrange(Pathway) %>%
+  filter(Genotype == 'WT') %>%
+  mutate(logval = log2(value)) %>%
+  select(Sample, Metabolite, logval) %>%
+  group_by(Metabolite, Sample) %>%
+  summarise(Mean = mean(logval)) %>%
+  pivot_wider(names_from = Sample, values_from = Mean) %>%
+  column_to_rownames('Metabolite') %>%
+  as.matrix()
+
+
+
+
+Heatmap(pyrpur_mat[,1:2],
+        name = 'Z-score',
+        cluster_columns = FALSE,
+        column_names_rot = 0,
+        column_names_side = "top",
+        column_names_centered = T,
+        # top_annotation = ha_half,
+        show_column_names = T) 
+
+quartz.save(file = here('summary', 'heatmap_purines_metabolomics.pdf'),
+            type = 'pdf', dpi = 300, height = 7, width = 5)
+
+
+
+purine_order = c("ADP-ribose", "fumarate", "NAD", "NADH", "NADP", "GTP",
+                 "ATP", "NADPH", "FAD", "GDP", "ADP", "adenosine",
+                 "adenine", "dATP", "glutamate", "deoxyadenosine",
+                 "urate", "GMP", "AMP", "xanthosine", "xanthine", 
+                 "hypoxanthine", "inosine", "IMP", "aspartate", 
+                 "glutamine", "glycine")
+
+pyr_order = c("glutamine", "NADP", "ATP", "NADPH", "FAD", 
+              "deoxycytidine", "orotate", "ADP", "UDP",
+              "dTDP", "CMP", "deoxyuridine", "UMP", "uridine",
+              "cytidine", "N-carbamoylaspartate")
+
+
+
+
+### dot plot ----------
+
+metab_paths %>%
+  filter(Pathway %in% c('Purine', 'Pyrimidine')) %>%
+  unite(Sample, Genotype, Condition, sep = ', ', remove = FALSE) %>%
+  mutate(Sample = factor(Sample, levels = c('WT, Control',
+                                            'WT, Micit',
+                                            'p53, Control',
+                                            'p53, Micit'))) %>%
+  arrange(Pathway) %>%
+  filter(Genotype == 'WT') %>%
+  mutate(logval = log2(value)) %>%
+  select(Sample, Metabolite, logval) %>%
+  group_by(Metabolite, Sample) %>%
+  summarise(Mean = mean(logval)) %>% 
+  pivot_wider(names_from = Sample, values_from = Mean) %>% 
+  mutate(diff = `WT, Micit` - `WT, Control`) %>% 
+  ggplot(aes(x = diff, y = fct_reorder(Metabolite, diff))) +
+  geom_vline(xintercept = 0, colour = 'grey60', alpha = 0.8) +
+  geom_point(aes(color = diff), size = 4) +
+  scale_colour_gradient2() +
+  labs(
+    x = "log2 Fold Change (Treatment vs Control)",
+    y = NULL,
+    color = "log2FC"
+  ) +
+  theme_cowplot(15, font_family = "Arial")
+
+ggsave(here('summary', "dotplot_pyr_pur_log2FC.pdf"),
+       height = 7, width = 5.5)
 
 ## selected boxplots #####
 

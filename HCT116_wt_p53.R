@@ -3,6 +3,7 @@ library(readr)
 library(readxl)
 library(cowplot)
 library(rstatix)
+library(extrafont)
 
 theme_set(theme_cowplot(15))
 
@@ -71,6 +72,40 @@ cells_sum %>%
 
 ggsave('plots/growth_curves_1000cells.pdf',
        height = 4.5, width = 9)
+
+
+# PAPER VERSION -----------------------------------------------------------
+
+cells_sum %>% 
+  filter(!(str_detect(Condition, "FU"))) %>% 
+  unite(sample, Cell, Condition, sep = ' ') %>% 
+  ggplot(aes(x = Elapsed, y = Mean, 
+             color = sample, 
+             fill = sample)) +
+  geom_ribbon(aes(ymin = Mean - SD, ymax = Mean + SD), alpha = 0.5,
+              color = NA) +
+  geom_line() +
+  labs(
+    x = 'Time elapsed (in hours)',
+    y = 'Growth (Confluence %)'
+  ) +
+  scale_fill_manual(values = c(
+    "WT Control" = '#3221E5', # green
+    "p53 Control" = '#E52421', # blue
+    "WT Micit" = '#2FC4E5', # orange
+    "p53 Micit" = '#E5983D' # red
+  )) +
+  scale_color_manual(values = c(
+    "WT Control" = '#3221E5', # green
+    "p53 Control" = '#E52421', # blue
+    "WT Micit" = '#2FC4E5', # orange
+    "p53 Micit" = '#E5983D' # red
+  )) +
+  theme_cowplot(15, font_family = "Arial")
+
+ggsave('plots/growth_curves_PAPER.pdf',
+       height = 4.5, width = 5.5)
+
 
 
 
@@ -209,23 +244,68 @@ mumax = cells %>%
   ungroup
 
 mumax %>% 
-  ggplot(aes(x = Condition, y = mumax, fill = Condition)) +
+  filter(!(str_detect(Condition, "FU"))) %>% 
+  unite(sample, Cell, Condition, sep = ' ') %>% 
+  mutate(sample = factor(sample, 
+                         levels = c("WT Control",
+                                    "p53 Control",
+                                    "WT Micit",
+                                    "p53 Micit"))) %>% 
+  ggplot(aes(x = sample, y = mumax, fill = sample)) +
   geom_boxplot(show.legend = F) +
   geom_point(position = position_jitterdodge(),
              show.legend = F) +
   scale_fill_manual(values = c(
-    '#3AD535', # green
-    '#2065D6', # blue
-    '#D69E2B', # orange
-    '#D62055' # red
+    "WT Control" = '#3221E5', # green
+    "p53 Control" = '#E52421', # blue
+    "WT Micit" = '#2FC4E5', # orange
+    "p53 Micit" = '#E5983D' # red
   )) +
   labs(
     x = NULL, 
-    y = 'Max growth rate'
+    y = 'Max growth rate (Hour^-1)'
   ) +
-  facet_wrap(~Cell)
+  theme_cowplot(15, font_family = "Arial")
 
-ggsave('plots/growth_rates.pdf', height = 5, width = 7)
+ggsave('plots/growth_rates_PAPER.pdf', height = 5, width = 5.5)
+
+
+
+cells_sum %>% 
+  filter(!(str_detect(Condition, "FU"))) %>% 
+  unite(sample, Cell, Condition, sep = ' ') %>% 
+  ggplot(aes(x = Elapsed, y = Mean, 
+             color = sample, 
+             fill = sample)) +
+  geom_ribbon(aes(ymin = Mean - SD, ymax = Mean + SD), alpha = 0.5,
+              color = NA) +
+  geom_line() +
+  labs(
+    x = 'Time elapsed (in hours)',
+    y = 'Growth (Confluence %)'
+  ) +
+  scale_fill_manual(values = c(
+    "WT Control" = '#3221E5', # green
+    "p53 Control" = '#E52421', # blue
+    "WT Micit" = '#2FC4E5', # orange
+    "p53 Micit" = '#E5983D' # red
+  )) +
+  scale_color_manual(values = c(
+    "WT Control" = '#3221E5', # green
+    "p53 Control" = '#E52421', # blue
+    "WT Micit" = '#2FC4E5', # orange
+    "p53 Micit" = '#E5983D' # red
+  )) +
+  theme_cowplot(15, font_family = "Arial")
+
+ggsave('plots/growth_curves_PAPER.pdf',
+       height = 4.5, width = 5.5)
+
+
+
+
+
+
 
 
 numax %>% 
@@ -237,15 +317,18 @@ numax %>%
 
 
 numax %>% 
-  rstatix::anova_test(mumax ~ Condition * Cell, detailed = TRUE) %>% 
+  filter(!(str_detect(Condition, "FU"))) %>% 
+  rstatix::anova_test(mumax ~ Condition * Cell, 
+                      detailed = TRUE, 
+                      effect.size = "pes") %>% 
   write_csv('interaction_growth_rate.csv')
-
-
 
 
 many_splines = all_splines(value ~ Elapsed | Replicate + Cell + Condition, 
                            data = cells %>% 
                              filter(Elapsed > 30), optgrid = 30)
+
+
 
 par(mfrow = c(8, 3))
 par(mar = c(2.5, 4, 2, 1))
