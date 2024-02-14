@@ -16,7 +16,7 @@
 ### libraries ####
 # library(tximport)
 library(tidyverse)
-library(DESeq2)
+# library(DESeq2)
 # notice that DESeq2 library masks 'rename' function from dplyr 
 library(ensembldb) # use only if you are going to deal with db
 here::set_here()
@@ -31,7 +31,7 @@ library(viridis)
 library(glue)
 library(cowplot)
 library(ggtext)
-
+library(extrafont)
 # the first step we need to do is to read the sample file, and parse it with 
 # the data produced by salmon to get tables ready to be analysed by DESeq2
 
@@ -1120,9 +1120,10 @@ path_res %>%
   labs(x = 'Cell line',
        y = 'Gene name',
        fill = 'Fold Change\n(log2)') +
-  theme(axis.text.y = NULL)
+  theme(axis.text.y = NULL) +
+  theme_cowplot(15, font_family = "Arial")
 
-ggsave(here('summary/heatmaps', glue('{path}_heatmap.pdf')), height = 9, width = 12)
+ggsave(here('summary/heatmaps', "TCA_oxphos_heatmap_PAPER.pdf"), height = 12, width = 8)
 
 
 ### plot gene boxplots ####
