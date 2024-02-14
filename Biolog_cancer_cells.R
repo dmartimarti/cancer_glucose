@@ -10,7 +10,7 @@ library(plotly)
 library(cluster)
 library(factoextra)
 library(Rtsne)
-
+library(extrafont)
 
 theme_set(theme_cowplot(14))
 
@@ -2046,7 +2046,12 @@ tsne.df %>%
 ### get biolog compounds from the previous tSNE ####
 
 # explore the distribution
-tsne.df%>%
+
+
+
+t1 = list(family = 'Arial', size = 22)
+
+tsne.df %>%
   mutate(DB = all_compounds$DB) %>% 
   as_tibble() %>% 
   mutate(opacity = case_when(DB == 'Biolog' ~ 1,
@@ -2055,7 +2060,27 @@ tsne.df%>%
           text = ~Drug, color=~DB, 
           opacity=~opacity,
           colors = 'Set1') %>% 
-  add_markers()
+  add_markers() %>% 
+  layout(
+    font = t1,
+    scene = list(
+      yaxis = list(gridwidth = 1.5,
+                   title = ""),
+      xaxis = list(gridwidth = 1.5,
+                   title = ""),
+      zaxis = list(gridwidth = 1.5,
+                   title = "")
+    )
+  ) 
+
+
+
+
+
+
+
+
+
 
 # keep only the compounds from biolog
 tsne.df.biolog = tsne.df %>%
@@ -2133,7 +2158,7 @@ res.km = eclust(tsne_mat_biolog,
                 "kmeans", 
                 stand = F,
                 nstart = 6,
-                k.max = 10, 
+                k.max = 7, 
                 seed = 1234567)
 
 fviz_gap_stat(res.km$gap_stat)
@@ -2608,4 +2633,114 @@ metaU %>%
 ggsave('exploration/molecule_process_metadata.pdf',
        height = 9, width = 5)
 
+
+
+
+
+
+
+# Synergy plot PAPER ------------------------------------------------------
+
+
+#### Syn scores stats ####
+
+# homoscedasticity test
+CG = subset(res_ZIP_cats, Category == "Nucleotides")$Synergy.score
+TG = subset(res_ZIP_cats, Category != "Nucleotides")$Synergy.score
+tidy(var.test(CG, TG))
+
+# as they suffer from heterocedasticity, var.equal to FALSE
+nucl_stats = t.test(CG, TG, var.equal = F)
+library(broom)
+pval = tidy(nucl_stats)$p.value
+
+res_ZIP.sum = res_ZIP_cats %>%
+  group_by(Category) %>%
+  summarise(Mean = mean(Synergy.score),
+            SD = sd(Synergy.score),
+            SEM = SD/sqrt(n()))
+
+
+
+clusters = read_csv('exploration/Multivariate_final/biolog_with_clusters.csv')
+
+
+
+library(randomcoloR)
+
+colors = randomColor(7)
+
+colors = c("#ed2863", "#87ffe3", "#cd4cce", "#a57e11" ,"#fc33b2", "#eac885", "#1b6bea")
+
+## MAIN PLOT
+res_ZIP_cats %>%
+  left_join(clusters) %>% 
+  drop_na(cluster) %>% 
+  mutate(cluster = factor(cluster),
+         plot_labs = case_when(Category == "Nucleotides" ~ Drug)) %>% 
+  ggplot(aes(x = Category, y = Synergy.score, fill = Category)) +
+  geom_violin() +
+  geom_jitter(size = 2.5,height = 0, width = 0.1,
+              aes(color = cluster)) +
+  scale_color_manual(values = colors,
+                     name = "KNN clusters") +
+  geom_point(data = res_ZIP.sum,
+             size = 3.5,
+             color = 'black',
+             aes(x = Category, y = Mean)) +
+  geom_errorbar(data = res_ZIP.sum,
+                aes(x = Category, y = Mean,
+                    ymin = Mean - SEM, ymax = Mean + SEM),
+                width = 0.03) +
+  geom_segment(aes(x = 0, y = res_ZIP.sum$Mean[1], xend = 1, yend = res_ZIP.sum$Mean[1]),
+               linetype="dashed", colour = 'grey50') +
+  geom_segment(aes(x = 0, y = res_ZIP.sum$Mean[2], xend = 2, yend = res_ZIP.sum$Mean[2]),
+               linetype="dashed", colour = 'grey50') +
+  # pval annotation
+  geom_segment(aes(x = 1, xend = 2, y = 16.5, yend = 16.5)) +
+  annotate("text", x = 1.5, y = 18, label = paste('P-value: ',round(pval, 5))) +
+  # annotate("text", x = 1.5, y = 18, label = paste('P-value < ','0.0001')) +
+  scale_fill_manual(values = c('#F5EC49',
+                               '#3D9CE6'),
+                    labels = c('Nucleotide\nantimetabolite',
+                               'Other')) + 
+  labs(x = 'Drug category',
+       y = 'ZIP score') +
+  ggrepel::geom_text_repel(aes(label = plot_labs),
+                           box.padding = 0.5, 
+                           nudge_x = -0.4,
+                           max.overlaps = Inf) +
+  scale_x_discrete(name = '',
+                   labels = c("Nucleotides" = "Nucleotide \n antimetabolite","Other" = "Other")) +
+  theme_cowplot(15, font_family = "Arial") +
+  theme(axis.text.x = element_text(face = "bold", size = 13, color = 'black'),
+        axis.text.y = element_text(face = "bold", size = 13, color = 'black'))
+
+ggsave(here('exploration', 'violin_nucleotides_biolog_PAPER.pdf'), height = 8, width = 9)
+
+
+
+# stats between clusters ------
+res_ZIP_cats %>%
+  left_join(clusters) %>% 
+  drop_na(cluster) %>% 
+  mutate(cluster = factor(cluster)) %>% 
+  # group_by(cluster) %>% 
+  rstatix::pairwise_t_test(Synergy.score ~ cluster,
+                           p.adjust.method = "fdr",
+                           detailed = TRUE) %>% 
+  arrange(p) %>% 
+  write_csv('exploration/Multivariate_final/stats_synergy_score_PW.csv')
+
+
+res_ZIP_cats %>%
+  left_join(clusters) %>% 
+  drop_na(cluster) %>% 
+  mutate(cluster = factor(cluster)) %>% 
+  # group_by(cluster) %>% 
+  rstatix::pairwise_t_test(Most.synergistic.area.score ~ cluster, 
+                           p.adjust.method = "fdr",
+                           detailed = TRUE) %>% 
+  arrange(p) %>% 
+  write_csv('exploration/Multivariate_final/stats_Most_synergy_score_PW.csv')
 
