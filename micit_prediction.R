@@ -210,6 +210,7 @@ colSums(global_freqs[,3:17]) %>%
        x = 'Total frequency of hits') +
   theme_light()
 
+global_freqs %>% write_csv("HITS_GLOBAL_FREQS.csv")
 
 ggsave('hits_global_freqs_v2.pdf', height = 7,width = 7)
 
@@ -380,7 +381,11 @@ names(hits_freqs_recalc_micit) = names(gen_freqs)
 
 hits_freqs_recalc_micit = hits_freqs_recalc_micit %>% as_tibble
 
-
+hits_freqs_recalc_micit %>% 
+  pivot_longer(-genus, names_to = "Tissue", values_to = "Micit_prod") %>% 
+  mutate(Tissue = str_sub(Tissue, end = -5)) %>% 
+  filter(str_detect(Tissue, '\\(T\\)')) %>% 
+  write_csv("GENUS_prod.csv")
 
 # Plot!
 
@@ -585,7 +590,11 @@ names(hits_freqs_recalc_micit) = names(gen_freqs)
 
 hits_freqs_recalc_micit = hits_freqs_recalc_micit %>% as_tibble
 
-
+hits_freqs_recalc_micit %>% 
+  pivot_longer(-phylum, names_to = "Tissue", values_to = "Micit_prod") %>% 
+  mutate(Tissue = str_sub(Tissue, end = -5)) %>% 
+  filter(str_detect(Tissue, '\\(T\\)')) %>% 
+  write_csv("PHYLUM_prod.csv")
 
 # Plot!
 

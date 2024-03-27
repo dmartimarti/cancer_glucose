@@ -242,6 +242,27 @@ wt_stats %>%
   write_csv(here('summary', 'WT_stats.csv'))
 
 
+
+wt_stats %>% 
+  filter(log2FC < 10) %>% 
+  mutate(
+         sig = case_when(abs(log2FC) > 0.5 & p < 0.05 ~ "significant",
+                         TRUE ~ NA),
+         label = case_when(sig == 'significant' ~ Metabolite,
+                           TRUE ~ NA)) %>% 
+  ggplot(aes(x = log2FC, y = -log10(p), fill = sig)) +
+  geom_hline(yintercept = -log10(0.05), linetype = 'dashed') +
+  geom_vline(xintercept = -0.5,  linetype = 'dashed') +
+  geom_vline(xintercept = 0.5,  linetype = 'dashed') +
+  geom_point(shape = 21, size = 3, alpha = 0.9) +
+  ggrepel::geom_text_repel(aes(label = label),
+                           box.padding = 0.1) 
+
+ggsave("summary/volcano_S6D.pdf", height = 10, width = 11)
+  
+
+
+
 # p53 micit vs control
 
 p53_stats = metab_clean %>% 
@@ -269,6 +290,7 @@ p53_stats = p53_stats %>%
 
 p53_stats %>% 
   write_csv(here('summary', 'p53_stats.csv'))
+
 
  
 ## get metabolite lists ####
@@ -473,6 +495,21 @@ enrich %>%
 ggsave(here("summary", "metaboanalyst", "enrich", "Enrich_heatmap_pval_WT.pdf"),
        height = 9, width = 7)
 
+
+enrich %>% 
+  filter(p < 0.05) %>%
+  mutate(logpval = -log10(p)) %>% 
+  mutate(categories = cut(logpval, 
+                          breaks = c(-Inf, 2, 4, Inf),
+                          labels = c('2', '4', '6'))) %>% 
+  unite(sample, genotype, direction, remove = F) %>% 
+  # mutate(Pathway = str_wrap(Pathway, width = 25)) %>% 
+  mutate(sample = case_when(sample == 'p53_down' ~ 'p53\nDown',
+                            sample == 'p53_up' ~ 'p53\nUp',
+                            sample == 'wt_down' ~ 'WT\nDown',
+                            sample == 'wt_up' ~ 'WT\nUp')) %>% 
+  filter(sample %in% c("WT\nDown", "WT\nUp")) %>% 
+  write_csv("summary/metaboanalyst/enrich/Enrich_heatmap_pval_WT.csv")
 
 
 enrich %>% 
@@ -843,6 +880,10 @@ quartz.save(file = here('summary', 'heatmap_TCA_metabolomics_landscape.pdf'),
             type = 'pdf', dpi = 300, height = 5, width = 7)
 
 
+tca_mat %>% 
+  as_tibble(rownames = "Metabolite") %>% 
+  write_csv(here('summary', 'heatmap_TCA_metabolomics_landscape.csv'))
+
 
 # Paper figures -----------------------------------------------------------
 
@@ -949,6 +990,25 @@ metab_paths %>%
 ggsave(here('summary', "dotplot_pyr_pur_log2FC.pdf"),
        height = 7, width = 5.5)
 
+
+metab_paths %>%
+  filter(Pathway %in% c('Purine', 'Pyrimidine')) %>%
+  unite(Sample, Genotype, Condition, sep = ', ', remove = FALSE) %>%
+  mutate(Sample = factor(Sample, levels = c('WT, Control',
+                                            'WT, Micit',
+                                            'p53, Control',
+                                            'p53, Micit'))) %>%
+  arrange(Pathway) %>%
+  filter(Genotype == 'WT') %>%
+  mutate(logval = log2(value)) %>%
+  select(Sample, Metabolite, logval) %>%
+  group_by(Metabolite, Sample) %>%
+  summarise(Mean = mean(logval)) %>% 
+  pivot_wider(names_from = Sample, values_from = Mean) %>% 
+  mutate(diff = `WT, Micit` - `WT, Control`) %>% 
+  write_csv("summary/dotplot_pyr_pur_log2FC_data.csv")
+
+
 ## selected boxplots #####
 
 # helper function
@@ -1053,6 +1113,7 @@ wt_select %>%
 interaction_terms %>% 
   write_csv(here('summary', 'selected_boxplots',
                  'interaction_terms.csv'))
+
 
 
 

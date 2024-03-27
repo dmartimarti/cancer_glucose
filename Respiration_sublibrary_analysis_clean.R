@@ -28,7 +28,7 @@ respTnew
 
 # join all datasets
 
-joint_resp =resp %>% 
+joint_resp = resp %>% 
   bind_rows(respT %>% 
   mutate(Replicate = Replicate + 3)) %>% 
   bind_rows(respTnew %>% 
@@ -847,3 +847,15 @@ joint_resp.sum %>%
 ggsave(file = here('FIGURES', 'Scatter_sub_lib_Pathways_5uM_S3_panelA.pdf'),
        height = 10, width = 12)
 
+
+
+
+
+
+# SAVE TABLE FOR PAPER ----------------------------------------------------
+
+joint_resp.sum %>% 
+  filter(Drug == drug) %>% 
+  left_join(resp_sub_full_pathways %>% select(Genes, KEGG3)) %>% 
+  distinct(Genes, Supplement_mM, .keep_all = T) %>% 
+  write_csv("FIGURES/DATATABLES/resp_sub_summary_KEGG.csv")

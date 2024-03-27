@@ -782,6 +782,7 @@ scatter.4way.TM= function(data.4way, padding = 0.2, nudge_y = 1.5) {
 # BW
 BW_total = met_dat(strain = 'BW', experiment = 'T5') 
 
+
 BW.plot = BW_total %>%
   mutate(glucose_lab = case_when(MetaboliteU == 'alpha-D-Glucose' ~ 'Glucose'),
          .before = "Index") %>% 
@@ -1201,7 +1202,7 @@ ggsave(file = here('FIGURES', "supp", '4way_TM_0uM.pdf'),
 
 
 
-#### 0uM ---------
+#### 250uM ---------
 
 BW_total = met_dat(strain = 'TM', experiment = 'T250') 
 
@@ -1248,6 +1249,150 @@ ggsave(file = here('FIGURES', "supp", '4way_TM_250uM.pdf'),
 
 
 
+
+
+
+# save TABLES for PAPER ---------------------------------------------------
+
+
+## BW ------
+
+
+bw_c = met_dat(strain = 'BW', experiment = 'C0') %>% 
+  select(-Index, 
+         -x_Description:-x_Contrast_type, 
+         -y_Description:-y_Contrast_type,
+         -z_Description:-z_Contrast_type,
+         -z_FDR:-label_color, -z_SE) %>% 
+  rename(
+    log2FC_control = x_logFC, log2FC_control_SE = x_SE,
+    FDR_control = x_FDR, log2FC_5FU = y_logFC,
+    log2FC_5FU_SE = y_SE, FDR_5FU = y_FDR,
+    worm_score_control = z_logFC
+  ) %>% 
+  mutate(description = "BW25113", .before = "Plate")
+
+bw_15 = met_dat(strain = 'BW', experiment = 'T1.5') %>% 
+  select(-Index, 
+         -x_Description:-x_Contrast_type, 
+         -y_Description:-y_Contrast_type,
+         -z_Description:-z_Contrast_type,
+         -z_FDR:-label_color, -z_SE) %>% 
+  rename(
+    log2FC_control = x_logFC, log2FC_control_SE = x_SE,
+    FDR_control = x_FDR, log2FC_5FU = y_logFC,
+    log2FC_5FU_SE = y_SE, FDR_5FU = y_FDR,
+    worm_score_1.5 = z_logFC
+  ) %>% 
+  mutate(description = "BW25113", .before = "Plate")
+
+bw_5 = met_dat(strain = 'BW', experiment = 'T5') %>% 
+  select(-Index, 
+         -x_Description:-x_Contrast_type, 
+         -y_Description:-y_Contrast_type,
+         -z_Description:-z_Contrast_type,
+         -z_FDR:-label_color, -z_SE) %>% 
+  rename(
+    log2FC_control = x_logFC, log2FC_control_SE = x_SE,
+    FDR_control = x_FDR, log2FC_5FU = y_logFC,
+    log2FC_5FU_SE = y_SE, FDR_5FU = y_FDR,
+    worm_score_5 = z_logFC
+  ) %>% 
+  mutate(description = "BW25113", .before = "Plate")
+
+
+bw_c %>% left_join(bw_15) %>% left_join(bw_5) %>% 
+  write_csv("FIGURES/DATATABLES/4way_BW.csv")
+
+
+## pyrE ------
+
+
+bw_c = met_dat(strain = 'pyrE', experiment = 'T0') %>% 
+  select(-Index, 
+         -x_Description:-x_Contrast_type, 
+         -y_Description:-y_Contrast_type,
+         -z_Description:-z_Contrast_type,
+         -z_FDR:-label_color, -z_SE) %>% 
+  rename(
+    log2FC_control = x_logFC, log2FC_control_SE = x_SE,
+    FDR_control = x_FDR, log2FC_5FU = y_logFC,
+    log2FC_5FU_SE = y_SE, FDR_5FU = y_FDR,
+    worm_score_control = z_logFC
+  ) %>% 
+  mutate(description = "pyrE", .before = "Plate")
+
+bw_15 = met_dat(strain = 'pyrE', experiment = 'T1.5') %>% 
+  select(-Index, 
+         -x_Description:-x_Contrast_type, 
+         -y_Description:-y_Contrast_type,
+         -z_Description:-z_Contrast_type,
+         -z_FDR:-label_color, -z_SE) %>% 
+  rename(
+    log2FC_control = x_logFC, log2FC_control_SE = x_SE,
+    FDR_control = x_FDR, log2FC_5FU = y_logFC,
+    log2FC_5FU_SE = y_SE, FDR_5FU = y_FDR,
+    worm_score_1.5 = z_logFC
+  ) %>% 
+  mutate(description = "pyrE", .before = "Plate")
+
+bw_5 = met_dat(strain = 'pyrE', experiment = 'T5') %>% 
+  select(-Index, 
+         -x_Description:-x_Contrast_type, 
+         -y_Description:-y_Contrast_type,
+         -z_Description:-z_Contrast_type,
+         -z_FDR:-label_color, -z_SE) %>% 
+  rename(
+    log2FC_control = x_logFC, log2FC_control_SE = x_SE,
+    FDR_control = x_FDR, log2FC_5FU = y_logFC,
+    log2FC_5FU_SE = y_SE, FDR_5FU = y_FDR,
+    worm_score_5 = z_logFC
+  ) %>% 
+  mutate(description = "pyrE", .before = "Plate")
+
+
+bw_c %>% left_join(bw_15) %>% left_join(bw_5) %>% 
+  write_csv("FIGURES/DATATABLES/4way_pyrE.csv")
+
+## TM ------
+
+
+bw_c = met_dat(strain = 'TM', experiment = 'T0') %>% 
+  select(-Index, 
+         -x_Description:-x_Contrast_type, 
+         -y_Description:-y_Contrast_type,
+         -z_Description:-z_Contrast_type,
+         -z_FDR:-label_color, -z_SE) %>% 
+  rename(
+    log2FC_control = x_logFC, log2FC_control_SE = x_SE,
+    FDR_control = x_FDR, log2FC_5FU = y_logFC,
+    log2FC_5FU_SE = y_SE, FDR_5FU = y_FDR,
+    worm_score_control = z_logFC
+  ) %>% 
+  mutate(description = "TM", .before = "Plate")
+
+bw_15 = met_dat(strain = 'TM', experiment = 'T250') %>% 
+  select(-Index, 
+         -x_Description:-x_Contrast_type, 
+         -y_Description:-y_Contrast_type,
+         -z_Description:-z_Contrast_type,
+         -z_FDR:-label_color, -z_SE) %>% 
+  rename(
+    log2FC_control = x_logFC, log2FC_control_SE = x_SE,
+    FDR_control = x_FDR, log2FC_5FU = y_logFC,
+    log2FC_5FU_SE = y_SE, FDR_5FU = y_FDR,
+    worm_score_250 = z_logFC
+  ) %>% 
+  mutate(description = "TM", .before = "Plate")
+
+
+bw_c %>% 
+  ggplot(aes(x = log2FC_control, y = log2FC_5FU)) +
+  geom_point()
+
+
+bw_c %>% left_join(bw_15)  %>% 
+  write_csv("FIGURES/DATATABLES/4way_TM.csv")
 
 # ternary plot ------------------------------------------------------------
 
@@ -1603,7 +1748,11 @@ ggsave(file = here('Summary', '4wayScreening_ggtern_class_density_v4.pdf'),
 
 
 
-
+df %>% 
+  select(-wBW:-wpyrE, -Size) %>%
+  rename(Metabolite = label) %>% 
+  write_csv("FIGURES/DATATABLES/bact_scores_ternary.csv")
+  
 
 
 

@@ -678,7 +678,9 @@ rld_table = rld_table %>%
 pca_rec = recipe(~., data = rld_table) %>%
   update_role(Replicate, Sample, Cell_line, new_role = "id") %>%
   # step_normalize(all_predictors()) %>%
-  step_pca(all_predictors())
+  step_center(all_predictors()) %>%
+  step_scale(all_predictors()) %>%
+  step_pca(all_predictors(), num_comp = 2)
 
 pca_prep = prep(pca_rec)
 
@@ -735,6 +737,8 @@ juice(pca_prep) %>%
 ggsave(here('summary', 'PCA_tidymodels_noSW.pdf'), height = 6, width = 7)
 
 
+juice(pca_prep) %>% 
+  write_csv("summary/PCA_data_paper.csv")
 
 
 
@@ -1691,6 +1695,13 @@ ggsave(here('summary', 'tf_activity.pdf'),
        height = 8, width = 10)
 
 
+tidy_tf %>% 
+  left_join(tf_hct_stats) %>% 
+  filter(tf %in% sig_tf) %>% 
+  filter(Cell == 'HCT116') %>% 
+  arrange(mean_activity) %>% 
+  write_csv("summary/tf_activity_data.csv")
+
 
 # print out the complete set of significant TFs
 tidy_tf %>% 
@@ -2523,7 +2534,8 @@ dev.copy2pdf(device = cairo_pdf,
              file = 'summary/GSEA/poster_heatmap_enrich_KEGG.pdf',
              width = 12, height = 10, useDingbats = FALSE)
 
-
+merge_cats %>% 
+  write_csv("summary/GSEA/enrich_data_paper.csv")
 
 # paper version -----------------------------------------------------------
 

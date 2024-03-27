@@ -1182,6 +1182,9 @@ names(enrich.TM.down)[1] = 'p.value'
 
 bac.enrich = rbind(enrich.BW.up, enrich.BW.down, enrich.pyrE.up, enrich.pyrE.down)
 
+bac.enrich %>% 
+  write_csv("FIGURES/DATATABLES/bact_enrich.csv")
+
 # bac.enrich %>%
 #     ggplot(aes(x = Direction, y = Class)) +
 #     geom_tile(aes(fill = p.value)) +
@@ -1265,6 +1268,7 @@ classes = unique(EC_classes$EcoCyc_Classes)
 enrich.BW = c()
 for (class in classes){
   class.met = EC_classes %>% filter(EcoCyc_Classes == class) %>% select(EcoCycID) %>% t %>% as.vector
+  m = length(class.met)
   n = N - m
   k = length(sig.met.BW)
   x = length(class.met[class.met %in% sig.met.BW])
@@ -1288,6 +1292,7 @@ classes = unique(EC_classes$EcoCyc_Classes)
 enrich.pyrE = c()
 for (class in classes){
   class.met = EC_classes %>% filter(EcoCyc_Classes == class) %>% select(EcoCycID) %>% t %>% as.vector
+  m = length(class.met)
   n = N - m
   k = length(sig.met.pyrE)
   x = length(class.met[class.met %in% sig.met.pyrE])
@@ -1308,6 +1313,7 @@ classes = unique(EC_classes$EcoCyc_Classes)
 enrich.TM = c()
 for (class in classes){
   class.met = EC_classes %>% filter(EcoCyc_Classes == class) %>% select(EcoCycID) %>% t %>% as.vector
+  m = length(class.met)
   n = N - m
   k = length(sig.met.TM)
   x = length(class.met[class.met %in% sig.met.TM])
@@ -1334,6 +1340,8 @@ names(enrich.pyrE)[1] = 'p.value'
 names(enrich.TM)[1] = 'p.value'
 
 worm.enrich = rbind(enrich.BW, enrich.pyrE, enrich.TM)
+
+worm.enrich %>% write_csv("FIGURES/DATATABLES/worm_enrich.csv")
 
 
 # lets build a new dataframe that has all the info we need for plotting
@@ -1374,7 +1382,7 @@ df %>%
         # labs(fill = 'FDR') + 
         p.theme
 
-quartz.save(file = here('Summary', 'Enrich_metab_class_worm.pdf'),
+quartz.save(file = here('Summary', 'Enrich_metab_class_worm_updated.pdf'),
     type = 'pdf', dpi = 300, height = 6, width = 6)
 
 
@@ -1391,6 +1399,20 @@ quartz.save(file = here('Summary', 'Enrich_metab_class_worm.pdf'),
 EC_path = read_csv(here('Bacteria data',"All_results_side_by_side_withKEGGEcoCycClass.csv")) %>%
                     select(Plate:EcoCyc_Classes) %>%
                     separate_rows(Pathways, sep = ';')
+
+
+
+### NEW EC VERSION
+# 
+# EC_path =  read_delim("Bacteria data/All-compounds-of-E.-coli-K-12-substr.-MG1655.txt", 
+#                       delim = "\t", escape_double = FALSE, 
+#                       trim_ws = TRUE) %>% 
+#   rename(Pathways = `Pathways of compound`,
+#          common_name = `Common-Name`)
+# 
+# EC_path = EC_path %>% separate_rows(Pathways, sep = " // ") %>% 
+#   drop_na(Pathways)
+
 
 ### calculate enrichment values
 ### BW
@@ -1427,6 +1449,7 @@ sig.met.TM.down = res.TM %>% filter(Metabolite != 'Negative Control', FDR < 0.05
 enrich.BW.up = c()
 for (class in classes){
   class.met = EC_path %>% filter(Pathways == class) %>% select(EcoCycID) %>% t %>% as.vector
+  m = length(class.met)
   n = N - m
   k = length(sig.met.BW.up)
   x = length(class.met[class.met %in% sig.met.BW.up])
@@ -1442,6 +1465,7 @@ enrich.BW.up = enrich.BW.up[enrich.BW.up < 0.05]
 enrich.BW.down = c()
 for (class in classes){
   class.met = EC_path %>% filter(Pathways == class) %>% select(EcoCycID) %>% t %>% as.vector
+  m = length(class.met)
   n = N - m
   k = length(sig.met.BW.down)
   x = length(class.met[class.met %in% sig.met.BW.down])
@@ -1463,6 +1487,7 @@ classes = unique(EC_path$Pathways)
 enrich.pyrE.up = c()
 for (class in classes){
   class.met = EC_path %>% filter(Pathways == class) %>% select(EcoCycID) %>% t %>% as.vector
+  m = length(class.met)
   n = N - m
   k = length(sig.met.pyrE.up)
   x = length(class.met[class.met %in% sig.met.pyrE.up])
@@ -1479,6 +1504,7 @@ classes = unique(EC_path$Pathways)
 enrich.pyrE.down = c()
 for (class in classes){
   class.met = EC_path %>% filter(Pathways == class) %>% select(EcoCycID) %>% t %>% as.vector
+  m = length(class.met)
   n = N - m
   k = length(sig.met.pyrE.down)
   x = length(class.met[class.met %in% sig.met.pyrE.down])
@@ -1502,6 +1528,7 @@ classes = unique(EC_path$Pathways)
 enrich.TM.up = c()
 for (class in classes){
   class.met = EC_path %>% filter(Pathways == class) %>% select(EcoCycID) %>% t %>% as.vector
+  m = length(class.met)
   n = N - m
   k = length(sig.met.TM.up)
   x = length(class.met[class.met %in% sig.met.TM.up])
@@ -1519,6 +1546,7 @@ classes = unique(EC_path$Pathways)
 enrich.TM.down = c()
 for (class in classes){
   class.met = EC_path %>% filter(Pathways == class) %>% select(EcoCycID) %>% t %>% as.vector
+  m = length(class.met)
   n = N - m
   k = length(sig.met.TM.down)
   x = length(class.met[class.met %in% sig.met.TM.down])
@@ -1551,6 +1579,9 @@ names(enrich.TM.down)[1] = 'p.value'
 
 
 bac.enrich = rbind(enrich.BW.up, enrich.BW.down, enrich.pyrE.up, enrich.pyrE.down)
+
+bac.enrich %>% 
+  write_csv("FIGURES/DATATABLES/bact_KEGG_enrich.csv")
 
 # bac.enrich %>%
 #     ggplot(aes(x = Direction, y = Class)) +
@@ -1624,6 +1655,7 @@ classes = unique(EC_path$Pathways)
 enrich.BW = c()
 for (class in classes){
   class.met = EC_path %>% filter(Pathways == class) %>% select(EcoCycID) %>% t %>% as.vector
+  m = length(class.met)
   n = N - m
   k = length(sig.met.BW)
   x = length(class.met[class.met %in% sig.met.BW])
@@ -1646,6 +1678,7 @@ sig.met.pyrE = res.pyrE %>% filter(Metabolite != 'Negative Control', Median == 4
 enrich.pyrE = c()
 for (class in classes){
   class.met = EC_path %>% filter(Pathways == class) %>% select(EcoCycID) %>% t %>% as.vector
+  m = length(class.met)
   n = N - m
   k = length(sig.met.pyrE)
   x = length(class.met[class.met %in% sig.met.pyrE])
@@ -1665,6 +1698,7 @@ sig.met.TM = res.TM %>% filter(Metabolite != 'Negative Control', Median == 4) %>
 enrich.TM = c()
 for (class in classes){
   class.met = EC_path %>% filter(Pathways == class) %>% select(EcoCycID) %>% t %>% as.vector
+  m = length(class.met)
   n = N - m
   k = length(sig.met.TM)
   x = length(class.met[class.met %in% sig.met.TM])
@@ -1715,7 +1749,8 @@ p.theme = theme(axis.ticks = element_blank(), panel.border = element_blank(),
                 size = 10), axis.text.x = element_text(face = "bold", 
                 colour = "black", size = 10, angle = 90, hjust = 1))
 
-
+df %>% 
+  write_csv("FIGURES/DATATABLES/worm_KEGG_enrichment.csv")
 
 # plot enrichment p-values
 df %>% 
@@ -3631,6 +3666,22 @@ ttest.res = rbind(
     av.test(glyce.auc, genes))
 
 
+sugars.auc %>% 
+  filter(Supplement %in% c("Glucose", "Control")) %>% 
+  filter(!(Genes %in% c("udk upp", "udk upp gltA"))) %>% 
+  unite(sample, Genes, Supplement_mM, remove = F) %>% 
+  ungroup %>% 
+  pairwise_t_test(Sum ~ sample) %>% 
+  write.xlsx("FIGURES/DATATABLES/gltA_pyrE_stats.xlsx")
+
+sugars.auc %>% 
+  filter(Supplement %in% c("Glucose", "Control")) %>% 
+  filter(!(Genes %in% c("udk upp", "udk upp gltA"))) %>% 
+  write.xlsx("FIGURES/DATATABLES/gltA_pyrE_data.xlsx")
+
+  
+
+
 sugars.auc %>%
     ungroup %>%
     group_by(Genes, Supplement_mM) %>%
@@ -3648,10 +3699,11 @@ sugars.auc %>%
     scale_color_manual(values = c('black', '#FC1C32')) +
         labs(x = 'Genes',
              y = 'AUC mean') +
-    theme(strip.text = element_text(colour = 'black'),
-        axis.text.x = element_text(angle = 45, hjust = 1),
-        strip.background = element_blank(),  # delete facet_wrap 
-        strip.text.x = element_blank())         # delete facet_wrap 
+    # theme(strip.text = element_text(colour = 'black'),
+    #     axis.text.x = element_text(angle = 45, hjust = 1),
+    #     strip.background = element_blank(),  # delete facet_wrap 
+    #     strip.text.x = element_blank())     +    # delete facet_wrap 
+  facet_wrap(~Supplement)
 
 quartz.save(file = here('Summary', 'Pointrange_AUC_gltA_sugars.pdf'),
     type = 'pdf', dpi = 300, height = 5, width = 9)
@@ -3667,6 +3719,18 @@ write.xlsx(list_of_datasets, here('Summary', 'gltA_sugars_stats.xlsx'), colNames
 
 
 
+
+# pykAF stats -------------------------------------------------------------
+
+
+pykAF_genes = read_excel("other_develop_assays/pykAF_genes.xlsx")
+
+pykAF_genes %>% 
+  rename(Sum = AUC) %>% 
+  unite(sample, Strain, Supplement_mM, remove = F) %>% 
+  pairwise_t_test(Sum ~ sample) %>% 
+  select(-`.y.`) %>% 
+  write.xlsx("FIGURES/DATATABLES/pyrAF_stats.xlsx")
 
 
 #--------------------------------
@@ -3767,6 +3831,20 @@ quartz.save(file = here('FIGURES', paste0('Scatter_pyruvate_DMs_lib_glucose_',as
 
 
 
+
+gltA_pyr.sum %>% 
+  filter(Drug == drug) %>% 
+  mutate(names = str_split(Genes, ' ')) %>% 
+  group_by(Genes, Supplement_mM) %>% 
+  mutate(n_genes = lengths(names),
+         n_genes = case_when(n_genes == 1 ~ 'Single nmutant',
+                             n_genes == 2 ~ 'Double nmutant')) %>% 
+  mutate(Genes = case_when(Genes != "BW" ~ str_sub(Genes, end = -4),
+                           TRUE ~ Genes),
+         Genes = str_replace(Genes, " ", ";")) %>% 
+  select(-names, -SD, -Mean, -Drug) %>% 
+  # write_csv("FIGURES/DATATABLES/pyruvate_supp_scatter.csv")
+  write.xlsx("FIGURES/DATATABLES/pyruvate_supp_scatter.xlsx")
 
 
 ### Bargraphs
@@ -4168,6 +4246,19 @@ ttest.res = rbind(av.test(glu_0, genes), av.test(glu_10, genes))
 # funny dataset
 ttest.res
 ttest.res[is.na(ttest.res)] = 1
+
+
+
+# stats with rstatix
+
+mc_stats = glu.auc %>% 
+  unite(sample, Genes, Supplement_mM, remove = F) %>% 
+  mutate(sample = factor(sample)) %>% 
+  ungroup %>% 
+  pairwise_t_test(Sum ~ sample, 
+                  p.adjust.method = 'fdr')
+
+mc_stats %>% write.xlsx("FIGURES/DATATABLES/micit_pathway_stats.xlsx")
 
 
 ## after having done the statistical tests, we can filter those ones that have sig. differences
@@ -5243,6 +5334,11 @@ write.xlsx(list_of_datasets, here('Summary', 'methyl_muts_methyliso_stats.xlsx')
 
 
 
+
+
+
+
+
 length(genes)
 
 # generate a small dataframe to divide the original dataframe
@@ -5928,8 +6024,6 @@ quartz.save(file = here('Summary', paste0("QQPOSTER_Scatter_", strain, "_5uM.pdf
 #     type = 'pdf', dpi = 300, height = 8, width = 10)
 
 
-geom_text_repel(aes(label = ifelse(Genes %in% c('Δglta ΔprpB::K','ΔgltA::K'), as.character(Genes), '')), position = pos, colour = 'red', size = 5, box.padding = 3.5) +
-
 # scales for different mutants:
 # BW: coord_cartesian(xlim = c(-5, 2), ylim = c(-4, 4))
 # pyrE: coord_cartesian(xlim = c(-5, 2), ylim = c(-4, 4))
@@ -5943,28 +6037,139 @@ geom_text_repel(aes(label = ifelse(Genes %in% c('Δglta ΔprpB::K','ΔgltA::K'),
 
 
 
+# stats for paper ---------------------------------------------------------
+
+
+## FIGURE 3 -------------------
+ecoli_metab =  read_excel("~/Documents/MRC_postdoc/Cancer_5FU/clean_data/Manuscript/data/Figure 3/worm_scores_F3.xlsx", 
+                          sheet = "metabolomics_ecoli_data") %>% 
+  drop_na(PA)
+
+ecoli_metab %>% 
+  mutate(PA = PA + 1) %>% 
+  ggplot(aes(x = Media, y = log2(PA), fill = Media)) +
+  geom_boxplot() +
+  geom_point() +
+  ylim(8, 24) +
+  facet_wrap(vars(Bacteria, Metabolite))
+
+ecoli_metab %>% 
+  mutate(PA = PA + 1,
+         PA = log2(PA)) %>% 
+  # unite(sample, Bacteria, Media, remove = F) %>% 
+  group_by(Bacteria, Metabolite) %>% 
+  # pairwise_t_test(PA ~ Media, p.adjust.method = 'fdr') %>% 
+  tukey_hsd(PA ~ Media, detailed=T) +
+  group_by(Metabolite) %>% 
+  mutate(p.adj = p.adjust(p),
+         p.adj.signif = gtools::stars.pval(p.adj)) %>% 
+  write_csv("FIGURES/DATATABLES/F3E_stats.csv")
+
+
+
+ecoli_metab =  read_excel("~/Documents/MRC_postdoc/Cancer_5FU/clean_data/Manuscript/data/Figure 3/worm_scores_F3.xlsx", 
+                          sheet = "metabolomics_worm_data") %>% 
+  drop_na(PA)
+
+
+ecoli_metab %>% 
+  mutate(PA = PA + 1) %>% 
+  ggplot(aes(x = Media, y = log2(PA), fill = Media)) +
+  geom_boxplot() +
+  geom_point() +
+  ylim(4, 24) +
+  facet_wrap(vars(Bacteria, Metabolite))
+
+ecoli_metab %>% 
+  mutate(PA = PA + 1,
+         PA = log2(PA)) %>% 
+  # unite(sample, Bacteria, Media, remove = F) %>% 
+  group_by(Bacteria, Metabolite) %>% 
+  pairwise_t_test(PA ~ Media, p.adjust.method = 'fdr') %>% 
+  group_by(Metabolite) %>% 
+  mutate(p.adj = p.adjust(p),
+         p.adj.signif = gtools::stars.pval(p.adj)) %>% 
+  write_csv("FIGURES/DATATABLES/F3F_stats.csv")
 
 
 
 
+## FIGURE 4 -------------------
+
+### Figure 4C -----
+
+
+ecoli_metab =  read_excel("~/Documents/MRC_postdoc/Cancer_5FU/clean_data/Manuscript/data/Figure 4/metabolomics_fig4.xlsx", 
+                          sheet = "worm_gltA_5FU_data") %>% 
+  drop_na(PA)
+
+
+ecoli_metab %>% 
+  mutate(PA = PA + 1) %>% 
+  ggplot(aes(x = Media, y = log2(PA), fill = Media)) +
+  geom_boxplot() +
+  geom_point() +
+  # ylim(8, 24) +
+  facet_wrap(vars(Bacteria, Metabolite))
+
+ecoli_metab %>% 
+  # mutate(PA = PA + 1,
+  #        PA = log2(PA)) %>% 
+  # unite(sample, Bacteria, Media, remove = F) %>% 
+  group_by(Bacteria, Metabolite) %>% 
+  pairwise_t_test(PA ~ Media, p.adjust.method = 'fdr') %>% 
+  group_by(Metabolite) %>% 
+  mutate(p.adj = p.adjust(p),
+         p.adj.signif = gtools::stars.pval(p.adj)) %>% 
+  write_csv("FIGURES/DATATABLES/F4C_stats.csv")
+ 
+
+
+ecoli_metab %>% 
+  # mutate(PA = PA + 1,
+  #        PA = log2(PA)) %>% 
+  # unite(sample, Bacteria, Media, remove = F) %>% 
+  group_by(Metabolite) %>% 
+  anova_test(PA ~ Media*Bacteria) %>%
+  write_csv("FIGURES/DATATABLES/F4C_interaction_stats.csv")
 
 
 
+### Figure S4E -----
+
+
+ecoli_metab =  read_excel("~/Documents/MRC_postdoc/Cancer_5FU/clean_data/Manuscript/data/Figure 4/metabolomics_fig4.xlsx", 
+                          sheet = "bact_gltA_5FU_data") %>% 
+  drop_na(PA)
+
+
+ecoli_metab %>% 
+  mutate(PA = PA + 1) %>% 
+  ggplot(aes(x = Media, y = log2(PA), fill = Media)) +
+  geom_boxplot() +
+  geom_point() +
+  # ylim(8, 24) +
+  facet_wrap(vars(Bacteria, Metabolite))
+
+ecoli_metab %>% 
+  # mutate(PA = PA + 1,
+  #        PA = log2(PA)) %>% 
+  # unite(sample, Bacteria, Media, remove = F) %>% 
+  group_by(Bacteria, Metabolite) %>% 
+  pairwise_t_test(PA ~ Media, p.adjust.method = 'fdr') %>% 
+  group_by(Metabolite) %>% 
+  mutate(p.adj = p.adjust(p),
+         p.adj.signif = gtools::stars.pval(p.adj)) %>% 
+  write_csv("FIGURES/DATATABLES/FS4E_stats.csv")
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
+ecoli_metab %>% 
+  # mutate(PA = PA + 1,
+  #        PA = log2(PA)) %>% 
+  # unite(sample, Bacteria, Media, remove = F) %>% 
+  group_by(Metabolite) %>% 
+  anova_test(PA ~ Media*Bacteria) %>%
+  write_csv("FIGURES/DATATABLES/FS4E_interaction_stats.csv")
 
 

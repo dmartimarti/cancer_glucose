@@ -2157,8 +2157,8 @@ rownames(tsne_mat_biolog) = tsne.df.biolog$Drug
 res.km = eclust(tsne_mat_biolog, 
                 "kmeans", 
                 stand = F,
-                nstart = 6,
-                k.max = 7, 
+                nstart = 5,
+                k.max = 8, 
                 seed = 1234567)
 
 fviz_gap_stat(res.km$gap_stat)
@@ -2362,7 +2362,7 @@ enrich = function(gene, db){
 
 enrich_metabolites = function(category = 'Target') {
       
-      categories = c('Target', 'Process', 'Type')  
+      categories = c('Target', 'Process', 'Type', 'Molecule')  
   
       if (category %in% categories){
         
@@ -2380,12 +2380,14 @@ enrich_metabolites = function(category = 'Target') {
       
       # iterate over the clusters created
       enrichment_table = tibble()
-      for (cluster in 1:max(as.integer(results_cluster$cluster))) {
+      for (cls in 1:max(as.integer(results_cluster$cluster))) {
+        print(glue::glue("Cluster {cls}"))
         # filter cluster
-        cl = results_cluster %>% filter(cluster == 1) %>% pull(Drug)
+        cl = results_cluster %>% filter(cluster == cls) %>% pull(Drug)
+        # print(cl)
         # calculate enrich
         cl.enrich = enrich(cl, db = meta_type) %>% 
-          mutate(direction = glue::glue('cluster_{cluster}'))
+          mutate(direction = glue::glue('cluster_{cls}'))
         # merge datasets
         enrichment_table = bind_rows(enrichment_table, cl.enrich)
       }
@@ -2394,18 +2396,33 @@ enrich_metabolites = function(category = 'Target') {
 }
 
 
+
+# results_cluster_copy = results_cluster
+
+results_cluster = read_csv('exploration/Multivariate_final/biolog_with_clusters.csv')
+
+enrich_molecule = enrich_metabolites("Molecule")
 enrich_target = enrich_metabolites("Target")
-
 enrich_type = enrich_metabolites("Type")
-
 enrich_process = enrich_metabolites("Process")
 
 
+
+list_of_datasets = list(
+  "molecule enrichment" = enrich_molecule,
+  "target enrichment" = enrich_target,
+  "type enrichment" = enrich_type,
+  "process enrichment" = enrich_process
+)
+
+
+write.xlsx(list_of_datasets, "exploration/Multivariate_final/tSNE_embeddings_enrichment.xlsx")
 
 
 
 # stats of each category vs others ----------------------------------------
 
+clusters = read_csv('exploration/Multivariate_final/biolog_with_clusters.csv')
 
 ## Type ####
 
@@ -2664,6 +2681,7 @@ res_ZIP.sum = res_ZIP_cats %>%
 
 clusters = read_csv('exploration/Multivariate_final/biolog_with_clusters.csv')
 
+# clusters = results_cluster %>% distinct(Drug, .keep_all = T)
 
 
 library(randomcoloR)
@@ -2743,4 +2761,108 @@ res_ZIP_cats %>%
                            detailed = TRUE) %>% 
   arrange(p) %>% 
   write_csv('exploration/Multivariate_final/stats_Most_synergy_score_PW.csv')
+
+
+
+## boxplots with cluster information -------------
+
+res_ZIP_cluster = res_ZIP_cats %>%
+  left_join(clusters) %>% 
+  drop_na(cluster) %>% 
+  mutate(cluster = factor(cluster))
+
+res_ZIP_cluster %>% 
+  bind_rows(res_ZIP_cluster %>% mutate(cluster = 'ALL')) %>% 
+  mutate(cluster = factor(cluster, 
+                          levels = c("ALL", 1,2,3,4,5,6,7))) %>% 
+  ggplot(aes(y = Most.synergistic.area.score, 
+             x = cluster, fill = cluster)) +
+  geom_boxplot(show.legend = F) +
+  scale_fill_manual(values = c("#aaaaaa" , colors),
+                    name = NULL) +
+  geom_point(position = position_jitterdodge(), 
+             size = 2,
+             show.legend = F) +
+  labs(x = "Cluster",
+       y = 'Most Synergistic area score')
+
+ggsave(here('exploration/Multivariate_final', 
+            'boxplots_most_synergistic_paper.pdf'), 
+       height = 5, width = 8)
+
+
+
+
+# t-SNE 2D biolog drugs ---------------------------------------------------
+
+
+
+
+### t-SNE ####
+# perplexity = 20, theta = 0.5, dims = 2
+
+tsne_fit = all_compounds %>% 
+  filter(DB == 'Biolog') %>% 
+  select(where(is.numeric)) %>% # retain only numeric columns
+  Rtsne(check_duplicates = FALSE, pca = T, num_threads = 8,
+        normalize = FALSE, max_iter = 5000, 
+        perplexity = 20, theta = 0.7, dims = 2)
+
+# generate data frame from tnse results
+tsne.df = data.frame(tsne_fit$Y)
+colnames(tsne.df) = c('Dim1', 'Dim2')
+
+tsne.df = tsne.df %>% 
+  as_tibble() %>% 
+  mutate(Drug = all_compounds %>% filter(DB == 'Biolog') %>% pull(Drug)) %>% 
+  left_join(clusters %>% select(Drug, cluster)) %>% 
+  mutate(cluster = as.factor(cluster))
+  
+
+
+tsne.df %>%
+  ggplot(aes(Dim1, Dim2, color = cluster)) +
+  geom_point(size = 4) +
+  scale_color_manual(values = colors,
+                    name = NULL)
+
+
+
+
+ggsave("exploration/Multivariate_final/2D_tSNE_biolog.pdf", 
+       height = 7, width = 9)
+tsne.df %>% 
+  write_csv("exploration/Multivariate_final/2D_tSNE_biolog.csv")
+
+
+
+
+# 3D version 
+
+t1 = list(family = 'Arial', size = 5)
+
+clusters %>%
+  mutate(cluster = as.factor(cluster)) %>% 
+  plot_ly(x = ~Dim1, y = ~Dim2, z = ~Dim3,
+          text = ~Drug, color=~cluster, 
+          colors = colors) %>% 
+  add_markers() %>% 
+  layout(
+    font = t1,
+    scene = list(
+      yaxis = list(gridwidth = 1.5,
+                   title = ""),
+      xaxis = list(gridwidth = 1.5,
+                   title = ""),
+      zaxis = list(gridwidth = 1.5,
+                   title = "")
+    )
+  ) 
+
+
+
+
+
+
+
 

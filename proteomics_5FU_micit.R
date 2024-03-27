@@ -17,6 +17,7 @@ library(fmsb)
 library(readxl)
 library(cowplot)
 library(rstatix)
+library(extrafont)
 
 
 # theme_set(theme_classic())
@@ -717,7 +718,7 @@ statsR = statsR_raw %>%
 statsR = statsR %>% left_join(contr_factors) %>% 
   select(Gene_names, Contrast_type:Target,contrast,everything())
 
-write.xlsx(statsR, here('summary','Stats_R_interactions.xlsx'))
+write.xlsx(statsR %>% arrange(Gene_names), here('summary','Stats_R_interactions.xlsx'))
 
 
 
@@ -943,12 +944,32 @@ FU_enrich %>%
   filter(fdr <= 0.01)
 
 
+FU_enrich = read_excel("summary/Enrichment_RStats/FU/FU_output.xlsx", 
+                       sheet = "KEGG") %>% 
+  select(-`...1`) %>% 
+  mutate(Comparison = "5-FU vs Control")
+
+micit10_enrich = read_excel("summary/Enrichment_RStats/micit10/micit10_output.xlsx", 
+                       sheet = "KEGG") %>% 
+  select(-`...1`) %>% 
+  mutate(Comparison = "2-MiCit vs Control")
+
+micit10_5FU_enrich = read_excel("summary/Enrichment_RStats/micit10_5FU/micit10_5FU_output.xlsx", 
+                            sheet = "KEGG") %>% 
+  select(-`...1`) %>% 
+  mutate(Comparison = "2-MiCit + 5-FU vs Control")
 
 
 
 
 
+kegg_string_enrich = FU_enrich %>% 
+  bind_rows(micit10_enrich, micit10_5FU_enrich) %>% 
+  select(Comparison, term, number_of_genes, number_of_genes_in_background, 
+         p_value, fdr, description, direction)
 
+
+kegg_string_enrich %>% write_csv("summary/FIGURES_paper/proteomics_KEGG_enrichment.csv")
 
 
 # Heatmaps ----------------------------------------------------------------
@@ -1212,12 +1233,34 @@ dev.copy2pdf(device = cairo_pdf,
 
 ### p53 genes ####
 
+colnames(heat_pres) = c('10mM', "1mM", '5-FU',
+                        '5FU +\n10mM', '5FU +\n1mM', 
+                        'Control')
+
+
+heat_pres = heat_pres[,c(6,3,2,1,5,4)]
+
+ha = HeatmapAnnotation(
+  Samples = c('Control','5-FU', "Metabolite" ,'Metabolite',  
+              '5FU + Metabolite', '5FU + Metabolite'),
+  col = list(Samples = c("Control" = "grey60", 
+                         '5-FU' = 'red',
+                         "Metabolite" = "orange", 
+                         "5FU + Metabolite" = "blue")
+  ),
+  border = TRUE)
+
+
 p53 = data %>% 
   filter(str_detect(KEGG_name,'p53') | str_detect(GOBP_name, 'p53') |  
            str_detect(GOMF_name, 'p53')) %>% 
   select(Gene_names) %>% 
   t %>% as.character()
 
+
+p53 =  data %>% 
+  filter(str_detect(KEGG_name, 'p53 signaling pathway')) %>% 
+  select(Gene_names) %>% pull
 
 
 # calculate means and zscore and put it wider
@@ -1245,28 +1288,31 @@ pval_mtor = statsR %>%
 heat_mat = as.matrix(heat[,2:7])
 row.names(heat_mat) = heat$Gene_names
 
+heat_mat = heat_mat[,c('Control','5FU','1mM_Micit','10mM_Micit','5FU_1mM_Micit','5FU_10mM_Micit')]
+
 pval_mat = as.matrix(pval_mtor[,2:7])
 row.names(pval_mat) = pval_mtor$Gene_names
-
+pval_mat = pval_mat[,c('Control','5FU','1mM_Micit','10mM_Micit','5FU_1mM_Micit','5FU_10mM_Micit')]
 
 Heatmap(heat_mat, 
         name = "z-score",
-        column_km = 3,
+        # column_km = 3,
         # row_km = 3,
-        row_names_gp = gpar(fontsize = 4),
+        cluster_columns = F,
+        row_names_gp = gpar(fontsize = 8),
         column_names_rot =30, 
         column_names_side = "top",
-        column_names_gp = gpar(fontsize = 6),
-        cell_fun = function(j, i, x, y, width, height, fill) {
-          grid.text(sprintf("%s", pval_mat[i, j]), x, y, gp = gpar(fontsize = 7))
-        })
+        # cell_fun = function(j, i, x, y, width, height, fill) {
+        #   grid.text(sprintf("%s", pval_mat[i, j]), x, y, gp = gpar(fontsize = 5))},
+        column_names_gp = gpar(fontsize = 6)
+)
 
 dev.copy2pdf(device = cairo_pdf,
              file = here('summary/heatmaps', 'heatmap_p53.pdf'),
-             width = 5, height = 9, useDingbats = FALSE)
+             width = 5, height = 4, useDingbats = FALSE)
 
 
-
+heat_mat[107,]
 
 
 ### cell cycle genes ####
@@ -2334,13 +2380,24 @@ selected_stats = data_long %>%
   filter(!(Gene_names %in% removals)) %>% 
   filter(KEGG_name %in%  kegg_select) %>% 
   group_by(Gene_names, KEGG_name) %>% 
-  t_test(Intensity ~ Sample, ref.group = 'Control', detailed = TRUE)
+  t_test(Intensity ~ Sample, 
+         ref.group = 'Control', 
+         detailed = TRUE, 
+         p.adjust.method = 'fdr')
 
+
+# selected_stats_sig = data_long %>% 
+#   filter(Gene_names %in% prots_sig) %>% 
+#   separate_rows(KEGG_name, sep=';') %>% 
+#   filter(!(Gene_names %in% removals)) %>% 
+#   filter(KEGG_name %in%  kegg_select) %>% 
+#   group_by(Gene_names, KEGG_name) %>% 
+#   t_test(Intensity ~ Sample, ref.group = 'Control', detailed = TRUE)
 
 
 
 estimate_paths = selected_stats %>% 
-  # filter(p.adj < 0.05) %>%
+  filter(p.adj < 0.05) %>%
   # group_by(group2) %>% 
   # mutate(z_score = scale(estimate), .before = estimate) %>% 
   mutate(estimate = -estimate) %>% 
@@ -2352,7 +2409,8 @@ estimate_paths = selected_stats %>%
   
 
 
-
+estimate_paths %>% 
+  write_csv("summary/FIGURES_paper/log2FC_pathways.csv")
 
 estimate_paths %>% 
   ungroup %>% 
@@ -2404,8 +2462,8 @@ mins = c(min(estimate_paths$Mean_score))
 maxs = c(max(estimate_paths$Mean_score))
 
 # define values that are symmetric
-mins = -0.5
-maxs = 0.4
+mins = -0.6
+maxs = 0.6
 
 estimate_wide = estimate_paths %>% 
   select(Pathway = KEGG_name, Sample, Mean_score) %>% 
@@ -2447,8 +2505,8 @@ par(mar = rep(1,4))
 
 radarchart(
   select_zscores,
-  caxislabels = c(-1.5, -0.75, 0, 0.75, 1.5),
-  # vlcex = 1.1,
+  caxislabels = c(-0.5, -0.25, 0, 0.25, 0.5),
+  vlcex = 1.1,
   pfcol = c("#99999980",NA,NA,NA),
   pcol= c(NA,
           '#F2AB0C',
@@ -2473,7 +2531,7 @@ legend(
 par <- par(opar) 
 
 dev.copy2pdf(device = cairo_pdf,
-             file = here('summary', 'radar_5FU_Micit_FC_comparison.pdf'),
+             file = here('summary', 'radar_5FU_Micit_FC_comparison_sigprots.pdf'),
              width = 7, height = 6.5, useDingbats = FALSE)
 
 
@@ -2918,9 +2976,10 @@ dev.copy2pdf(device = cairo_pdf,
 
 
 # p53
-Heatmap(heat_pres[380:405,], 
+pushViewport(viewport(gp = gpar(fontfamily = "Arial")))
+ht = Heatmap(heat_pres[380:405,], 
                  name = "Z-score",
-                 show_row_names = FALSE,
+                 show_row_names = T,
                  row_names_gp = gpar(fontsize = 4),
                 column_names_rot =0, 
                  column_names_side = "top",
@@ -2938,10 +2997,11 @@ Heatmap(heat_pres[380:405,],
           show_legend = FALSE
         )
         )
-
+draw(ht, newpage = FALSE)
+popViewport()
 dev.copy2pdf(device = cairo_pdf,
              file = here('presentation', 'heatmap_p53_poster.pdf'),
-             width = 5, height = 2.2, useDingbats = FALSE)
+             width = 5, height = 2.4, useDingbats = FALSE)
 
 
 
@@ -3426,7 +3486,265 @@ data_tidy %>%
 
 
 
+# PAPER heatmaps ----------------------------------------------------------
+
+
+
+### p53 genes ####
+
+p53 =  data %>% 
+  filter(str_detect(KEGG_name, 'p53 signaling pathway')) %>% 
+  select(Gene_names) %>% pull
+
+
+# calculate means and zscore and put it wider
+heat = data_long %>% 
+  filter(!(Gene_names %in% removals)) %>% 
+  filter(Gene_names %in% p53) %>% 
+  group_by(Gene_names, Sample) %>% 
+  summarise(Mean = mean(Intensity, na.rm = TRUE)) %>% 
+  mutate(z_score = scale(Mean)) %>% 
+  select(-Mean) %>% 
+  pivot_wider(names_from = Sample, values_from = z_score)
+
+
+data_long %>% 
+  filter(!(Gene_names %in% removals)) %>% 
+  filter(Gene_names %in% p53) %>% 
+  group_by(Gene_names, Sample) %>% 
+  summarise(Mean = mean(Intensity, na.rm = TRUE)) %>% 
+  mutate(z_score = scale(Mean)[,1]) %>% 
+  mutate(Pathway = 'P53', .before = "Mean") %>% 
+  write_csv("summary/FIGURES_paper/p53_zscore.csv")
+
+
+
+# generate matrices
+heat_mat = as.matrix(heat[,2:7])
+row.names(heat_mat) = heat$Gene_names
+
+# heat_mat = heat_mat[,c('Control','5FU','1mM_Micit','10mM_Micit','5FU_1mM_Micit','5FU_10mM_Micit')]
+heat_mat = heat_mat[,c('Control','5FU','10mM_Micit','5FU_10mM_Micit')]
+
+# colnames(heat_mat) = c('Control', '5-FU', "1mM", '10mM', 
+#                         '5FU +\n1mM', '5FU +\n10mM')
+
+colnames(heat_mat) = c('Control', '5-FU', '10mM', '5FU +\n10mM')
+
+# 
+# ha = HeatmapAnnotation(
+#   Samples = c('Control','5-FU', "Metabolite" ,'Metabolite',  
+#               '5FU + Metabolite', '5FU + Metabolite'),
+#   col = list(Samples = c("Control" = "grey60", 
+#                          '5-FU' = 'red',
+#                          "Metabolite" = "orange", 
+#                          "5FU + Metabolite" = "blue")
+#   ),
+#   border = TRUE)
+
+ha = HeatmapAnnotation(
+  Samples = c('Control','5-FU','Metabolite', '5FU + Metabolite'),
+  col = list(Samples = c("Control" = "grey60", 
+                         '5-FU' = 'red',
+                         "Metabolite" = "orange", 
+                         "5FU + Metabolite" = "blue")
+  ),
+  border = TRUE)
+
+
+ht = Heatmap(heat_mat, 
+        name = "z-score",
+        # column_km = 3,
+        # row_km = 3,
+        cluster_columns = F,
+        row_names_gp = gpar(fontsize = 8),
+        column_names_rot = 0, 
+        column_names_side = "top",
+        top_annotation = ha,
+        column_names_centered = TRUE,
+        border = TRUE,
+        show_heatmap_legend = T,
+        heatmap_legend_param = list(direction = "horizontal", 
+                                    title_position = "topcenter"),
+        # cell_fun = function(j, i, x, y, width, height, fill) {
+        #   grid.text(sprintf("%s", pval_mat[i, j]), x, y, gp = gpar(fontsize = 5))},
+        column_names_gp = gpar(fontsize = 6)
+)
+
+draw(ht, heatmap_legend_side = "bottom", annotation_legend_side = "bottom")
+
+
+dev.copy2pdf(device = cairo_pdf,
+             file = here('summary/FIGURES_paper', 'heatmap_p53.pdf'),
+             width = 5, height = 5, useDingbats = FALSE)
+
+
+
+## purine-pyrimidine metab ------------
+
+
+
+p53 =  data %>% 
+  filter(str_detect(KEGG_name, 'Purine metabolism') | str_detect(KEGG_name, "Pyrimidine metabolism")) %>% 
+  select(Gene_names) %>% pull
+
+
+# calculate means and zscore and put it wider
+heat = data_long %>% 
+  filter(!(Gene_names %in% removals)) %>% 
+  filter(Gene_names %in% p53) %>% 
+  group_by(Gene_names, Sample) %>% 
+  summarise(Mean = mean(Intensity, na.rm = TRUE)) %>% 
+  mutate(z_score = scale(Mean)) %>% 
+  select(-Mean) %>% 
+  pivot_wider(names_from = Sample, values_from = z_score)
+
+# generate matrices
+heat_mat = as.matrix(heat[,2:7])
+row.names(heat_mat) = heat$Gene_names
+
+# heat_mat = heat_mat[,c('Control','5FU','1mM_Micit','10mM_Micit','5FU_1mM_Micit','5FU_10mM_Micit')]
+heat_mat = heat_mat[,c('Control','5FU','10mM_Micit','5FU_10mM_Micit')]
+
+# colnames(heat_mat) = c('Control', '5-FU', "1mM", '10mM', 
+#                         '5FU +\n1mM', '5FU +\n10mM')
+
+colnames(heat_mat) = c('Control', '5-FU', '10mM', '5FU +\n10mM')
+
+# 
+# ha = HeatmapAnnotation(
+#   Samples = c('Control','5-FU', "Metabolite" ,'Metabolite',  
+#               '5FU + Metabolite', '5FU + Metabolite'),
+#   col = list(Samples = c("Control" = "grey60", 
+#                          '5-FU' = 'red',
+#                          "Metabolite" = "orange", 
+#                          "5FU + Metabolite" = "blue")
+#   ),
+#   border = TRUE)
+
+ha = HeatmapAnnotation(
+  Samples = c('Control','5-FU','Metabolite', '5FU + Metabolite'),
+  col = list(Samples = c("Control" = "grey60", 
+                         '5-FU' = 'red',
+                         "Metabolite" = "orange", 
+                         "5FU + Metabolite" = "blue")
+  ),
+  border = TRUE)
+
+
+ht = Heatmap(heat_mat, 
+             name = "z-score",
+             cluster_columns = F,
+             row_names_gp = gpar(fontsize = 8),
+             column_names_rot = 0, 
+             column_names_side = "top",
+             top_annotation = ha,
+             column_names_centered = TRUE,
+             border = TRUE,
+             show_heatmap_legend = T,
+             heatmap_legend_param = list(direction = "horizontal", 
+                                         title_position = "topcenter"),
+             column_names_gp = gpar(fontsize = 6)
+)
+
+draw(ht, heatmap_legend_side = "bottom", annotation_legend_side = "bottom")
+
+
+dev.copy2pdf(device = cairo_pdf,
+             file = here('summary/FIGURES_paper', 'heatmap_nucleotide_metab.pdf'),
+             width = 6, height = 12, useDingbats = FALSE)
 
 
 
 
+
+## pyrimidine metab ------------
+
+
+
+p53 =  data %>% 
+  filter(str_detect(KEGG_name, "Pyrimidine metabolism")) %>% 
+  select(Gene_names) %>% pull
+
+# refined list
+
+p53 = c("AK3","CAD","CDA", "CMPK1", "CTPS1", "DCTD","DHODH", "DTYMK", 
+        "DUT", "ITPA", "NME1","NME2;NME2P1","NME3","NME7","NT5C",
+        "NT5C2","NT5C3A","NT5E","PNP","RRM1","RRM2","RRM2B","TK1",
+        "TXNRD1","TXNRD2","TYMP","TYMS", "UCK2", "UCKL1","UMPS")
+
+
+# calculate means and zscore and put it wider
+heat = data_long %>% 
+  filter(!(Gene_names %in% removals)) %>% 
+  filter(Gene_names %in% p53) %>% 
+  group_by(Gene_names, Sample) %>% 
+  summarise(Mean = mean(Intensity, na.rm = TRUE)) %>% 
+  mutate(z_score = scale(Mean)) %>% 
+  select(-Mean) %>% 
+  pivot_wider(names_from = Sample, values_from = z_score)
+
+
+data_long %>% 
+  filter(!(Gene_names %in% removals)) %>% 
+  filter(Gene_names %in% p53) %>% 
+  group_by(Gene_names, Sample) %>% 
+  summarise(Mean = mean(Intensity, na.rm = TRUE)) %>% 
+  mutate(z_score = scale(Mean)[,1]) %>% 
+  mutate(Pathway = "Pyrimidine metabolism", .before = "Mean") %>% 
+  write_csv("summary/FIGURES_paper/pyr_metab_zscore.csv")
+
+# generate matrices
+heat_mat = as.matrix(heat[,2:7])
+row.names(heat_mat) = heat$Gene_names
+
+# heat_mat = heat_mat[,c('Control','5FU','1mM_Micit','10mM_Micit','5FU_1mM_Micit','5FU_10mM_Micit')]
+heat_mat = heat_mat[,c('Control','5FU','10mM_Micit','5FU_10mM_Micit')]
+
+# colnames(heat_mat) = c('Control', '5-FU', "1mM", '10mM', 
+#                         '5FU +\n1mM', '5FU +\n10mM')
+
+colnames(heat_mat) = c('Control', '5-FU', '10mM', '5FU +\n10mM')
+
+# 
+# ha = HeatmapAnnotation(
+#   Samples = c('Control','5-FU', "Metabolite" ,'Metabolite',  
+#               '5FU + Metabolite', '5FU + Metabolite'),
+#   col = list(Samples = c("Control" = "grey60", 
+#                          '5-FU' = 'red',
+#                          "Metabolite" = "orange", 
+#                          "5FU + Metabolite" = "blue")
+#   ),
+#   border = TRUE)
+
+ha = HeatmapAnnotation(
+  Samples = c('Control','5-FU','Metabolite', '5FU + Metabolite'),
+  col = list(Samples = c("Control" = "grey60", 
+                         '5-FU' = 'red',
+                         "Metabolite" = "orange", 
+                         "5FU + Metabolite" = "blue")
+  ),
+  border = TRUE)
+
+
+ht = Heatmap(heat_mat, 
+             name = "z-score",
+             cluster_columns = F,
+             row_names_gp = gpar(fontsize = 8),
+             column_names_rot = 0, 
+             column_names_side = "top",
+             top_annotation = ha,
+             column_names_centered = TRUE,
+             border = TRUE,
+             show_heatmap_legend = T,
+             heatmap_legend_param = list(direction = "horizontal", 
+                                         title_position = "topcenter"),
+             column_names_gp = gpar(fontsize = 6)
+)
+
+draw(ht, heatmap_legend_side = "bottom", annotation_legend_side = "bottom")
+
+
+dev.copy2pdf(device = cairo_pdf,
+             file = here('summary/FIGURES_paper', 'heatmap_pyrimidine_metab.pdf'),
+             width = 5, height = 5, useDingbats = FALSE)

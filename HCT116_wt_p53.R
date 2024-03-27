@@ -269,6 +269,15 @@ mumax %>%
 
 ggsave('plots/growth_rates_PAPER.pdf', height = 5, width = 5.5)
 
+mumax %>% 
+  filter(!(str_detect(Condition, "FU"))) %>% 
+  unite(sample, Cell, Condition, sep = ' ') %>% 
+  mutate(sample = factor(sample, 
+                         levels = c("WT Control",
+                                    "p53 Control",
+                                    "WT Micit",
+                                    "p53 Micit"))) %>% 
+  write_csv("plots/growth_rates_PAPER.csv")
 
 
 cells_sum %>% 
@@ -302,7 +311,9 @@ ggsave('plots/growth_curves_PAPER.pdf',
        height = 4.5, width = 5.5)
 
 
-
+cells_sum %>% 
+  filter(!(str_detect(Condition, "FU"))) %>% 
+  write_csv("plots/growth_curves_PAPER.csv")
 
 
 
