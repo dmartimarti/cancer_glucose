@@ -2667,7 +2667,11 @@ TG = subset(res_ZIP_cats, Category != "Nucleotides")$Synergy.score
 tidy(var.test(CG, TG))
 
 # as they suffer from heterocedasticity, var.equal to FALSE
+
 nucl_stats = t.test(CG, TG, var.equal = F)
+
+nucl_stats %>% tidy %>% write_csv("exploration/biolog_ZIP_stats_PAPER.csv")
+
 library(broom)
 pval = tidy(nucl_stats)$p.value
 

@@ -3847,6 +3847,22 @@ gltA_pyr.sum %>%
   write.xlsx("FIGURES/DATATABLES/pyruvate_supp_scatter.xlsx")
 
 
+bw_score_gltA_pyr = gltA_pyr.sum %>% filter(Genes == "BW", 
+                        Drug %in% c(0,5)) %>% 
+  select(Supplement, Supplement_mM, Drug, BW_score)
+
+gltA_pyr %>%
+  filter(Drug %in% c(0,5)) %>% 
+  left_join(bw_score_gltA_pyr) %>% 
+  mutate(BW_norm = Score - BW_score) %>%
+  unite(gene_sup, Genes, Supplement_mM) %>%
+  group_by(Drug) %>% 
+  # tukey_hsd(Score ~ gene_sup) %>% view
+  pairwise_t_test(BW_norm ~ gene_sup, ref.group = "BW_0") %>% 
+  write_csv("FIGURES/DATATABLES/pyruvate_supp_stats.csv")
+
+
+
 ### Bargraphs
 
 # all glucose barplot
@@ -6059,10 +6075,10 @@ ecoli_metab %>%
   # unite(sample, Bacteria, Media, remove = F) %>% 
   group_by(Bacteria, Metabolite) %>% 
   # pairwise_t_test(PA ~ Media, p.adjust.method = 'fdr') %>% 
-  tukey_hsd(PA ~ Media, detailed=T) +
-  group_by(Metabolite) %>% 
-  mutate(p.adj = p.adjust(p),
-         p.adj.signif = gtools::stars.pval(p.adj)) %>% 
+  tukey_hsd(PA ~ Media, detailed = T) %>% 
+  # group_by(Metabolite) %>% 
+  # mutate(p.adj = p.adjust(p),
+  #        p.adj.signif = gtools::stars.pval(p.adj)) %>% 
   write_csv("FIGURES/DATATABLES/F3E_stats.csv")
 
 
@@ -6085,10 +6101,10 @@ ecoli_metab %>%
          PA = log2(PA)) %>% 
   # unite(sample, Bacteria, Media, remove = F) %>% 
   group_by(Bacteria, Metabolite) %>% 
-  pairwise_t_test(PA ~ Media, p.adjust.method = 'fdr') %>% 
-  group_by(Metabolite) %>% 
-  mutate(p.adj = p.adjust(p),
-         p.adj.signif = gtools::stars.pval(p.adj)) %>% 
+  tukey_hsd(PA ~ Media, detailed = T) %>% 
+  # group_by(Metabolite) %>% 
+  # mutate(p.adj = p.adjust(p),
+  #        p.adj.signif = gtools::stars.pval(p.adj)) %>% 
   write_csv("FIGURES/DATATABLES/F3F_stats.csv")
 
 
@@ -6113,14 +6129,11 @@ ecoli_metab %>%
   facet_wrap(vars(Bacteria, Metabolite))
 
 ecoli_metab %>% 
-  # mutate(PA = PA + 1,
-  #        PA = log2(PA)) %>% 
+  mutate(PA = PA + 1,
+         PA = log2(PA)) %>%
   # unite(sample, Bacteria, Media, remove = F) %>% 
   group_by(Bacteria, Metabolite) %>% 
-  pairwise_t_test(PA ~ Media, p.adjust.method = 'fdr') %>% 
-  group_by(Metabolite) %>% 
-  mutate(p.adj = p.adjust(p),
-         p.adj.signif = gtools::stars.pval(p.adj)) %>% 
+  tukey_hsd(PA ~ Media, detailed = T) %>% 
   write_csv("FIGURES/DATATABLES/F4C_stats.csv")
  
 
@@ -6156,10 +6169,7 @@ ecoli_metab %>%
   #        PA = log2(PA)) %>% 
   # unite(sample, Bacteria, Media, remove = F) %>% 
   group_by(Bacteria, Metabolite) %>% 
-  pairwise_t_test(PA ~ Media, p.adjust.method = 'fdr') %>% 
-  group_by(Metabolite) %>% 
-  mutate(p.adj = p.adjust(p),
-         p.adj.signif = gtools::stars.pval(p.adj)) %>% 
+  tukey_hsd(PA ~ Media, detailed = T) %>%
   write_csv("FIGURES/DATATABLES/FS4E_stats.csv")
 
 

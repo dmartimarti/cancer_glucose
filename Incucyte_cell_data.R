@@ -814,7 +814,7 @@ cell_metadata = read_xlsx("cell_line_metadata.xlsx") %>%
   filter(cell != "MDA-MB-453")
 
 cell_order = c("CCD841_CoN", "CCD-18Co", "HCT116", "SW1417", 
-               "LoVo", "HT29", "SW837", "LS123", "MCF7",
+               "LoVo", "HT29", "SW837", "MCF7",
                "RKO", "T-47D", "SW48", "T84", "SK-CO-1", 
                "U2-OS", "Hs 578T", 
                "DLD-1",  "MDA-MB-231", "SW948", "LS411N")
@@ -911,23 +911,6 @@ cell_matrix %>% t %>%
           #             gp = gpar(fontsize = 10))},)
 
 
-auc_viab %>% 
-  filter(!(str_detect(cell, "ENEM"))) %>% 
-  filter(!(str_detect(cell, "lowG"))) %>% 
-  filter(cell %in% cell_order) %>% 
-  group_by(cell, Micit_mM) %>% 
-  summarise(mean_viab = mean(Viability)) %>% 
-  ungroup %>% 
-  filter(Micit_mM %in% c(0,10)) %>% 
-  pivot_wider(names_from = Micit_mM, values_from = mean_viab) %>% 
-  ggplot(aes(x = `0`, y = `10`)) +
-  geom_point() +
-  geom_smooth(method = 'lm') +
-  labs(
-    x = "Viability at control",
-    y = "Viability at 10 mM Micit"
-  ) +
-  ggpubr::stat_cor(method = "pearson") 
 
   
 
@@ -1073,7 +1056,7 @@ cell23 = cell_data %>%
 
 
 cells_paper = cell1 %>% 
-  bind_rows(cell2,cell3,cell4,cell5,cell6,cell7,cell8,cell9,cell10,cell11,
+  bind_rows(cell2,cell3,cell4,cell5,cell6,cell7,cell9,cell10,cell11,
             cell12,cell13,cell14,cell15,cell16,cell17,cell20,
             cell21, cell23)
 
@@ -1113,7 +1096,9 @@ auc_viab %>%
   filter(cell %in% cell_order) %>% 
   write_csv("summary/TABLES/auc_viability.csv")
 
-
+cell_data %>% 
+  filter(cell %in% cell_order) %>% 
+  write_csv("summary/TABLES/cell_data_MAIN.csv")
 
 
 auc_viab_stats %>% 
@@ -1125,6 +1110,7 @@ auc_viab_stats %>%
 
 
 cells_paper %>% 
+  filter(cell %in% cell_order) %>% 
   write_csv("summary/TABLES/growth_summary_stats.csv")
   
 
@@ -1227,15 +1213,142 @@ mumax %>%
   select(cell, Micit_mM, mumax) %>% 
   pivot_wider(values_from = mumax, names_from = Micit_mM) %>% 
   mutate(diff = `10` - `0`) %>% 
+  left_join(cell_metadata %>% select(cell, Tissue)) %>% 
   arrange(diff) %>% 
   ggplot(aes(x = `0`, y = diff)) +
-  geom_point() +
+  geom_point(aes(fill = Tissue), shape = 21, 
+             size = 3) +
   geom_smooth(method = 'lm') +
   labs(
-    x = "Max GR at control",
-    y = "Difference of mumax (treatment vs control)"
+    x = "mu max at control",
+    y = "Difference of mu max (treatment vs control)"
   ) +
   ggrepel::geom_text_repel(aes(label = cell)) +
-  ggpubr::stat_cor(method = "pearson") 
+  ggpubr::stat_cor(method = "pearson",
+                   label.x = 0.05) +
+  theme_cowplot(font_family = 'Arial')
+
+ggsave("summary/mumax_correlation.pdf", height = 6 , width = 7)
+
+
+
+
+
+
+
+# Kristin data ------------------------------------------------------------
+
+micit_data = read_csv("kristin/adj.AUC_anv.csv")
+
+# micit_data = read_csv("adj.AUC.csv")
+
+library(tidyverse)
+library(stringr)
+library(rstatix)
+
+micit_data %>% 
+  anova_test(AUC ~ Drug * Treatment) %>% 
+  write_csv("organoids_interaction.csv")
+
+
+## growth rates for Kristin ---------
+
+library(ggpubr)
+
+org_growth = read_csv("kristin/merged_dataframe_clean_96hrs.csv") %>% 
+  filter(Location == 'inner') %>% 
+  filter(!(well == 'E10' & Drug == '5FU'))
+
+
+
+org_growth = org_growth %>% select(size = Size_mm2, drug = Drug, t = hrs) %>% 
+  group_by(drug, t) %>% 
+  mutate(replicate = 1:n()) %>% 
+  ungroup
+
+
+easyfit_org = function(df, h){
+  fit = fit_easylinear(df$t, df$size, h = 5)
+  return(coef(fit))
+}
+
+
+
+mumax_org = org_growth %>% 
+  # filter(elapsed > 10) %>% 
+  group_by(drug, replicate) %>%
+  nest() %>%
+  # modify the value of h to take a larger or smaller time window
+  summarise(numax = map(data, easyfit_org, 5)) %>% 
+  unnest_wider(numax) %>% 
+  ungroup
+
+
+
+
+mumax_stats = mumax_org %>% 
+  pairwise_t_test(mumax ~ drug, detailed = T, p.adjust.method = 'fdr') %>% 
+  add_xy_position(x = "drug")
+
+mumax_stats %>% 
+  write_csv("kristin/stats/mumax_stats.csv")
+
+
+mumax_org %>% 
+  ggplot(aes(x = drug, y = mumax, fill = drug)) +
+  geom_boxplot() +
+  geom_point() +
+  ggpubr::stat_pvalue_manual(mumax_stats, 
+                             label = "p.adj.signif", 
+                             tip.length = 0.01)
+
+ggboxplot(mumax_org, x = "drug", y = "mumax", fill = "drug") +
+  stat_pvalue_manual(mumax_stats, label = "p.adj.signif")
+
+
+mumax_org %>% 
+  write_csv("kristin/organoid_mumax.csv")
+
+
+### interaction terms =======
+
+micit_int = read_csv("kristin/organoid_mumax_int_micit.csv") 
+
+micit_int %>% 
+  anova_test(mumax ~ drug*treatment) %>% 
+  write_csv("kristin/stats/mumax_micit_int.csv")
+
+
+FU_int = read_csv("kristin/organoid_mumax_int_5FU.csv") 
+
+FU_int %>% 
+  anova_test(mumax ~ drug*treatment) %>% 
+  write_csv("kristin/stats/mumax_5FU_int.csv")
+
+
+
+
+mumax_org %>%
+  mutate(drug = factor(drug, levels = c("vehicle", 
+                                        "5FU",
+                                        "Micit", 
+                                        "5FU_Micit"))) %>%    
+  ggplot(aes(x = drug, y = mumax, fill = drug)) +
+  geom_boxplot(show.legend = F) +
+  geom_point(show.legend = F, position = position_jitterdodge()) +
+  scale_fill_manual(values = c(
+    "vehicle" = "grey50",
+    "5FU" = "#DF643B",
+    "Micit" = "#F0B357",
+    "5FU_Micit" = "#2F308D"
+  )) +
+  labs(x = NULL,
+       y = expression(mu[max]  (hour^-1))) +
+  theme_cowplot(15, font_family = "Arial")
+
+ggsave("kristin/mumax_organoids.pdf", 
+       height = 5, width = 5)
+
+
 
 
